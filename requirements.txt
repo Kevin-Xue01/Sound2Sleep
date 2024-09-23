@@ -20,10 +20,6 @@ ptyprocess==0.7.0
 pyarrow==17.0.0
 pygatt==5.0.0
 pylsl==1.16.2
-pyobjc-core==10.3.1
-pyobjc-framework-Cocoa==10.3.1
-pyobjc-framework-CoreBluetooth==10.3.1
-pyobjc-framework-libdispatch==10.3.1
 pyparsing==3.1.4
 pyserial==3.5
 python-dateutil==2.9.0.post0
@@ -36,3 +32,8 @@ threadpoolctl==3.5.0
 typing_extensions==4.12.2
 tzdata==2024.1
 zipp==3.20.2
+
+pyobjc-core==10.3.1 ; sys_platform == "darwin"
+pyobjc-framework-Cocoa==10.3.1 ; sys_platform == "darwin"
+pyobjc-framework-CoreBluetooth==10.3.1 ; sys_platform == "darwin"
+pyobjc-framework-libdispatch==10.3.1 ; sys_platform == "darwin"
