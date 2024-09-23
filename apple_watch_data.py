@@ -4,7 +4,8 @@ import os
 
 pd.set_option('display.max_columns', None)
 
-file_path = os.path.expanduser('~/Downloads/apple_health_export/export.xml')
+home_dir = os.path.expanduser("~")
+file_path = os.path.join(home_dir, 'Downloads', 'apple_health_export', 'export.xml')
 tree = ET.parse(file_path) 
 root = tree.getroot()
 record_list = [x.attrib for x in root.iter('Record')]
