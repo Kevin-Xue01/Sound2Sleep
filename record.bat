@@ -1,15 +1,28 @@
 @echo off
+
 REM Get the current date
-for /f "tokens=2 delims==" %%i in ('wmic os get localdatetime /value ^| find "="')
+for /f "tokens=2 delims==" %%i in ('wmic os get localdatetime /value ^| find "="') do set datetime=%%i
 
 REM Format the date
 set "current_date=%datetime:~4,2%_%datetime:~6,2%"
+
+REM Prompt the user for input
+set /p user_input="Please enter name of subject: "
+
+REM Display the input back to the user
+echo You entered: %user_input%
 
 start cmd /k "muselsl stream -p -c -g"
 
 timeout /t 20 /nobreak
 
-start cmd /k "muselsl record -d 30000 -dj True -t EEG"
-start cmd /k "muselsl record -d 30000 -dj True -t PPG"
-start cmd /k "muselsl record -d 30000 -dj True -t ACC"
-start cmd /k "muselsl record -d 30000 -dj True -t GYRO"
+REM Create file names for each recording type
+set "eeg_file=%user_input%/EEG_%current_date%.csv"
+set "ppg_file=%user_input%/PPG_%current_date%.csv"
+set "acc_file=%user_input%/ACC_%current_date%.csv"
+set "gyro_file=%user_input%/GYRO_%current_date%.csv"
+
+start cmd /k "muselsl record -d 30000 -dj True -t EEG -f %eeg_file%"
+start cmd /k "muselsl record -d 30000 -dj True -t PPG -f %ppg_file%"
+start cmd /k "muselsl record -d 30000 -dj True -t ACC -f %acc_file%"
+start cmd /k "muselsl record -d 30000 -dj True -t GYRO -f %gyro_file%"
