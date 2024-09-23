@@ -1,10 +1,10 @@
 @echo off
 
-REM Get the current date
+REM Get the current date and time
 for /f "tokens=2 delims==" %%i in ('wmic os get localdatetime /value ^| find "="') do set datetime=%%i
 
-REM Format the date
-set "current_date=%datetime:~4,2%_%datetime:~6,2%"
+REM Format the date and time (MM-DD_HH)
+set "current_date=%datetime:~4,2%-%datetime:~6,2%_%datetime:~8,2%"
 
 REM Prompt the user for input
 set /p user_input="Please enter name of subject: "
@@ -14,7 +14,7 @@ echo You entered: %user_input%
 
 start cmd /k "muselsl stream -p -c -g"
 
-timeout /t 20 /nobreak
+timeout /t 25 /nobreak
 
 REM Create file names for each recording type
 set "eeg_file=data/%user_input%/EEG_%current_date%.csv"
