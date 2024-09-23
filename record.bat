@@ -17,10 +17,10 @@ start cmd /k "muselsl stream -p -c -g"
 timeout /t 20 /nobreak
 
 REM Create file names for each recording type
-set "eeg_file=%user_input%/EEG_%current_date%.csv"
-set "ppg_file=%user_input%/PPG_%current_date%.csv"
-set "acc_file=%user_input%/ACC_%current_date%.csv"
-set "gyro_file=%user_input%/GYRO_%current_date%.csv"
+set "eeg_file=data/%user_input%/EEG_%current_date%.csv"
+set "ppg_file=data/%user_input%/PPG_%current_date%.csv"
+set "acc_file=data/%user_input%/ACC_%current_date%.csv"
+set "gyro_file=data/%user_input%/GYRO_%current_date%.csv"
 
 start cmd /k "muselsl record -d 30000 -dj True -t EEG -f %eeg_file%"
 start cmd /k "muselsl record -d 30000 -dj True -t PPG -f %ppg_file%"
