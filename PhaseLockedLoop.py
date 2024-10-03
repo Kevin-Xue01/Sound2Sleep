@@ -19,7 +19,7 @@ class PhaseLockedLoop(object):
         """
         self.fs = fs
 
-        self.pll_vco_fq = 0.85
+        self.pll_vco_fq = 0.85 
         self.pll_loopgain = 0.5
         self.filter_gain = 2
         self.vco_sens = 0.3
@@ -70,7 +70,7 @@ class PhaseLockedLoop(object):
         ts_lockbin = np.zeros(block_size)
 
         for n in range(block_size):
-            self.ctime = self.ctime + (1 / self.fs)
+            self.ctime = self.ctime + (1 / self.fs) # update current time
 
             # do pll stuff
             control = data[n] * self.sig_ref * self.pll_loopgain  # phase detector
