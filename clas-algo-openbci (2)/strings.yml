@@ -1,0 +1,20 @@
+takehome:
+  status:
+    stopped: "Paused"
+    running: "Active"
+    eeg: "EEG"
+    algo: "Sounds"
+    impedance: "Quality Check"
+    connecting: "Connecting"
+
+  buttons:
+    pvt: 'Do the sleepiness test'
+
+  styles:
+    base_widget: "background: none; font-family: 'DM Sans';"
+    title: 'color: white; font-size: 110px; font-family: "DM Sans";'
+    h2: 'color: white; font-size: 56px; font-family: "DM Sans"; font-weight: 700;'
+    h3: 'color: white; font-size: 40px; font-family: "DM Sans";'
+    button: 'background: #260075; color: white; font-size: 80px; font-family: "DM Sans";'
+    button_sm: 'background: #260075; color: white; font-size: 40px; font-family: "DM Sans";'
+

@@ -1,0 +1,13 @@
+matplotlib
+pandas
+numpy
+scipy
+simpleaudio
+colorednoise
+fooof
+pyserial
+pyyaml
+pyqt5
+qdarkstyle
+psutil
+requests

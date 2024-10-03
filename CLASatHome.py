@@ -52,7 +52,7 @@ class CLASatHome(QtWidgets.QMainWindow):
 
         # load the UI
         # uic.loadUi('CLASatHome.ui', self)
-        uic.loadUi('clas-at-home-main/CLASatHome.ui', self)
+        uic.loadUi('CLASatHome.ui', self)
 
         # bind buttons and stuff
         self.btn_start.clicked.connect(self.start_streaming)
@@ -100,7 +100,7 @@ class CLASatHome(QtWidgets.QMainWindow):
         Resolve all 3 LSL streams from the Muse S.
         This function blocks for up to 10 seconds.
         '''
-        print('\n\n=== ' + datetime.datetime.now().toISOString() + ' ===\n')
+        print('\n\n=== ' + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' ===\n')
         allok = True
         self.lsl = dict()
         for t in self.datastreams:
@@ -142,6 +142,7 @@ class CLASatHome(QtWidgets.QMainWindow):
                     self.files[d].write(np.array(times).astype(np.double).tobytes())
                     self.files[d].write('TTTT'.encode('ascii'))
                     self.files[d].write(chunk.tobytes(order='C'))
+                    print(chunk)
 
                 else:
                     self.no_data_count += 1
@@ -252,8 +253,9 @@ class CLASatHome(QtWidgets.QMainWindow):
             self.meta['data'][k] = fileroot + '_' + k + '.dat'
             self.meta['fs'][k] = self.lsl[k].nominal_srate()
             self.meta['nchan'][k] = self.lsl[k].channel_count()
-
-            self.files[k] = open(os.path.join('output', self.meta['data'][k]), 'wb')
+            curr_path = os.path.join('output', self.meta['data'][k])
+            # os.makedirs(curr_path, exist_ok=True)
+            self.files[k] = open(curr_path, 'wb')
 
         # save the metafile
         with open(os.path.join('output', 'cah_%s.json' % starttime.strftime('%Y%m%dT%H%M%S')), 'w') as f:
