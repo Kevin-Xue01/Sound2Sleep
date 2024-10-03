@@ -132,9 +132,9 @@ class CLASatHome(QtWidgets.QMainWindow):
                     self.plots[d].add_data(chunk)
 
                     # submit EEG data to the PLL
-                    # if d == 'EEG':
-                    #     _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
-                    #     self.plots['PLL'].add_data(np.stack((ts_ref, ts_lockbin), axis=1))
+                    if d == 'EEG':
+                        _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
+                        self.plots['PLL'].add_data(np.stack((ts_ref, ts_lockbin), axis=1))
 
                     self.files[d].write('NCHK'.encode('ascii'))
                     self.files[d].write(chunk.dtype.char.encode('ascii'))
