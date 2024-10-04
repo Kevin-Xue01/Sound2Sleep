@@ -1,8 +1,3 @@
-'''
-GUI for running the Closed Loop Auditory Stimulation experiment
-Author: Simeon Wong
-'''
-
 import sys
 import traceback
 
@@ -194,8 +189,6 @@ class CLASGUI(QtWidgets.QMainWindow):
         if len(comports) > 1:
             raise Exception('Multiple trigger interfaces detected')
 
-        self.port = serial.Serial(comports[0].device, baudrate=9600)
-
         ### Show figure ###
         self.show()
 
@@ -379,11 +372,11 @@ class CLASGUI(QtWidgets.QMainWindow):
         ''' Start the CLAS algorithm. '''
         print(datetime.datetime.now().isoformat() + ' → CLASGUI.start_algo()')
 
-        if self.eeg.state != ConnectionState.STREAMING:
-            msg = '!!! EEG state is ' + str(self.eeg.state) + '. Cannot start algo.'
-            print(msg)
-            send_error(msg)
-            return
+        # if self.eeg.state != ConnectionState.STREAMING:
+        #     msg = '!!! EEG state is ' + str(self.eeg.state) + '. Cannot start algo.'
+        #     print(msg)
+        #     send_error(msg)
+        #     return
 
         self.runner.set_experiment_mode(QCLASAlgo.ExperimentMode.DISABLED)
 
@@ -460,20 +453,6 @@ class CLASGUI(QtWidgets.QMainWindow):
         self.runner.set_experiment_mode(mode)
         self.send_pp_mode_train(mode)
         self.update_gui_statuslabel_buttons()
-
-    def send_pp_mode_train(self, mode: QCLASAlgo.ExperimentMode):
-        '''
-        Send parallel port pulse pattern that indicates which mode we're running.
-           - 5 pulses, every 100 ms, at 10 ms pulse width
-        '''
-        portcode = 2**(mode + 2) + 128
-        print(datetime.datetime.now().isoformat() +
-              ' → CLASGUI.send_pp_mode_train() | code: ' + str(portcode))
-
-        self.port.write(portcode.to_bytes(1, byteorder='little', signed=False))
-
-        for kk in range(4):
-            QTimer.singleShot(100 * kk, self.get_defer_portcode(portcode))
 
     def start_streaming(self):
         ''' Initiate streaming when the button is pressed '''
@@ -800,15 +779,6 @@ class CLASGUI(QtWidgets.QMainWindow):
 
         return func
 
-    def get_defer_portcode(self, portcode: int):
-
-        def func():
-            self.port.write((portcode).to_bytes(1,
-                                                byteorder='little',
-                                                signed=False))
-
-        return func
-
     def check_and_print_status(self):
         # print current mode
         now = datetime.datetime.now()
@@ -828,88 +798,88 @@ class CLASGUI(QtWidgets.QMainWindow):
             self.algo_set_mode(past_modes[-1])
 
 
-class TSPlot(FigureCanvasQTAgg):
+# class TSPlot(FigureCanvasQTAgg):
 
-    def __init__(self, parent=None, dpi=60):
-        # initialize the figure
-        wsize = parent.size()
-        self.fig = matplotlib.figure.Figure(figsize=(wsize.width() / dpi,
-                                                     wsize.height() / dpi),
-                                            dpi=dpi)  #type:ignore
-        self.axes = self.fig.add_subplot(111)
-        self.axes.invert_yaxis()
-        self.axes.set_position((0.05, 0.18, 0.92, 0.77))
+#     def __init__(self, parent=None, dpi=60):
+#         # initialize the figure
+#         wsize = parent.size()
+#         self.fig = matplotlib.figure.Figure(figsize=(wsize.width() / dpi,
+#                                                      wsize.height() / dpi),
+#                                             dpi=dpi)  #type:ignore
+#         self.axes = self.fig.add_subplot(111)
+#         self.axes.invert_yaxis()
+#         self.axes.set_position((0.05, 0.18, 0.92, 0.77))
 
-        s = super(TSPlot, self)
-        s.__init__(self.fig)
-        self.setParent(parent)
+#         s = super(TSPlot, self)
+#         s.__init__(self.fig)
+#         self.setParent(parent)
 
-        s.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
-                        QtWidgets.QSizePolicy.Expanding)
-        s.updateGeometry()
+#         s.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+#                         QtWidgets.QSizePolicy.Expanding)
+#         s.updateGeometry()
 
-    def clear(self):
-        self.axes.cla()
+#     def clear(self):
+#         self.axes.cla()
 
-    def plot(self, time, data):
-        self.plt = self.axes.plot(time, data.T, lw=1, c='white', alpha=0.8)
-        self.axes.set_ylim(-500, 500)
-        self.draw()
+#     def plot(self, time, data):
+#         self.plt = self.axes.plot(time, data.T, lw=1, c='white', alpha=0.8)
+#         self.axes.set_ylim(-500, 500)
+#         self.draw()
 
-    def update_data(self, data):
-        # for kk, ln in enumerate(self.plt):
-        #     ln.set_ydata(data[kk, :])
-        self.plt[0].set_ydata(data)
-        self.draw()
-
-
-class HistoricalPlot(FigureCanvasQTAgg):
-
-    def __init__(self, parent=None, dpi=60):
-        # initialize the figure
-        wsize = parent.size()
-        self.fig = matplotlib.figure.Figure(figsize=(wsize.width() / dpi,
-                                                     wsize.height() / dpi),
-                                            dpi=dpi)  #type:ignore
-        self.axes = self.fig.add_subplot(111)
-        self.axes.invert_yaxis()
-        self.axes.set_position((0.05, 0.18, 0.92, 0.77))
-
-        s = super(HistoricalPlot, self)
-        s.__init__(self.fig)
-        self.setParent(parent)
-
-        s.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
-                        QtWidgets.QSizePolicy.Expanding)
-        s.updateGeometry()
-
-    def clear(self):
-        self.axes.cla()
-
-    def plot(self, time, data):
-        self.plt = self.axes.plot(time, data.T)
-        self.axes.set_ylim(-15, 0)
-        self.draw()
-
-    def update_data(self, data):
-        # for kk, ln in enumerate(self.plt):
-        #     ln.set_ydata(data[kk, :])
-        self.plt[0].set_ydata(data)
-        self.draw()
-
-class DummyPort():
-    def __init__(self):
-        pass
-
-    def write(self, val:int):
-        print('PORT WRITE {:d}'.format(val))
+#     def update_data(self, data):
+#         # for kk, ln in enumerate(self.plt):
+#         #     ln.set_ydata(data[kk, :])
+#         self.plt[0].set_ydata(data)
+#         self.draw()
 
 
-def excepthook(exc_type, exc_value, exc_tb):
-    tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    print('################\n## escapehook ##\n################\n' + tb +
-          '################')
-    send_error(tb)
+# class HistoricalPlot(FigureCanvasQTAgg):
+
+#     def __init__(self, parent=None, dpi=60):
+#         # initialize the figure
+#         wsize = parent.size()
+#         self.fig = matplotlib.figure.Figure(figsize=(wsize.width() / dpi,
+#                                                      wsize.height() / dpi),
+#                                             dpi=dpi)  #type:ignore
+#         self.axes = self.fig.add_subplot(111)
+#         self.axes.invert_yaxis()
+#         self.axes.set_position((0.05, 0.18, 0.92, 0.77))
+
+#         s = super(HistoricalPlot, self)
+#         s.__init__(self.fig)
+#         self.setParent(parent)
+
+#         s.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+#                         QtWidgets.QSizePolicy.Expanding)
+#         s.updateGeometry()
+
+#     def clear(self):
+#         self.axes.cla()
+
+#     def plot(self, time, data):
+#         self.plt = self.axes.plot(time, data.T)
+#         self.axes.set_ylim(-15, 0)
+#         self.draw()
+
+#     def update_data(self, data):
+#         # for kk, ln in enumerate(self.plt):
+#         #     ln.set_ydata(data[kk, :])
+#         self.plt[0].set_ydata(data)
+#         self.draw()
+
+# class DummyPort():
+#     def __init__(self):
+#         pass
+
+#     def write(self, val:int):
+#         print('PORT WRITE {:d}'.format(val))
+
+
+# def excepthook(exc_type, exc_value, exc_tb):
+#     tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+#     print('################\n## escapehook ##\n################\n' + tb +
+#           '################')
+#     send_error(tb)
 
 
 
