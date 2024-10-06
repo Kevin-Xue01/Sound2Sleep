@@ -5,7 +5,7 @@ import threading
 import argparse
 import numpy as np
 import time
-from pylsl import StreamInfo, StreamOutlet
+from pylsl import StreamInfo, StreamOutlet, local_clock
 import random
 
 SRATE = 256 # [Hz]

@@ -18,8 +18,6 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from scipy import signal
 from datetime import datetime
 
-from PhaseLockedLoop import PhaseLockedLoop
-
 matplotlib.use('QT5Agg')
 QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
 
@@ -67,8 +65,6 @@ class CLASatHome(QtWidgets.QMainWindow):
         self.plots['EEG'] = TimeseriesPlot(parent=self.timeseries_widget)
         self.plots['Accelerometer'] = SmallPlot(parent=self.accl_widget)
         self.plots['PPG'] = SmallPlot(parent=self.pleth_widget, filter=0.01)
-
-        self.plots['PLL'] = SmallPlot(parent=self.pll_widget)
 
         # start bluemuse if not already started
         subprocess.call('start bluemuse:', shell=True)
@@ -134,7 +130,6 @@ class CLASatHome(QtWidgets.QMainWindow):
                     # submit EEG data to the PLL
                     # if d == 'EEG':
                     #     _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
-                    #     self.plots['PLL'].add_data(np.stack((ts_ref, ts_lockbin), axis=1))
                     print(f"Type: {d}, shape: {chunk.shape}")
 
                     self.files[d].write('NCHK'.encode('ascii'))
@@ -264,10 +259,6 @@ class CLASatHome(QtWidgets.QMainWindow):
 
         # initialize the error log
         self.files['err'] = open(os.path.join('output', self.meta['error_log']), 'w')
-
-        # initialize the PLL
-        self.plots['PLL'].init_data(fsample=self.lsl['EEG'].nominal_srate(), history_time=8, nchan=2)
-        self.pll = PhaseLockedLoop(fs=self.lsl['EEG'].nominal_srate())
 
         # initialize the data stream timer
         self.lsl_timer = QTimer()
