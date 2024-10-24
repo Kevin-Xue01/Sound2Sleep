@@ -19,7 +19,7 @@ from scipy import signal
 from datetime import datetime
 
 matplotlib.use('QT5Agg')
-QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
 
 # HELPER STATIC FUNCTIONS
 def find_procs_by_name(name):
