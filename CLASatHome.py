@@ -14,7 +14,7 @@ import numpy as np
 import matplotlib, matplotlib.figure
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-
+from CLASAlgo import CLASAlgo
 from scipy import signal
 from datetime import datetime
 
@@ -51,7 +51,7 @@ class CLASatHome(QtWidgets.QMainWindow):
         # load the UI
         # uic.loadUi('CLASatHome.ui', self)
         uic.loadUi('CLASatHome.ui', self)
-
+        self.clas_algo = CLASAlgo(100, 'params.json')
         # bind buttons and stuff
         self.btn_start.clicked.connect(self.start_streaming)
         self.btn_stop.clicked.connect(self.stop_streaming)
@@ -129,7 +129,9 @@ class CLASatHome(QtWidgets.QMainWindow):
 
                     # submit EEG data to the PLL
                     if d == 'EEG':
-                        _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
+                        # _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
+                        self.clas_algo.new_data(chunk[:, 0])
+                        print(self.clas_algo.process_block())
                     print(f"Type: {d}, shape: {chunk.shape}")
 
                     # self.files[d].write('NCHK'.encode('ascii'))
@@ -151,7 +153,7 @@ class CLASatHome(QtWidgets.QMainWindow):
             except Exception as ex:
                 # construct traceback
                 tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-                tbstring.insert(0, '=== ' + datetime.datetime.now().toISOString() + ' ===')
+                tbstring.insert(0, '=== ' + datetime.now().toISOString() + ' ===')
 
                 # print to screen and error log file
                 print('\n'.join(tbstring))

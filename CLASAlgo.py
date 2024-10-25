@@ -140,7 +140,7 @@ class CLASAlgo():
         # other initialization
 
         # initialize experiment mode
-        self.set_experiment_mode(ExperimentMode.DISABLED)  # default is disabled
+        self.set_experiment_mode(ExperimentMode.CLAS)  # default is disabled
 
     def replace_data(self, time_elapsed: float, data: np.ndarray):
         '''
