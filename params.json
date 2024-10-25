@@ -1,6 +1,6 @@
 {
     "amp_threshold": 1,
-    "amp_limit": 1,
+    "amp_limit": 200,
     "prediction_limit_sec": 2,
     "backoff_time": 2,
     "quadrature_thresh": null,
