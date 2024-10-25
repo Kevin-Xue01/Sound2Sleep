@@ -128,16 +128,16 @@ class CLASatHome(QtWidgets.QMainWindow):
                     self.plots[d].add_data(chunk)
 
                     # submit EEG data to the PLL
-                    # if d == 'EEG':
-                    #     _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
-                    # print(f"Type: {d}, shape: {chunk.shape}")
+                    if d == 'EEG':
+                        _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
+                    print(f"Type: {d}, shape: {chunk.shape}")
 
-                    self.files[d].write('NCHK'.encode('ascii'))
-                    self.files[d].write(chunk.dtype.char.encode('ascii'))
-                    self.files[d].write(np.array(chunk.shape).astype(np.uint32).tobytes())
-                    self.files[d].write(np.array(times).astype(np.double).tobytes())
-                    self.files[d].write('TTTT'.encode('ascii'))
-                    self.files[d].write(chunk.tobytes(order='C'))
+                    # self.files[d].write('NCHK'.encode('ascii'))
+                    # self.files[d].write(chunk.dtype.char.encode('ascii'))
+                    # self.files[d].write(np.array(chunk.shape).astype(np.uint32).tobytes())
+                    # self.files[d].write(np.array(times).astype(np.double).tobytes())
+                    # self.files[d].write('TTTT'.encode('ascii'))
+                    # self.files[d].write(chunk.tobytes(order='C'))
                     # print(chunk)
 
                 else:
