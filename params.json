@@ -1,0 +1,23 @@
+{
+    "amp_threshold": 1,
+    "amp_limit": 1,
+    "prediction_limit_sec": 2,
+    "backoff_time": 2,
+    "quadrature_thresh": null,
+    "quadrature_len": 2,
+    "sham_mindelay": 2,
+    "sham_maxdelay": 2,
+    "freq_limits": [2, 1],
+
+    "stim2_start_delay": 2,
+    "stim2_end_delay": 2,
+    "stim2_prediction_limit_sec": 2,
+
+    "high_freq_vals": [2],
+    "high_low_freq_ratio": 2,
+    "high_low_freq_lookback_ratio": 2,
+    "high_low_lookback_nblocks": 2,
+    "amp_lookback_nblocks": 2,
+    "target_phase": 1,
+    "analysis_len": 2
+}
