@@ -118,46 +118,36 @@ class CLASatHome(QtWidgets.QMainWindow):
         '''
         for d in self.datastreams:
             try:
-                # chunk, times = self.inlet[d].pull_chunk()
-                # chunk = np.array(chunk)
+                chunk, times = self.inlet[d].pull_chunk()
+                chunk = np.array(chunk)
 
-                # if len(times) > 0:
-                #     self.no_data_count = 0
+                if len(times) > 0:
+                    self.no_data_count = 0
 
-                #     # store the data
-                #     self.plots[d].add_data(chunk)
+                    # store the data
+                    self.plots[d].add_data(chunk)
 
-                #     # submit EEG data to the PLL
-                #     # if d == 'EEG':
-                #     #     _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
-                #     print(f"Type: {d}, shape: {chunk.shape}")
+                    # submit EEG data to the PLL
+                    # if d == 'EEG':
+                    #     _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
+                    # print(f"Type: {d}, shape: {chunk.shape}")
 
-                #     self.files[d].write('NCHK'.encode('ascii'))
-                #     self.files[d].write(chunk.dtype.char.encode('ascii'))
-                #     self.files[d].write(np.array(chunk.shape).astype(np.uint32).tobytes())
-                #     self.files[d].write(np.array(times).astype(np.double).tobytes())
-                #     self.files[d].write('TTTT'.encode('ascii'))
-                #     self.files[d].write(chunk.tobytes(order='C'))
-                #     print(chunk)
-
-                # else:
-                #     self.no_data_count += 1
-
-                #     # if no data after 2 seconds, attempt to reset and recover
-                #     if self.no_data_count > 20:
-                #         self.lsl_reset_stream_step1()
-                sample, times = self.inlet[d].pull_sample()
-
-                if times:
-                    print(sample)
+                    self.files[d].write('NCHK'.encode('ascii'))
+                    self.files[d].write(chunk.dtype.char.encode('ascii'))
+                    self.files[d].write(np.array(chunk.shape).astype(np.uint32).tobytes())
+                    self.files[d].write(np.array(times).astype(np.double).tobytes())
+                    self.files[d].write('TTTT'.encode('ascii'))
+                    self.files[d].write(chunk.tobytes(order='C'))
+                    # print(chunk)
 
                 else:
+                    if d == 'EEG':
+                        print('No data')
                     self.no_data_count += 1
 
                     # if no data after 2 seconds, attempt to reset and recover
                     if self.no_data_count > 20:
                         self.lsl_reset_stream_step1()
-
             except Exception as ex:
                 # construct traceback
                 tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
@@ -274,7 +264,7 @@ class CLASatHome(QtWidgets.QMainWindow):
         # initialize the data stream timer
         self.lsl_timer = QTimer()
         self.lsl_timer.timeout.connect(self.lsl_timer_callback)
-        self.lsl_timer.start(100)
+        self.lsl_timer.start(200)
 
         # initialize the plot refresh timer
         self.draw_timer = QTimer()
