@@ -175,26 +175,26 @@ class CLASGUI(QtWidgets.QMainWindow):
             datetime.datetime.combine(basedate + datetime.timedelta(days=1),
                                       datetime.time(hour=12)))
 
-        ### INITIALIZE PLOTS ###
-        self.tsplot = TSPlot(self.timeseries)
-        self.hplot = HistoricalPlot(self.historical)
+        # ### INITIALIZE PLOTS ###
+        # self.tsplot = TSPlot(self.timeseries)
+        # self.hplot = HistoricalPlot(self.historical)
 
-        ### TRIGGER OUTPUT ###
-        comports = serial.tools.list_ports.comports()
-        comports = [p for p in comports if p.vid in [9025, 10755]]
+        # ### TRIGGER OUTPUT ###
+        # comports = serial.tools.list_ports.comports()
+        # comports = [p for p in comports if p.vid in [9025, 10755]]
 
-        if len(comports) == 0:
-            raise Exception('No matching ports found')
+        # if len(comports) == 0:
+        #     raise Exception('No matching ports found')
 
-        if len(comports) > 1:
-            raise Exception('Multiple trigger interfaces detected')
+        # if len(comports) > 1:
+        #     raise Exception('Multiple trigger interfaces detected')
 
         ### Show figure ###
         self.show()
 
         ### Preinitialize other variables ###
         self.status_report = QTimer(self)
-        self.triggertest_timer = None
+        # self.triggertest_timer = None
         self.soundtest_timer = None
 
         # guess the clas params file
@@ -337,16 +337,16 @@ class CLASGUI(QtWidgets.QMainWindow):
                 el_c.setEnabled(False)
                 el_t.setEnabled(False)
 
-        # trigger test
-        if self.triggertest_timer is None and not self.btn_startclas_running:
-            self.btn_triggertest_seq.setEnabled(True)
-            self.btn_triggertest_max.setEnabled(True)
-        else:
-            self.btn_triggertest_seq.setEnabled(False)
-            self.btn_triggertest_max.setEnabled(False)
+        # # trigger test
+        # if self.triggertest_timer is None and not self.btn_startclas_running:
+        #     self.btn_triggertest_seq.setEnabled(True)
+        #     self.btn_triggertest_max.setEnabled(True)
+        # else:
+        #     self.btn_triggertest_seq.setEnabled(False)
+        #     self.btn_triggertest_max.setEnabled(False)
 
-        if self.triggertest_timer is not None:
-            status_text = 'Trigger test'  # override status text with test
+        # if self.triggertest_timer is not None:
+        #     status_text = 'Trigger test'  # override status text with test
 
         # sound test
         if self.soundtest_timer is None and not self.btn_startclas_running:
@@ -682,64 +682,64 @@ class CLASGUI(QtWidgets.QMainWindow):
 
         self.update_gui_statuslabel_buttons()
 
-    def triggertest_start(self):
-        print(datetime.datetime.now().isoformat() +
-              ' → CLASGUI.triggertest_start()')
+    # def triggertest_start(self):
+    #     print(datetime.datetime.now().isoformat() +
+    #           ' → CLASGUI.triggertest_start()')
 
-        # reset timer
-        if self.triggertest_timer is not None:
-            self.triggertest_timer.stop()
+    #     # reset timer
+    #     if self.triggertest_timer is not None:
+    #         self.triggertest_timer.stop()
 
-        # reset trigger test state variable
-        self.triggertest_state = 0
+    #     # reset trigger test state variable
+    #     self.triggertest_state = 0
 
-        # start callback timer
-        self.triggertest_timer = QTimer(self)
-        self.triggertest_timer.timeout.connect(self.triggertest_callback)
-        self.triggertest_timer.start(250)
+    #     # start callback timer
+    #     self.triggertest_timer = QTimer(self)
+    #     self.triggertest_timer.timeout.connect(self.triggertest_callback)
+    #     self.triggertest_timer.start(250)
 
-        self.txt_triggertest.setText('Starting')
+    #     self.txt_triggertest.setText('Starting')
 
-        self.update_gui_statuslabel_buttons()
+    #     self.update_gui_statuslabel_buttons()
 
-    def triggertest_callback(self):
-        print(datetime.datetime.now().isoformat() +
-              ' → CLASGUI.triggertest_callback()  |  state = {:d}'.format(
-                  self.triggertest_state))
+    # def triggertest_callback(self):
+    #     print(datetime.datetime.now().isoformat() +
+    #           ' → CLASGUI.triggertest_callback()  |  state = {:d}'.format(
+    #               self.triggertest_state))
 
-        if self.triggertest_state > 15:
-            self.triggertest_timer.stop()  # type:ignore
-            self.triggertest_timer = None
+    #     if self.triggertest_state > 15:
+    #         self.triggertest_timer.stop()  # type:ignore
+    #         self.triggertest_timer = None
 
-            self.port.write((255).to_bytes(1, byteorder='little',
-                                           signed=False))
+    #         self.port.write((255).to_bytes(1, byteorder='little',
+    #                                        signed=False))
 
-            self.triggertest_reset()
+    #         self.triggertest_reset()
 
-        else:
-            pw = self.triggertest_state if (self.triggertest_state < 8) else (
-                15 - self.triggertest_state)
-            self.triggertest_state += 1
+    #     else:
+    #         pw = self.triggertest_state if (self.triggertest_state < 8) else (
+    #             15 - self.triggertest_state)
+    #         self.triggertest_state += 1
 
-            self.txt_triggertest.setText('Sent {:d}'.format(2**pw))
-            self.port.write((2**pw).to_bytes(1,
-                                             byteorder='little',
-                                             signed=False))
+    #         self.txt_triggertest.setText('Sent {:d}'.format(2**pw))
+    #         self.port.write((2**pw).to_bytes(1,
+    #                                          byteorder='little',
+    #                                          signed=False))
 
-    def triggertest_max(self):
-        print(datetime.datetime.now().isoformat() +
-              ' → CLASGUI.triggertest_max()')
-        self.port.write((255).to_bytes(1, byteorder='little', signed=False))
-        self.triggertest_state = -2
-        self.txt_triggertest.setText('Sending 255...')
-        QTimer.singleShot(100, self.triggertest_reset)
+    # def triggertest_max(self):
+    #     print(datetime.datetime.now().isoformat() +
+    #           ' → CLASGUI.triggertest_max()')
+    #     self.port.write((255).to_bytes(1, byteorder='little', signed=False))
+    #     self.triggertest_state = -2
+    #     self.txt_triggertest.setText('Sending 255...')
+    #     QTimer.singleShot(100, self.triggertest_reset)
 
-    def triggertest_reset(self):
-        print(datetime.datetime.now().isoformat() +
-              ' → CLASGUI.triggertest_reset()')
-        self.triggertest_state = -1
-        self.txt_triggertest.setText('Not running')
-        self.update_gui_statuslabel_buttons()
+    # def triggertest_reset(self):
+    #     print(datetime.datetime.now().isoformat() +
+    #           ' → CLASGUI.triggertest_reset()')
+    #     self.triggertest_state = -1
+    #     self.txt_triggertest.setText('Not running')
+    #     self.update_gui_statuslabel_buttons()
 
     def cue_stim(self, delay: int, trig: int, muted: bool):
         if delay > 0:
@@ -757,19 +757,12 @@ class CLASGUI(QtWidgets.QMainWindow):
         self.data_intent.write(
             trig.to_bytes(1, byteorder='little', signed=False))
 
-    def reset_pp(self):
-        ''' Set parallel port output to zero. '''
-        # this is no longer needed because the port automatically goes to zero
-        pass
-
     def deliver_stim(self, trig: int, muted: bool = False):
         ''' Write trigger to parallel port and play sound if asked. '''
         self.port.write((trig).to_bytes(1, byteorder='little', signed=False))
         if not muted:
             QCLASAlgo.pink_noise.play()
-        print('Stim {:d} delivered at {} (muted = {})'.format(
-            trig,
-            datetime.datetime.now().isoformat(), muted))
+        print('Stim {:d} delivered at {} (muted = {})'.format(trig, datetime.datetime.now().isoformat(), muted))
 
     def get_defer_stim(self, trig: int, muted: bool = False) -> Callable:
         ''' Return a callable with the trigger built in. '''
@@ -796,90 +789,6 @@ class CLASGUI(QtWidgets.QMainWindow):
 
         if (len(past_modes) > 0) and (self.runner.ca.experiment_mode != past_modes[-1]):
             self.algo_set_mode(past_modes[-1])
-
-
-# class TSPlot(FigureCanvasQTAgg):
-
-#     def __init__(self, parent=None, dpi=60):
-#         # initialize the figure
-#         wsize = parent.size()
-#         self.fig = matplotlib.figure.Figure(figsize=(wsize.width() / dpi,
-#                                                      wsize.height() / dpi),
-#                                             dpi=dpi)  #type:ignore
-#         self.axes = self.fig.add_subplot(111)
-#         self.axes.invert_yaxis()
-#         self.axes.set_position((0.05, 0.18, 0.92, 0.77))
-
-#         s = super(TSPlot, self)
-#         s.__init__(self.fig)
-#         self.setParent(parent)
-
-#         s.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
-#                         QtWidgets.QSizePolicy.Expanding)
-#         s.updateGeometry()
-
-#     def clear(self):
-#         self.axes.cla()
-
-#     def plot(self, time, data):
-#         self.plt = self.axes.plot(time, data.T, lw=1, c='white', alpha=0.8)
-#         self.axes.set_ylim(-500, 500)
-#         self.draw()
-
-#     def update_data(self, data):
-#         # for kk, ln in enumerate(self.plt):
-#         #     ln.set_ydata(data[kk, :])
-#         self.plt[0].set_ydata(data)
-#         self.draw()
-
-
-# class HistoricalPlot(FigureCanvasQTAgg):
-
-#     def __init__(self, parent=None, dpi=60):
-#         # initialize the figure
-#         wsize = parent.size()
-#         self.fig = matplotlib.figure.Figure(figsize=(wsize.width() / dpi,
-#                                                      wsize.height() / dpi),
-#                                             dpi=dpi)  #type:ignore
-#         self.axes = self.fig.add_subplot(111)
-#         self.axes.invert_yaxis()
-#         self.axes.set_position((0.05, 0.18, 0.92, 0.77))
-
-#         s = super(HistoricalPlot, self)
-#         s.__init__(self.fig)
-#         self.setParent(parent)
-
-#         s.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
-#                         QtWidgets.QSizePolicy.Expanding)
-#         s.updateGeometry()
-
-#     def clear(self):
-#         self.axes.cla()
-
-#     def plot(self, time, data):
-#         self.plt = self.axes.plot(time, data.T)
-#         self.axes.set_ylim(-15, 0)
-#         self.draw()
-
-#     def update_data(self, data):
-#         # for kk, ln in enumerate(self.plt):
-#         #     ln.set_ydata(data[kk, :])
-#         self.plt[0].set_ydata(data)
-#         self.draw()
-
-# class DummyPort():
-#     def __init__(self):
-#         pass
-
-#     def write(self, val:int):
-#         print('PORT WRITE {:d}'.format(val))
-
-
-# def excepthook(exc_type, exc_value, exc_tb):
-#     tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-#     print('################\n## escapehook ##\n################\n' + tb +
-#           '################')
-#     send_error(tb)
 
 
 
