@@ -17,17 +17,11 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from CLASAlgo import CLASAlgo
 from scipy import signal
 from datetime import datetime
+from utils import screenoff, find_procs_by_name
 
 matplotlib.use('QT5Agg')
 QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
 
-# HELPER STATIC FUNCTIONS
-def find_procs_by_name(name):
-    ls = []
-    for p in psutil.process_iter(['name']):
-        if p.info['name'] == name:
-            ls.append(p)
-    return ls
 
 # MAIN CLASS
 class CLASatHome(QtWidgets.QMainWindow):
@@ -55,7 +49,7 @@ class CLASatHome(QtWidgets.QMainWindow):
         # bind buttons and stuff
         self.btn_start.clicked.connect(self.start_streaming)
         self.btn_stop.clicked.connect(self.stop_streaming)
-        self.btn_screenoff.clicked.connect(self.screenoff)
+        self.btn_screenoff.clicked.connect(screenoff)
 
         # set status indicator state
         self.status.setStyleSheet("background-color: white")
@@ -77,19 +71,6 @@ class CLASatHome(QtWidgets.QMainWindow):
 
         # display the window
         self.show()
-
-    def screenoff(self):
-        ''' Darken the screen by starting the blank screensaver '''
-        try:
-            subprocess.call(['C:\Windows\System32\scrnsave.scr', '/start'])
-        except Exception as ex:
-            # construct traceback
-            tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-            tbstring.insert(0, '=== ' + datetime.datetime.now().toISOString() + ' ===')
-
-            # print to screen and error log file
-            print('\n'.join(tbstring))
-            self.files['err'].writelines(tbstring)
 
     def lsl_reload(self):
         ''' 
