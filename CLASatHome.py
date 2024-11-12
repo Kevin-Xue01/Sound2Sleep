@@ -16,7 +16,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from CLASAlgo import CLASAlgo
 from scipy import signal
 from datetime import datetime
-from utils import screenoff, find_procs_by_name, BlueMuseSignal
+from utils import screenoff, find_procs_by_name, BlueMuseSignal, StreamType
 from bluemuse import BlueMuse
 matplotlib.use('QT5Agg')
 QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
@@ -204,7 +204,7 @@ class CLASatHome(QtWidgets.QMainWindow):
         Callback for "Start" button
         Start bluemuse, streams, initialize recording files
         '''
-
+        self.blue_muse_thread.start_streaming()
         # initialize bluemuse and try to resolve LSL streams
         # subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
         # if not self.lsl_reload():
@@ -224,12 +224,12 @@ class CLASatHome(QtWidgets.QMainWindow):
         # }
 
         # start the selected steram
-        self.inlet = dict()
-        for k in self.datastreams:
-            self.inlet[k] = StreamInlet(self.lsl[k])
-            self.plots[k].init_data(fsample=self.lsl[k].nominal_srate(),
-                                    history_time=8,
-                                    nchan=self.lsl[k].channel_count())
+        # self.stream_inlet
+        # for streamtype in StreamType:
+        #     self.inlet[streamtype] = StreamInlet(self.lsl[streamtype])
+            # self.plots[k].init_data(fsample=self.lsl[k].nominal_srate(),
+            #                         history_time=8,
+            #                         nchan=self.lsl[k].channel_count())
 
             # # include details in metadata
             # self.meta['data'][k] = fileroot + '_' + k + '.dat'
