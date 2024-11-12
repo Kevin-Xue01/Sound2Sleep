@@ -58,7 +58,7 @@ class BlueMuse(QRunnable):
         '''
         for streamtype in StreamType:
             try:
-                data, times = self.stream_inlets[streamtype.value].pull_chunk()
+                data, times = self.stream_inlets[streamtype].pull_chunk()
                 data = np.array(data)
 
                 if len(times) > 0:
@@ -159,10 +159,12 @@ class BlueMuse(QRunnable):
 
         # initialize bluemuse and try to resolve LSL streams
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-        if not self.lsl_reload():
-            # self.status.setStyleSheet("background-color: yellow")
-            # self.status.setText('Unable to connect to Muse S...')
-            return
+        print('Test1')
+        # if not self.lsl_reload():
+        #     # self.status.setStyleSheet("background-color: yellow")
+        #     # self.status.setText('Unable to connect to Muse S...')
+        #     return
+        print('Test2')
 
         # # initialize metadata file
         # fileroot = uuid.uuid4().hex
@@ -178,6 +180,8 @@ class BlueMuse(QRunnable):
         # start the selected steram
         self.stream_inlets = {}
         for streamtype in StreamType:
+            if streamtype not in self.stream_infos:
+                continue
             self.stream_inlets[streamtype] = StreamInlet(self.stream_infos[streamtype])
             # self.plots[k].init_data(fsample=self.lsl[k].nominal_srate(),
             #                         history_time=8,
@@ -207,9 +211,9 @@ class BlueMuse(QRunnable):
         '''
         self.lsl_timer.stop()
 
-        for i, _ in enumerate(self.stream_inlets):
+        for streamtype in StreamType:
             try:
-                self.stream_inlets[i].close_stream()
+                self.stream_inlets[streamtype].close_stream()
             except Exception as ex:
                 # construct traceback
                 tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
