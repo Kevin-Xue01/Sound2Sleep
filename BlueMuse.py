@@ -5,11 +5,11 @@ import numpy as np
 from PyQt5.QtCore import QThreadPool, QRunnable, pyqtSignal, QObject, QTimer
 from pylsl import StreamInlet, resolve_stream, resolve_byprop, StreamInfo
 from datetime import datetime
-from utils import find_procs_by_name, StreamType, QtSignal
+from utils import find_procs_by_name, StreamType, BlueMuseSignal
 
 
 class BlueMuse(QRunnable):
-    def __init__(self, data_signal: QtSignal, sleep_duration: float=12/256):
+    def __init__(self, data_signal: BlueMuseSignal, sleep_duration: float=12/256):
         super().__init__()
         self.data_signal = data_signal
         self.stream_infos: dict[StreamType, StreamInfo] = {}

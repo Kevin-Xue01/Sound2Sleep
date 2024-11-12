@@ -1,14 +1,13 @@
 from PyQt5 import QtWidgets, uic, QtCore
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, QThreadPool
 import sys
-from pylsl import StreamInlet, resolve_byprop, resolve_streams
+from pylsl import StreamInlet, resolve_byprop
 import os
 import os.path
 import json
 import uuid
 import subprocess
 import traceback
-import psutil
 
 import numpy as np
 import matplotlib, matplotlib.figure
@@ -17,35 +16,30 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from CLASAlgo import CLASAlgo
 from scipy import signal
 from datetime import datetime
-from utils import screenoff, find_procs_by_name
-
+from utils import screenoff, find_procs_by_name, BlueMuseSignal
+from bluemuse import BlueMuse
 matplotlib.use('QT5Agg')
 QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
 
 
 # MAIN CLASS
 class CLASatHome(QtWidgets.QMainWindow):
-    datastreams = ['EEG', 'Accelerometer', 'PPG']
+    # datastreams = ['EEG', 'Accelerometer', 'PPG']
 
-    no_data_count = 0
-    reset_attempt_count = 0
+    # no_data_count = 0
+    # reset_attempt_count = 0
 
-    lsl_timer = None
+    # lsl_timer = None
     draw_timer = None
 
     # stream information
     plots = dict()
-    lsl = dict()
-    inlet = dict()
+    # lsl = dict()
+    # inlet = dict()
     files = dict()
 
-    def __init__(self):
-        super().__init__()
-
-        # load the UI
-        # uic.loadUi('CLASatHome.ui', self)
+    def setupUI(self):
         uic.loadUi('CLASatHome.ui', self)
-        self.clas_algo = CLASAlgo(100, 'params.json')
         # bind buttons and stuff
         self.btn_start.clicked.connect(self.start_streaming)
         self.btn_stop.clicked.connect(self.stop_streaming)
@@ -54,148 +48,156 @@ class CLASatHome(QtWidgets.QMainWindow):
         # set status indicator state
         self.status.setStyleSheet("background-color: white")
 
-        # plots
-        self.plots = dict()
-        self.plots['EEG'] = TimeseriesPlot(parent=self.timeseries_widget)
-        self.plots['Accelerometer'] = SmallPlot(parent=self.accl_widget)
-        self.plots['PPG'] = SmallPlot(parent=self.pleth_widget, filter=0.01)
+    def __init__(self):
+        super().__init__()
+        self.setupUI()
+        self.thread_pool = QThreadPool.globalInstance()
+        self.clas_algo = CLASAlgo(100, 'params.json')
+        self.blue_muse_signal = BlueMuseSignal()
+        self.blue_muse_signal.update_data.connect(self.print_data)
+        self.blue_muse_thread = BlueMuse(self.blue_muse_signal)
 
-        # start bluemuse if not already started
-        subprocess.call('start bluemuse:', shell=True)
-        subprocess.call('start bluemuse://setting?key=primary_timestamp_format!value=BLUEMUSE', shell=True)
-        subprocess.call('start bluemuse://setting?key=channel_data_type!value=float32', shell=True)
-        subprocess.call('start bluemuse://setting?key=eeg_enabled!value=true', shell=True)
-        subprocess.call('start bluemuse://setting?key=accelerometer_enabled!value=true', shell=True)
-        subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=false', shell=True)
-        subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
+        # # plots
+        # self.plots = dict()
+        # self.plots['EEG'] = TimeseriesPlot(parent=self.timeseries_widget)
+        # self.plots['Accelerometer'] = SmallPlot(parent=self.accl_widget)
+        # self.plots['PPG'] = SmallPlot(parent=self.pleth_widget, filter=0.01)
+
+        # Start the background task to ingest EEG data
+        self.thread_pool.start(self.blue_muse_thread)
 
         # display the window
         self.show()
 
-    def lsl_reload(self):
-        ''' 
-        Resolve all 3 LSL streams from the Muse S.
-        This function blocks for up to 10 seconds.
-        '''
-        print('\n\n=== ' + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' ===\n')
-        allok = True
-        self.lsl = dict()
-        for t in self.datastreams:
-            self.lsl[t] = resolve_byprop('type', t, timeout=10)
+    def print_data(self, timestamps, data):
+        print(timestamps)
+        print(data)
+        
 
-            if self.lsl[t]:
-                self.lsl[t] = self.lsl[t][0]
-                print('%s OK.' % t)
-            else:
-                print('%s not found.' % t)
-                allok = False
+    # def lsl_reload(self):
+    #     ''' 
+    #     Resolve all 3 LSL streams from the Muse S.
+    #     This function blocks for up to 10 seconds.
+    #     '''
+    #     print('\n\n=== ' + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' ===\n')
+    #     allok = True
+    #     self.lsl = dict()
+    #     for t in self.datastreams:
+    #         self.lsl[t] = resolve_byprop('type', t, timeout=10)
 
-        return allok
+    #         if self.lsl[t]:
+    #             self.lsl[t] = self.lsl[t][0]
+    #             print('%s OK.' % t)
+    #         else:
+    #             print('%s not found.' % t)
+    #             allok = False
 
-    def lsl_timer_callback(self):
-        ''' 
-        Get data from LSL streams and route it to the right place (plot, files, phase tracker).
-        Callback for lsl_timer.
-        '''
-        for d in self.datastreams:
-            try:
-                chunk, times = self.inlet[d].pull_chunk()
-                chunk = np.array(chunk)
+    #     return allok
 
-                if len(times) > 0:
-                    self.no_data_count = 0
+    # def lsl_timer_callback(self):
+    #     ''' 
+    #     Get data from LSL streams and route it to the right place (plot, files, phase tracker).
+    #     Callback for lsl_timer.
+    #     '''
+    #     for d in self.datastreams:
+    #         try:
+    #             chunk, times = self.inlet[d].pull_chunk()
+    #             chunk = np.array(chunk)
 
-                    # store the data
-                    self.plots[d].add_data(chunk)
+    #             if len(times) > 0:
+    #                 self.no_data_count = 0
 
-                    # submit EEG data to the PLL
-                    if d == 'EEG':
-                        # _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
-                        self.clas_algo.new_data(chunk[:, 0])
-                        print(self.clas_algo.process_block())
-                    print(f"Type: {d}, shape: {chunk.shape}")
+    #                 # store the data
+    #                 self.plots[d].add_data(chunk)
 
-                    # self.files[d].write('NCHK'.encode('ascii'))
-                    # self.files[d].write(chunk.dtype.char.encode('ascii'))
-                    # self.files[d].write(np.array(chunk.shape).astype(np.uint32).tobytes())
-                    # self.files[d].write(np.array(times).astype(np.double).tobytes())
-                    # self.files[d].write('TTTT'.encode('ascii'))
-                    # self.files[d].write(chunk.tobytes(order='C'))
-                    # print(chunk)
+    #                 # submit EEG data to the PLL
+    #                 if d == 'EEG':
+    #                     # _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
+    #                     self.clas_algo.new_data(chunk[:, 0])
+    #                     print(self.clas_algo.process_block())
+    #                 print(f"Type: {d}, shape: {chunk.shape}")
 
-                else:
-                    if d == 'EEG':
-                        print('No data')
-                    self.no_data_count += 1
+    #                 # self.files[d].write('NCHK'.encode('ascii'))
+    #                 # self.files[d].write(chunk.dtype.char.encode('ascii'))
+    #                 # self.files[d].write(np.array(chunk.shape).astype(np.uint32).tobytes())
+    #                 # self.files[d].write(np.array(times).astype(np.double).tobytes())
+    #                 # self.files[d].write('TTTT'.encode('ascii'))
+    #                 # self.files[d].write(chunk.tobytes(order='C'))
+    #                 # print(chunk)
 
-                    # if no data after 2 seconds, attempt to reset and recover
-                    if self.no_data_count > 20:
-                        self.lsl_reset_stream_step1()
-            except Exception as ex:
-                # construct traceback
-                tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-                tbstring.insert(0, '=== ' + datetime.now().toISOString() + ' ===')
+    #             else:
+    #                 if d == 'EEG':
+    #                     print('No data')
+    #                 self.no_data_count += 1
 
-                # print to screen and error log file
-                print('\n'.join(tbstring))
-                self.files['err'].writelines(tbstring)
+    #                 # if no data after 2 seconds, attempt to reset and recover
+    #                 if self.no_data_count > 20:
+    #                     self.lsl_reset_stream_step1()
+    #         except Exception as ex:
+    #             # construct traceback
+    #             tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
+    #             tbstring.insert(0, '=== ' + datetime.now().toISOString() + ' ===')
 
-    def lsl_reset_stream_step1(self):
-        self.no_data_count = 0  # reset no data counter
-        self.lsl_timer.stop()  # stop data pulling loop
+    #             # print to screen and error log file
+    #             print('\n'.join(tbstring))
+    #             self.files['err'].writelines(tbstring)
 
-        # restart bluemuse streaming, wait, and restart
-        subprocess.call('start bluemuse://stop?stopall', shell=True)
-        QTimer.singleShot(3000, self.lsl_reset_stream_step2)
+    # def lsl_reset_stream_step1(self):
+    #     self.no_data_count = 0  # reset no data counter
+    #     self.lsl_timer.stop()  # stop data pulling loop
 
-    def lsl_reset_stream_step2(self):
-        ''' 
-        Try to restart streams the lsl pull timer.
-        Part of interrupted stream restart process.
-        '''
-        subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-        QTimer.singleShot(3000, self.lsl_reset_stream_step3)
+    #     # restart bluemuse streaming, wait, and restart
+    #     subprocess.call('start bluemuse://stop?stopall', shell=True)
+    #     QTimer.singleShot(3000, self.lsl_reset_stream_step2)
 
-    def lsl_reset_stream_step3(self):
-        reset_success = self.lsl_reload()
+    # def lsl_reset_stream_step2(self):
+    #     ''' 
+    #     Try to restart streams the lsl pull timer.
+    #     Part of interrupted stream restart process.
+    #     '''
+    #     subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+    #     QTimer.singleShot(3000, self.lsl_reset_stream_step3)
 
-        if not reset_success:
-            # if we can't get the streams up, try again
-            self.reset_attempt_count = self.reset_attempt_count + 1
-            if self.reset_attempt_count < 3:
-                self.lsl_reset_stream_step1()
-            else:
-                self.reset_attempt_count = 0
+    # def lsl_reset_stream_step3(self):
+    #     reset_success = self.lsl_reload()
 
-                # if the stream really isn't working.. kill bluemuse
-                for p in find_procs_by_name('BlueMuse.exe'):
-                    p.kill()
+    #     if not reset_success:
+    #         # if we can't get the streams up, try again
+    #         self.reset_attempt_count = self.reset_attempt_count + 1
+    #         if self.reset_attempt_count < 3:
+    #             self.lsl_reset_stream_step1()
+    #         else:
+    #             self.reset_attempt_count = 0
 
-                # try the reset process again
-                QTimer.singleShot(3000, self.lsl_reset_stream_step1)
-        else:
-            # if all streams have resolved, start polling data again!
-            self.reset_attempt_count = 0
-            self.lsl_timer.start()
+    #             # if the stream really isn't working.. kill bluemuse
+    #             for p in find_procs_by_name('BlueMuse.exe'):
+    #                 p.kill()
 
-    def draw_timer_callback(self):
-        ''' 
-        Tell all the plots to redraw.
-        Callback for draw_timer.
-        '''
+    #             # try the reset process again
+    #             QTimer.singleShot(3000, self.lsl_reset_stream_step1)
+    #     else:
+    #         # if all streams have resolved, start polling data again!
+    #         self.reset_attempt_count = 0
+    #         self.lsl_timer.start()
 
-        # redraw the plots on timeout
-        for k in self.plots:
-            try:
-                self.plots[k].redraw()
-            except Exception as ex:
-                # construct traceback
-                tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-                tbstring.insert(0, '=== ' + datetime.datetime.now().toISOString() + ' ===')
+    # def draw_timer_callback(self):
+    #     ''' 
+    #     Tell all the plots to redraw.
+    #     Callback for draw_timer.
+    #     '''
 
-                # print to screen and error log file
-                print('\n'.join(tbstring))
-                self.files['err'].writelines(tbstring)
+    #     # redraw the plots on timeout
+    #     for k in self.plots:
+    #         try:
+    #             self.plots[k].redraw()
+    #         except Exception as ex:
+    #             # construct traceback
+    #             tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
+    #             tbstring.insert(0, '=== ' + datetime.datetime.now().toISOString() + ' ===')
+
+    #             # print to screen and error log file
+    #             print('\n'.join(tbstring))
+    #             self.files['err'].writelines(tbstring)
 
     def start_streaming(self):
         ''' 
@@ -204,22 +206,22 @@ class CLASatHome(QtWidgets.QMainWindow):
         '''
 
         # initialize bluemuse and try to resolve LSL streams
-        subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-        if not self.lsl_reload():
-            self.status.setStyleSheet("background-color: yellow")
-            self.status.setText('Unable to connect to Muse S...')
-            return
+        # subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+        # if not self.lsl_reload():
+        #     self.status.setStyleSheet("background-color: yellow")
+        #     self.status.setText('Unable to connect to Muse S...')
+        #     return
 
-        # initialize metadata file
-        fileroot = uuid.uuid4().hex
-        starttime = datetime.now()
-        self.meta = {
-            "start_time": starttime.isoformat(),
-            "data": {},
-            "fs": {},
-            "nchan": {},
-            "error_log": fileroot + '_err.txt'
-        }
+        # # initialize metadata file
+        # fileroot = uuid.uuid4().hex
+        # starttime = datetime.now()
+        # self.meta = {
+        #     "start_time": starttime.isoformat(),
+        #     "data": {},
+        #     "fs": {},
+        #     "nchan": {},
+        #     "error_log": fileroot + '_err.txt'
+        # }
 
         # start the selected steram
         self.inlet = dict()
@@ -229,68 +231,52 @@ class CLASatHome(QtWidgets.QMainWindow):
                                     history_time=8,
                                     nchan=self.lsl[k].channel_count())
 
-            # include details in metadata
-            self.meta['data'][k] = fileroot + '_' + k + '.dat'
-            self.meta['fs'][k] = self.lsl[k].nominal_srate()
-            self.meta['nchan'][k] = self.lsl[k].channel_count()
-            curr_path = os.path.join('output', self.meta['data'][k])
-            # os.makedirs(curr_path, exist_ok=True)
-            self.files[k] = open(curr_path, 'wb')
+            # # include details in metadata
+            # self.meta['data'][k] = fileroot + '_' + k + '.dat'
+            # self.meta['fs'][k] = self.lsl[k].nominal_srate()
+            # self.meta['nchan'][k] = self.lsl[k].channel_count()
+            # curr_path = os.path.join('output', self.meta['data'][k])
+            # # os.makedirs(curr_path, exist_ok=True)
+            # self.files[k] = open(curr_path, 'wb')
 
-        # save the metafile
-        with open(os.path.join('output', 'cah_%s.json' % starttime.strftime('%Y%m%dT%H%M%S')), 'w') as f:
-            json.dump(self.meta, f)
+        # # save the metafile
+        # with open(os.path.join('output', 'cah_%s.json' % starttime.strftime('%Y%m%dT%H%M%S')), 'w') as f:
+        #     json.dump(self.meta, f)
 
-        # initialize the error log
-        self.files['err'] = open(os.path.join('output', self.meta['error_log']), 'w')
+        # # initialize the error log
+        # self.files['err'] = open(os.path.join('output', self.meta['error_log']), 'w')
 
-        # initialize the data stream timer
-        self.lsl_timer = QTimer()
-        self.lsl_timer.timeout.connect(self.lsl_timer_callback)
-        self.lsl_timer.start(200)
+        # # initialize the data stream timer
+        # self.lsl_timer = QTimer()
+        # self.lsl_timer.timeout.connect(self.lsl_timer_callback)
+        # self.lsl_timer.start(200)
 
-        # initialize the plot refresh timer
-        self.draw_timer = QTimer()
-        self.draw_timer.timeout.connect(self.draw_timer_callback)
-        self.draw_timer.start(500)
+        # # initialize the plot refresh timer
+        # self.draw_timer = QTimer()
+        # self.draw_timer.timeout.connect(self.draw_timer_callback)
+        # self.draw_timer.start(500)
 
-        # set button state
-        self.status.setStyleSheet("background-color: green")
-        self.status.setText('Streaming...')
+        # # set button state
+        # self.status.setStyleSheet("background-color: green")
+        # self.status.setText('Streaming...')
 
     def stop_streaming(self):
         ''' 
         Callback for "Stop" button
         Stop lsl chunk timers, GUI update timers, stop streams
         '''
-        if self.lsl_timer is not None:
-            self.lsl_timer.stop()
-            self.lsl_timer = None
-
         if self.draw_timer is not None:
             self.draw_timer.stop()
             self.draw_timer = None
 
-        for k in self.inlet:
-            try:
-                self.inlet[k].close_stream()
-            except Exception as ex:
-                # construct traceback
-                tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-                tbstring.insert(0, '=== ' + datetime.datetime.now().toISOString() + ' ===')
+        # for k in self.files:
+        #     self.files[k].close()
 
-                # print to screen and error log file
-                print('\n'.join(tbstring))
-                self.files['err'].writelines(tbstring)
+        # # set button state
+        # self.status.setStyleSheet("background-color: white")
+        # self.status.setText('Ready.')
 
-        for k in self.files:
-            self.files[k].close()
-
-        # set button state
-        self.status.setStyleSheet("background-color: white")
-        self.status.setText('Ready.')
-
-        subprocess.call('start bluemuse://stop?stopall', shell=True)
+        # subprocess.call('start bluemuse://stop?stopall', shell=True)
 
 
 class TimeseriesPlot(FigureCanvasQTAgg):
