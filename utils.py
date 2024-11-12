@@ -15,14 +15,13 @@ from pylsl import StreamInlet, resolve_stream, resolve_byprop, StreamInfo
 from multiprocessing import Process, Queue
 from enum import Enum, auto
 from datetime import datetime
-from utils import find_procs_by_name
 
 class StreamType(Enum):
     EEG = 'EEG'
     Accelerometer = 'Accelerometer'
     PPG = 'PPG'
 
-class QtSignal(QObject):
+class BlueMuseSignal(QObject):
     update_data = pyqtSignal(np.ndarray, np.ndarray)  # Emit a tuple of (data, timestamp)
     
 def screenoff():
