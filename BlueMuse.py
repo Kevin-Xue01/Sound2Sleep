@@ -71,7 +71,7 @@ class BlueMuse(QRunnable):
 
                     # Generate unique timestamps for each sample within the chunk
                     unique_times = np.array([start_time + i * time_step for i in range(len(data))])
-
+                    print(unique_times, np.array(data))
                     # Emit the data with the generated unique timestamps
                     self.data_signal.update_data.emit(unique_times, np.array(data))
 
