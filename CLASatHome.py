@@ -1,5 +1,5 @@
 from PyQt5 import QtWidgets, uic, QtCore
-from PyQt5.QtCore import QTimer, QThreadPool
+from PyQt5.QtCore import QTimer, QThreadPool, QThread
 import sys
 from pylsl import StreamInlet, resolve_byprop
 import os
@@ -51,20 +51,20 @@ class CLASatHome(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setupUI()
-        self.thread_pool = QThreadPool.globalInstance()
+        # self.thread_pool = QThreadPool.globalInstance()
         self.clas_algo = CLASAlgo(100, 'params.json')
         self.blue_muse_signal = BlueMuseSignal()
         self.blue_muse_signal.update_data.connect(self.print_data)
-        self.blue_muse_thread = BlueMuse(self.blue_muse_signal)
-
+        self.blue_muse_worker = BlueMuse(self.blue_muse_signal)
+        self.blue_muse_thread = QThread()
+        self.blue_muse_worker.moveToThread(self.blue_muse_thread)
+        self.blue_muse_thread.started.connect(self.blue_muse_worker.run)  # Ensure run is the main task
+        self.blue_muse_thread.start()
         # # plots
         # self.plots = dict()
         # self.plots['EEG'] = TimeseriesPlot(parent=self.timeseries_widget)
         # self.plots['Accelerometer'] = SmallPlot(parent=self.accl_widget)
         # self.plots['PPG'] = SmallPlot(parent=self.pleth_widget, filter=0.01)
-
-        # Start the background task to ingest EEG data
-        self.thread_pool.start(self.blue_muse_thread)
 
         # display the window
         self.show()

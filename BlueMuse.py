@@ -8,7 +8,7 @@ from datetime import datetime
 from utils import find_procs_by_name, StreamType, BlueMuseSignal
 
 
-class BlueMuse(QRunnable):
+class BlueMuse(QObject):
     def __init__(self, data_signal: BlueMuseSignal, sleep_duration: float=12/256):
         super().__init__()
         self.data_signal = data_signal
@@ -159,12 +159,10 @@ class BlueMuse(QRunnable):
 
         # initialize bluemuse and try to resolve LSL streams
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-        print('Test1')
         # if not self.lsl_reload():
         #     # self.status.setStyleSheet("background-color: yellow")
         #     # self.status.setText('Unable to connect to Muse S...')
         #     return
-        print('Test2')
 
         # # initialize metadata file
         # fileroot = uuid.uuid4().hex
