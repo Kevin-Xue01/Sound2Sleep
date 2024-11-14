@@ -9,6 +9,7 @@ import uuid
 import subprocess
 import traceback
 
+import pandas as pd
 import numpy as np
 import matplotlib, matplotlib.figure
 import matplotlib.pyplot as plt
@@ -51,6 +52,7 @@ class CLASatHome(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setupUI()
+        self.output_file = 'output.csv'
         # self.thread_pool = QThreadPool.globalInstance()
         self.clas_algo = CLASAlgo(100, 'params.json')
         self.blue_muse_signal = BlueMuseSignal()
@@ -69,10 +71,17 @@ class CLASatHome(QtWidgets.QMainWindow):
         # display the window
         self.show()
 
-    def print_data(self, timestamps, data):
-        print(timestamps)
-        print(data)
-        
+    def print_data(self, streamtype, timestamps, data):
+        # print(timestamps)
+        # print(data)
+        if streamtype == StreamType.EEG:
+            data_mean = np.mean(data, axis=1)
+            combined = np.vstack((timestamps, data_mean)).T
+            if not os.path.exists(self.output_file):
+                df = pd.DataFrame(columns=['timestamp', 'data'])
+                df.to_csv(self.output_file, index=False)
+            df = pd.DataFrame(combined, columns=['timestamp', 'data'])
+            df.to_csv(self.output_file, mode='a', header=not os.path.exists(self.output_file), index=False)
 
     # def lsl_reload(self):
     #     ''' 
@@ -204,7 +213,7 @@ class CLASatHome(QtWidgets.QMainWindow):
         Callback for "Start" button
         Start bluemuse, streams, initialize recording files
         '''
-        self.blue_muse_thread.start_streaming()
+        self.blue_muse_worker.start_streaming()
         # initialize bluemuse and try to resolve LSL streams
         # subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
         # if not self.lsl_reload():

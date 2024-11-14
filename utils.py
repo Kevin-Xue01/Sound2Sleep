@@ -22,7 +22,7 @@ class StreamType(Enum):
     PPG = 'PPG'
 
 class BlueMuseSignal(QObject):
-    update_data = pyqtSignal(np.ndarray, np.ndarray)  # Emit a tuple of (data, timestamp)
+    update_data = pyqtSignal(StreamType, np.ndarray, np.ndarray)  # Emit a tuple of (data, timestamp)
     
 def screenoff():
     ''' Darken the screen by starting the blank screensaver '''

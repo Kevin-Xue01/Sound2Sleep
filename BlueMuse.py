@@ -28,9 +28,6 @@ class BlueMuse(QObject):
         subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=false', shell=True)
         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
 
-        self.lsl_timer = QTimer()
-        self.lsl_timer.timeout.connect(self.lsl_timer_callback)
-
     def lsl_reload(self):
         ''' 
         Resolve all 3 LSL streams from the Muse S.
@@ -58,6 +55,8 @@ class BlueMuse(QObject):
         '''
         for streamtype in StreamType:
             try:
+                if streamtype not in self.stream_inlets:
+                    continue
                 data, times = self.stream_inlets[streamtype].pull_chunk()
                 data = np.array(data)
 
@@ -71,9 +70,9 @@ class BlueMuse(QObject):
 
                     # Generate unique timestamps for each sample within the chunk
                     unique_times = np.array([start_time + i * time_step for i in range(len(data))])
-                    print(unique_times, np.array(data))
+                    # print(unique_times, np.array(data))
                     # Emit the data with the generated unique timestamps
-                    self.data_signal.update_data.emit(unique_times, np.array(data))
+                    self.data_signal.update_data.emit(streamtype, unique_times, np.array(data))
 
                     # # store the data
                     # self.plots[d].add_data(chunk)
@@ -102,7 +101,7 @@ class BlueMuse(QObject):
             except Exception as ex:
                 # construct traceback
                 tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-                tbstring.insert(0, '=== ' + datetime.now() + ' ===')
+                tbstring.insert(0, '=== ' + str(datetime.now()) + ' ===')
 
                 # print to screen and error log file
                 print('\n'.join(tbstring))
@@ -159,7 +158,7 @@ class BlueMuse(QObject):
 
         # initialize bluemuse and try to resolve LSL streams
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-        # if not self.lsl_reload():
+        self.lsl_reload()
         #     # self.status.setStyleSheet("background-color: yellow")
         #     # self.status.setText('Unable to connect to Muse S...')
         #     return
@@ -199,7 +198,8 @@ class BlueMuse(QObject):
 
         # # initialize the error log
         # self.files['err'] = open(os.path.join('output', self.meta['error_log']), 'w')
-
+        self.lsl_timer = QTimer()
+        self.lsl_timer.timeout.connect(self.lsl_timer_callback)
         self.lsl_timer.start(200)
 
     def stop_streaming(self):
@@ -211,7 +211,8 @@ class BlueMuse(QObject):
 
         for streamtype in StreamType:
             try:
-                self.stream_inlets[streamtype].close_stream()
+                if streamtype in self.stream_inlets:
+                    self.stream_inlets[streamtype].close_stream()
             except Exception as ex:
                 # construct traceback
                 tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
