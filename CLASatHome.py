@@ -25,11 +25,6 @@ QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_EnableHigh
 
 # MAIN CLASS
 class CLASatHome(QtWidgets.QMainWindow):
-    # datastreams = ['EEG', 'Accelerometer', 'PPG']
-
-    # no_data_count = 0
-    # reset_attempt_count = 0
-
     # lsl_timer = None
     draw_timer = None
 
@@ -65,8 +60,6 @@ class CLASatHome(QtWidgets.QMainWindow):
         # # plots
         # self.plots = dict()
         # self.plots['EEG'] = TimeseriesPlot(parent=self.timeseries_widget)
-        # self.plots['Accelerometer'] = SmallPlot(parent=self.accl_widget)
-        # self.plots['PPG'] = SmallPlot(parent=self.pleth_widget, filter=0.01)
 
         # display the window
         self.show()
@@ -333,69 +326,6 @@ class TimeseriesPlot(FigureCanvasQTAgg):
         self.axes.set_ylim(-1 * self.ylims, self.ylims)
         self.draw()
 
-
-class SmallPlot(FigureCanvasQTAgg):
-    filt_sos = None
-    filt_zi = None
-
-    def __init__(self, parent, zerocenter=False, filter=None, dpi=60):
-        wsize = parent.size()
-        self.fig = matplotlib.figure.Figure(figsize=(wsize.width() / dpi, wsize.height() / dpi), dpi=dpi)
-
-        self.axes = self.fig.add_subplot(111)
-        # plt.tight_layout()
-        self.axes.set_position((0.05, 0.18, 0.92, 0.77))
-
-        s = super(SmallPlot, self)
-        s.__init__(self.fig)
-        self.setParent(parent)
-
-        s.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-        s.updateGeometry()
-
-        self.zerocenter = zerocenter
-
-        if filter is not None:
-            self.filt_sos = signal.butter(2, filter, btype='highpass', output='sos')
-
-    def init_data(self, fsample, history_time, nchan):
-        self.fsample = fsample
-        self.history_time = history_time
-        self.data = np.zeros((int(self.fsample * self.history_time), nchan))
-        self.time = np.arange(-1 * self.history_time * self.fsample, 0) / self.fsample
-
-        self.ylims = 0.1
-
-        self.compute_initial_figure()
-
-        if self.filt_sos is not None:
-            # self.filt_zi = np.stack([signal.sosfilt_zi(self.filt_sos)] * nchan, axis=2)
-            self.filt_zi = np.zeros((1, 2, nchan))
-
-    def compute_initial_figure(self):
-        self.axes.clear()
-        self.plt = self.axes.plot(self.time, self.data)
-        self.axes.set_xlim(-1 * self.history_time, 0)
-        self.draw()
-
-    def add_data(self, x):
-        if self.zerocenter is True:
-            x = x - self.data.mean(axis=0)[None, :]
-
-        if self.filt_sos is not None:
-            x, self.filt_zi = signal.sosfilt(self.filt_sos, x, axis=0, zi=self.filt_zi)
-
-        n_new_samp = x.shape[0]
-        self.data[:-n_new_samp, :] = self.data[n_new_samp:, :]
-        self.data[-n_new_samp:, :] = x
-
-        self.ylims = (0.9 * self.ylims) + (0.1 * np.abs(self.data).max() * 1.05)
-
-    def redraw(self):
-        for i, p in enumerate(self.plt):
-            p.set_ydata(self.data[:, i])
-        self.axes.set_ylim(-1 * self.ylims, self.ylims)
-        self.draw()
 
 
 if __name__ == "__main__":
