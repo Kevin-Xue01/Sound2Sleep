@@ -18,7 +18,7 @@ from CLASAlgo import CLASAlgo
 from scipy import signal
 from datetime import datetime
 from utils import screenoff, find_procs_by_name, BlueMuseSignal, StreamType
-from bluemuse import BlueMuse
+from blue_muse import BlueMuse
 matplotlib.use('QT5Agg')
 QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
 
