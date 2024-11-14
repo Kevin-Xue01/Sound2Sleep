@@ -39,7 +39,7 @@ class CLASatHome(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setupUI()
-        output_file = os.path.join(os.getcwd(), 'data', 'kevin', 'output.csv')
+        output_file = os.path.join(os.getcwd(), 'data', 'kevin', 'output.h5')
         self.eeg_data_writer = DataWriter(output_file, 4, 12)
         # self.thread_pool = QThreadPool.globalInstance()
         self.clas_algo = CLASAlgo(100, 'params.json')
@@ -59,6 +59,7 @@ class CLASatHome(QtWidgets.QMainWindow):
 
     def write_data(self, streamtype, timestamps, data):
         if streamtype == StreamType.EEG:
+            print(data.shape)
             self.eeg_data_writer.write_data(timestamps, data)
             # data_mean = np.mean(data, axis=1)
             # combined = np.vstack((timestamps, data_mean)).T
