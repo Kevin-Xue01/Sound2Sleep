@@ -4,6 +4,7 @@ import sys
 from pylsl import StreamInlet, resolve_byprop
 import os
 import os.path
+import pyqtgraph as pg
 
 import numpy as np
 import matplotlib, matplotlib.figure
@@ -26,7 +27,7 @@ class CLASatHome(QtWidgets.QMainWindow):
 
     plots = dict()
 
-    def setupUI(self):
+    def init_UI(self):
         uic.loadUi('CLASatHome.ui', self)
         # bind buttons and stuff
         self.btn_start.clicked.connect(self.start_streaming)
@@ -36,20 +37,26 @@ class CLASatHome(QtWidgets.QMainWindow):
         # set status indicator state
         self.status.setStyleSheet("background-color: white")
 
-    def __init__(self):
-        super().__init__()
-        self.setupUI()
-        output_file = os.path.join(os.getcwd(), 'data', 'kevin', 'output.h5')
-        self.eeg_data_writer = DataWriter(output_file, 4, 12)
-        # self.thread_pool = QThreadPool.globalInstance()
-        self.clas_algo = CLASAlgo(100, 'params.json')
+    def init_BlueMuse(self):
         self.blue_muse_signal = BlueMuseSignal()
         self.blue_muse_signal.update_data.connect(self.write_data)
         self.blue_muse_worker = BlueMuse(self.blue_muse_signal)
         self.blue_muse_thread = QThread()
         self.blue_muse_worker.moveToThread(self.blue_muse_thread)
         self.blue_muse_thread.started.connect(self.blue_muse_worker.run)  # Ensure run is the main task
-        self.blue_muse_thread.start()
+
+    def __init__(self):
+        super().__init__()
+        self.init_UI()
+        self.init_BlueMuse()
+        
+        output_file = os.path.join(os.getcwd(), 'data', 'kevin', 'output.h5')
+        self.eeg_data_writer = DataWriter(output_file, 4, 12)
+
+        self.clas_algo = CLASAlgo(100, 'params.json')
+
+        
+
         # # plots
         # self.plots = dict()
         # self.plots['EEG'] = TimeseriesPlot(parent=self.timeseries_widget)
@@ -93,7 +100,8 @@ class CLASatHome(QtWidgets.QMainWindow):
         Callback for "Start" button
         Start bluemuse, streams, initialize recording files
         '''
-        self.blue_muse_worker.start_streaming()
+        # self.blue_muse_worker.start_streaming()
+        self.blue_muse_thread.start()
 
         # # initialize metadata file
         # fileroot = uuid.uuid4().hex

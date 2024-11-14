@@ -11,55 +11,6 @@ class DataSignal(QObject):
     update_data = pyqtSignal(np.ndarray, np.ndarray)  # Emit a tuple of (data, timestamp)
     update_fft_data = pyqtSignal(np.ndarray)
 
-class IngestEEGDataTask(QRunnable):
-    def __init__(self, data_signal: DataSignal):
-        super().__init__()
-        self.data_signal = data_signal
-        self.is_running = True
-
-    # def run(self):
-    #     streams = resolve_stream('type', 'EEG')  # Find EEG stream
-    #     inlet = StreamInlet(streams[0])
-
-    #     while self.is_running:
-    #         # Get data and corresponding timestamps from the inlet
-    #         data, times = inlet.pull_chunk()
-
-    #         if len(times) > 0:
-    #             start_time = times[0]
-
-    #             # Calculate the time step between consecutive samples
-    #             time_step = 1.0 / 256
-
-    #             # Generate unique timestamps for each sample within the chunk
-    #             unique_times = np.array([start_time + i * time_step for i in range(len(data))])
-
-    #             # Emit the data with the generated unique timestamps
-    #             self.data_signal.update_data.emit(np.array(data), unique_times)
-    #             with open('main_output.csv', 'a') as f:
-    #                 np.savetxt(f, np.column_stack((unique_times, np.array(data))), delimiter=',', fmt='%f')
-    #         time.sleep(12/256)
-    def run(self):
-        streams = resolve_stream('type', 'EEG')  # Find EEG stream
-        inlet = StreamInlet(streams[0])
-
-        while self.is_running:
-            # Pull one sample and its timestamp from the inlet
-            data, timestamp = inlet.pull_sample()
-
-            if timestamp:
-                # Emit the single data sample along with its timestamp
-                self.data_signal.update_data.emit(np.array([data]), np.array([timestamp]))
-                
-                # Save the sample and timestamp to a file
-                with open('main_output.csv', 'a') as f:
-                    np.savetxt(f, np.column_stack((np.array([timestamp]), np.array([data]))), delimiter=',', fmt='%f')
-
-            # Sleep for a short interval to match the sampling rate (e.g., for 256 Hz)
-            time.sleep(30.0/ 256)
-    def stop(self):
-        self.is_running = False
-
 class FFTProcess(Process):
     def __init__(self, input_queue: Queue, output_queue: Queue):
         super().__init__()
