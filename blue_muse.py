@@ -12,12 +12,13 @@ class BlueMuse(QObject):
     def __init__(self, data_signal: BlueMuseSignal, sleep_duration: float=12/256):
         super().__init__()
         self.data_signal = data_signal
+        self.sleep_duration = sleep_duration
+
         self.stream_infos: dict[StreamType, StreamInfo] = {}
         self.stream_inlets: dict[StreamType, StreamInlet] = {}
-        self.files = {}
+        # self.files = {}
         self.no_data_count = 0
         self.reset_attempt_count = 0
-        self.sleep_duration = sleep_duration
 
         # start bluemuse if not already started
         subprocess.call('start bluemuse:', shell=True)
@@ -53,11 +54,9 @@ class BlueMuse(QObject):
         Get data from LSL streams and route it to the right place (plot, files, phase tracker).
         Callback for lsl_timer.
         '''
-        for streamtype in StreamType:
+        for streamtype, streaminlet in self.stream_inlets.items():
             try:
-                if streamtype not in self.stream_inlets:
-                    continue
-                data, times = self.stream_inlets[streamtype].pull_chunk()
+                data, times = streaminlet.pull_chunk()
                 data = np.array(data)
 
                 if len(times) > 0:
@@ -175,11 +174,8 @@ class BlueMuse(QObject):
         # }
 
         # start the selected steram
-        self.stream_inlets = {}
-        for streamtype in StreamType:
-            if streamtype not in self.stream_infos:
-                continue
-            self.stream_inlets[streamtype] = StreamInlet(self.stream_infos[streamtype])
+        for streamtype, streaminfo in self.stream_infos.items():
+            self.stream_inlets[streamtype] = StreamInlet(streaminfo)
             # self.plots[k].init_data(fsample=self.lsl[k].nominal_srate(),
             #                         history_time=8,
             #                         nchan=self.lsl[k].channel_count())
@@ -209,10 +205,9 @@ class BlueMuse(QObject):
         '''
         self.lsl_timer.stop()
 
-        for streamtype in StreamType:
+        for _, streaminlet in self.stream_inlets.items():
             try:
-                if streamtype in self.stream_inlets:
-                    self.stream_inlets[streamtype].close_stream()
+                streaminlet.close_stream()
             except Exception as ex:
                 # construct traceback
                 tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
