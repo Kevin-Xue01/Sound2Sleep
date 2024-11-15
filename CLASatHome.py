@@ -45,7 +45,8 @@ class EEGPlotterWidget(QWidget):
             self.curves.append(curve)
 
     def update_plots(self, streamtype: StreamType, times: np.ndarray, data: np.ndarray):
-        print(streamtype, times, data)
+        if streamtype == StreamType.EEG:
+            print('Plotter')
         """
         Update EEG data plots with new data chunks.
 
@@ -53,18 +54,18 @@ class EEGPlotterWidget(QWidget):
         - data (np.ndarray): Array with shape (n_samples, 4) for 4 EEG channels.
         - times (np.ndarray): Array of timestamps for the EEG samples.
         """
-        for i in range(len(self.eeg_channels)):
-            # Append the new data to the buffer
-            self.plot_data[i].extend(data[:, i].tolist())
-            self.time_data[i].extend(times.tolist())
+        # for i in range(len(self.eeg_channels)):
+        #     # Append the new data to the buffer
+        #     self.plot_data[i].extend(data[:, i].tolist())
+        #     self.time_data[i].extend(times.tolist())
 
-            # Keep the buffer within the maximum size
-            if len(self.plot_data[i]) > self.MAX_BUFFER_SIZE:
-                self.plot_data[i] = self.plot_data[i][-self.MAX_BUFFER_SIZE:]
-                self.time_data[i] = self.time_data[i][-self.MAX_BUFFER_SIZE:]
+        #     # Keep the buffer within the maximum size
+        #     if len(self.plot_data[i]) > self.MAX_BUFFER_SIZE:
+        #         self.plot_data[i] = self.plot_data[i][-self.MAX_BUFFER_SIZE:]
+        #         self.time_data[i] = self.time_data[i][-self.MAX_BUFFER_SIZE:]
 
-            # Update the plot with new data
-            self.curves[i].setData(self.time_data[i], self.plot_data[i])  # X-axis as time, Y-axis as EEG data
+        #     # Update the plot with new data
+        #     self.curves[i].setData(self.time_data[i], self.plot_data[i])  # X-axis as time, Y-axis as EEG data
 
 class CLASatHome(QMainWindow):
     draw_timer = None
@@ -119,6 +120,7 @@ class CLASatHome(QMainWindow):
 
     def write_data(self, streamtype, timestamps, data):
         if streamtype == StreamType.EEG:
+            print('Writer')
             self.eeg_data_writer.write_data(timestamps, data)
 
     # def draw_timer_callback(self):
