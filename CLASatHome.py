@@ -44,7 +44,8 @@ class EEGPlotterWidget(QWidget):
             self.plots.append(plot)
             self.curves.append(curve)
 
-    def update_plots(self, data: np.ndarray, times: np.ndarray):
+    def update_plots(self, streamtype: StreamType, times: np.ndarray, data: np.ndarray):
+        print(streamtype, times, data)
         """
         Update EEG data plots with new data chunks.
 
@@ -99,6 +100,7 @@ class CLASatHome(QMainWindow):
     def init_BlueMuse(self):
         self.blue_muse_signal = BlueMuseSignal()
         self.blue_muse_signal.update_data.connect(self.write_data)
+        self.blue_muse_signal.update_data.connect(self.eeg_plotter.update_plots)
         self.blue_muse = BlueMuse(self.blue_muse_signal)
         self.blue_muse_thread = QThread()
         self.blue_muse.moveToThread(self.blue_muse_thread)
@@ -117,15 +119,7 @@ class CLASatHome(QMainWindow):
 
     def write_data(self, streamtype, timestamps, data):
         if streamtype == StreamType.EEG:
-            print(data.shape)
             self.eeg_data_writer.write_data(timestamps, data)
-            # data_mean = np.mean(data, axis=1)
-            # combined = np.vstack((timestamps, data_mean)).T
-            # if not os.path.exists(self.output_file):
-            #     df = pd.DataFrame(columns=['timestamp', 'data'])
-            #     df.to_csv(self.output_file, index=False)
-            # df = pd.DataFrame(combined, columns=['timestamp', 'data'])
-            # df.to_csv(self.output_file, mode='a', header=not os.path.exists(self.output_file), index=False)
 
     # def draw_timer_callback(self):
     #     ''' 
