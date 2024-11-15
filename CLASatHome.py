@@ -1,9 +1,8 @@
-from PyQt5 import QtWidgets, uic, QtCore
-from PyQt5.QtCore import QTimer, QThread
+from PyQt5 import uic
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QSizePolicy, QHBoxLayout, QPushButton
+from PyQt5.QtCore import QTimer, QThread, Qt
 import sys
-from pylsl import StreamInlet, resolve_byprop
 import os
-import os.path
 import pyqtgraph as pg
 
 import numpy as np
@@ -17,25 +16,85 @@ from utils import screenoff, BlueMuseSignal, StreamType
 from blue_muse import BlueMuse
 from data_controller import DataWriter
 
-matplotlib.use('QT5Agg')
-QtWidgets.QApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
+# matplotlib.use('QT5Agg')
+# QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
 
+class EEGPlotterWidget(QWidget):
+    MAX_BUFFER_SIZE = 1000  # Maximum number of data points to retain for each channel
 
-# MAIN CLASS
-class CLASatHome(QtWidgets.QMainWindow):
+    def __init__(self, eeg_channels=['TP9', 'AF7', 'AF8', 'TP10']):
+        super().__init__()
+        self.eeg_channels = eeg_channels
+        self.plot_data = [[] for _ in range(len(self.eeg_channels))]  # Buffer to hold data for each channel
+        self.time_data = [[] for _ in range(len(self.eeg_channels))]  # Time data for each channel
+
+        # Initialize the GUI layout
+        self.layout = QVBoxLayout(self)
+        self.plots = []
+        self.curves = []
+
+        # Create time series plots for each channel
+        for i, channel in enumerate(self.eeg_channels):
+            plot = pg.PlotWidget(title=channel)
+            plot.setLabel('bottom', 'Time', units='s')
+            plot.setLabel('left', 'EEG Amplitude', units='μV')
+            self.layout.addWidget(plot)  # Add plot to the layout
+
+            curve = plot.plot([], pen=pg.mkPen('w'))  # Plot line initialized with an empty array
+            self.plots.append(plot)
+            self.curves.append(curve)
+
+    def update_plots(self, data: np.ndarray, times: np.ndarray):
+        """
+        Update EEG data plots with new data chunks.
+
+        Parameters:
+        - data (np.ndarray): Array with shape (n_samples, 4) for 4 EEG channels.
+        - times (np.ndarray): Array of timestamps for the EEG samples.
+        """
+        for i in range(len(self.eeg_channels)):
+            # Append the new data to the buffer
+            self.plot_data[i].extend(data[:, i].tolist())
+            self.time_data[i].extend(times.tolist())
+
+            # Keep the buffer within the maximum size
+            if len(self.plot_data[i]) > self.MAX_BUFFER_SIZE:
+                self.plot_data[i] = self.plot_data[i][-self.MAX_BUFFER_SIZE:]
+                self.time_data[i] = self.time_data[i][-self.MAX_BUFFER_SIZE:]
+
+            # Update the plot with new data
+            self.curves[i].setData(self.time_data[i], self.plot_data[i])  # X-axis as time, Y-axis as EEG data
+
+class CLASatHome(QMainWindow):
     draw_timer = None
 
     plots = dict()
 
     def init_UI(self):
-        uic.loadUi('CLASatHome.ui', self)
-        # bind buttons and stuff
-        self.btn_start.clicked.connect(self.start_streaming)
-        self.btn_stop.clicked.connect(self.stop_streaming)
-        self.btn_screenoff.clicked.connect(screenoff)
+        self.setWindowTitle('CLAS At Home')
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.layout = QVBoxLayout(self.central_widget)
 
-        # set status indicator state
-        self.status.setStyleSheet("background-color: white")
+        self.eeg_plotter = EEGPlotterWidget()
+        self.layout.addWidget(self.eeg_plotter)
+
+        # Create a horizontal layout for the buttons below the EEG plot
+        self.button_layout = QHBoxLayout()
+
+        # Create "Start Streaming" button
+        self.btn_start = QPushButton('Start Streaming')
+        self.btn_start.clicked.connect(self.start_streaming)
+        self.button_layout.addWidget(self.btn_start)
+
+        # Create "Stop Streaming" button
+        self.btn_stop = QPushButton('Stop Streaming')
+        self.btn_stop.clicked.connect(self.stop_streaming)
+        self.button_layout.addWidget(self.btn_stop)
+
+        # Add the horizontal layout of buttons to the main layout
+        self.layout.addLayout(self.button_layout)
+        self.show()
 
     def init_BlueMuse(self):
         self.blue_muse_signal = BlueMuseSignal()
@@ -48,21 +107,12 @@ class CLASatHome(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.init_UI()
-        self.init_BlueMuse()
-        
-        output_file = os.path.join(os.getcwd(), 'data', 'kevin', 'output.h5')
-        self.eeg_data_writer = DataWriter(output_file, 4, 12)
+        # self.init_BlueMuse()
 
-        self.clas_algo = CLASAlgo(100, 'params.json')
+        # # output_file = os.path.join(os.getcwd(), 'data', 'kevin', 'output.h5')
+        # # self.eeg_data_writer = DataWriter(output_file, 4, 12)
 
-        
-
-        # # plots
-        # self.plots = dict()
-        # self.plots['EEG'] = TimeseriesPlot(parent=self.timeseries_widget)
-
-        # display the window
-        self.show()
+        # # self.clas_algo = CLASAlgo(100, 'params.json')
 
     def write_data(self, streamtype, timestamps, data):
         if streamtype == StreamType.EEG:
@@ -94,14 +144,14 @@ class CLASatHome(QtWidgets.QMainWindow):
     #             # print to screen and error log file
     #             print('\n'.join(tbstring))
     #             self.files['err'].writelines(tbstring)
-
+    
     def start_streaming(self):
         ''' 
         Callback for "Start" button
         Start bluemuse, streams, initialize recording files
         '''
-        # self.blue_muse_worker.start_streaming()
-        self.blue_muse_thread.start()
+        if not self.blue_muse_thread.isRunning():
+            self.blue_muse_thread.start()
 
         # # initialize metadata file
         # fileroot = uuid.uuid4().hex
@@ -147,9 +197,14 @@ class CLASatHome(QtWidgets.QMainWindow):
         Callback for "Stop" button
         Stop lsl chunk timers, GUI update timers, stop streams
         '''
-        if self.draw_timer is not None:
-            self.draw_timer.stop()
-            self.draw_timer = None
+        if self.blue_muse_thread.isRunning():
+            self.blue_muse_worker.stop() 
+            self.blue_muse_thread.quit()  # Gracefully stop the thread
+            self.blue_muse_thread.wait()  # Wait for the thread to fully finish
+            print("Streaming stopped")
+        # if self.draw_timer is not None:
+        #     self.draw_timer.stop()
+        #     self.draw_timer = None
 
         # for k in self.files:
         #     self.files[k].close()
@@ -159,7 +214,6 @@ class CLASatHome(QtWidgets.QMainWindow):
         # self.status.setText('Ready.')
 
         # subprocess.call('start bluemuse://stop?stopall', shell=True)
-
 
 class TimeseriesPlot(FigureCanvasQTAgg):
 
@@ -174,7 +228,7 @@ class TimeseriesPlot(FigureCanvasQTAgg):
         s.__init__(self.fig)
         self.setParent(parent)
 
-        s.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        s.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         s.updateGeometry()
 
     def init_data(self, fsample, history_time, nchan=4):
@@ -209,6 +263,6 @@ class TimeseriesPlot(FigureCanvasQTAgg):
 
 
 if __name__ == "__main__":
-    App = QtWidgets.QApplication(sys.argv)
+    App = QApplication(sys.argv)
     window = CLASatHome()
     sys.exit(App.exec())
