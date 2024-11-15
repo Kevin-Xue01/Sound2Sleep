@@ -99,18 +99,19 @@ class CLASatHome(QMainWindow):
     def init_BlueMuse(self):
         self.blue_muse_signal = BlueMuseSignal()
         self.blue_muse_signal.update_data.connect(self.write_data)
-        self.blue_muse_worker = BlueMuse(self.blue_muse_signal)
+        self.blue_muse = BlueMuse(self.blue_muse_signal)
         self.blue_muse_thread = QThread()
-        self.blue_muse_worker.moveToThread(self.blue_muse_thread)
-        self.blue_muse_thread.started.connect(self.blue_muse_worker.run)  # Ensure run is the main task
+        self.blue_muse.moveToThread(self.blue_muse_thread)
+        self.blue_muse_thread.started.connect(self.blue_muse.run)  # Ensure run is the main task
+        self.blue_muse_thread.finished.connect(lambda x: self.blue_muse.stop_streaming_signal.emit())
 
     def __init__(self):
         super().__init__()
         self.init_UI()
-        # self.init_BlueMuse()
+        self.init_BlueMuse()
 
-        # # output_file = os.path.join(os.getcwd(), 'data', 'kevin', 'output.h5')
-        # # self.eeg_data_writer = DataWriter(output_file, 4, 12)
+        output_file = os.path.join(os.getcwd(), 'data', 'kevin', 'output.h5')
+        self.eeg_data_writer = DataWriter(output_file, 4, 12)
 
         # # self.clas_algo = CLASAlgo(100, 'params.json')
 
@@ -198,7 +199,6 @@ class CLASatHome(QMainWindow):
         Stop lsl chunk timers, GUI update timers, stop streams
         '''
         if self.blue_muse_thread.isRunning():
-            self.blue_muse_worker.stop() 
             self.blue_muse_thread.quit()  # Gracefully stop the thread
             self.blue_muse_thread.wait()  # Wait for the thread to fully finish
             print("Streaming stopped")

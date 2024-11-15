@@ -9,6 +9,8 @@ from utils import find_procs_by_name, StreamType, BlueMuseSignal
 
 
 class BlueMuse(QObject):
+    stop_streaming_signal = pyqtSignal()
+
     def __init__(self, data_signal: BlueMuseSignal, sleep_duration: float=12/256):
         super().__init__()
         self.data_signal = data_signal
@@ -29,6 +31,7 @@ class BlueMuse(QObject):
         subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=false', shell=True)
         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
 
+        self.stop_streaming_signal.connect(self.stop_streaming)
     def lsl_reload(self):
         ''' 
         Resolve all 3 LSL streams from the Muse S.
@@ -146,9 +149,6 @@ class BlueMuse(QObject):
     def run(self):
         self.start_streaming()
 
-    def stop(self):
-        self.stop_streaming()
-
     def start_streaming(self):
         ''' 
         Callback for "Start" button
@@ -203,7 +203,8 @@ class BlueMuse(QObject):
         Callback for "Stop" button
         Stop lsl chunk timers, GUI update timers, stop streams
         '''
-        self.lsl_timer.stop()
+        if hasattr(self, 'lsl_timer'):
+            self.lsl_timer.stop()
 
         for _, streaminlet in self.stream_inlets.items():
             try:
