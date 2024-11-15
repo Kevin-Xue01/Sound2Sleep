@@ -103,7 +103,7 @@ class CLASatHome(QMainWindow):
         self.blue_muse_thread = QThread()
         self.blue_muse.moveToThread(self.blue_muse_thread)
         self.blue_muse_thread.started.connect(self.blue_muse.run)  # Ensure run is the main task
-        self.blue_muse_thread.finished.connect(lambda x: self.blue_muse.stop_streaming_signal.emit())
+        self.blue_muse_thread.finished.connect(self.blue_muse.stop_streaming_signal.emit)
 
     def __init__(self):
         super().__init__()
