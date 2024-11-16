@@ -45,8 +45,6 @@ class EEGPlotterWidget(QWidget):
             self.curves.append(curve)
 
     def update_plots(self, streamtype: StreamType, times: np.ndarray, data: np.ndarray):
-        if streamtype == StreamType.EEG:
-            print('Plotter')
         """
         Update EEG data plots with new data chunks.
 
@@ -54,20 +52,23 @@ class EEGPlotterWidget(QWidget):
         - data (np.ndarray): Array with shape (n_samples, 4) for 4 EEG channels.
         - times (np.ndarray): Array of timestamps for the EEG samples.
         """
-        self.time_data.extend(times.tolist())
-        if len(self.time_data) > self.MAX_BUFFER_SIZE:
-            self.time_data = self.time_data[-self.MAX_BUFFER_SIZE:]
+        if streamtype == StreamType.EEG:
+            print('Plotter')
+        
+            self.time_data.extend(times.tolist())
+            if len(self.time_data) > self.MAX_BUFFER_SIZE:
+                self.time_data = self.time_data[-self.MAX_BUFFER_SIZE:]
 
-        for i in range(data.shape[1]):
-            # Append the new data to the buffer
-            self.plot_data[i].extend(data[:, i].tolist())
+            for i in range(data.shape[1]):
+                # Append the new data to the buffer
+                self.plot_data[i].extend(data[:, i].tolist())
 
-            # Keep the buffer within the maximum size
-            if len(self.plot_data[i]) > self.MAX_BUFFER_SIZE:
-                self.plot_data[i] = self.plot_data[i][-self.MAX_BUFFER_SIZE:]
+                # Keep the buffer within the maximum size
+                if len(self.plot_data[i]) > self.MAX_BUFFER_SIZE:
+                    self.plot_data[i] = self.plot_data[i][-self.MAX_BUFFER_SIZE:]
 
-            # Update the plot with new data
-            self.curves[i].setData(self.time_data, self.plot_data[i])  # X-axis as time, Y-axis as EEG data
+                # Update the plot with new data
+                self.curves[i].setData(self.time_data, self.plot_data[i])  # X-axis as time, Y-axis as EEG data
 
 class CLASatHome(QMainWindow):
     draw_timer = None
