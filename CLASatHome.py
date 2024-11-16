@@ -12,7 +12,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from CLASAlgo import CLASAlgo
 from scipy import signal
 from datetime import datetime
-from utils import screenoff, BlueMuseSignal, StreamType
+from utils import BlueMuseSignal, StreamType
 from blue_muse import BlueMuse
 from data_controller import DataWriter
 
@@ -26,7 +26,7 @@ class EEGPlotterWidget(QWidget):
         super().__init__()
         self.eeg_channels = eeg_channels
         self.plot_data = [[] for _ in range(len(self.eeg_channels))]  # Buffer to hold data for each channel
-        self.time_data = [[] for _ in range(len(self.eeg_channels))]  # Time data for each channel
+        self.time_data = []  # Time data for each channel
 
         # Initialize the GUI layout
         self.layout = QVBoxLayout(self)
@@ -36,7 +36,7 @@ class EEGPlotterWidget(QWidget):
         # Create time series plots for each channel
         for i, channel in enumerate(self.eeg_channels):
             plot = pg.PlotWidget(title=channel)
-            plot.setLabel('bottom', 'Time', units='s')
+            plot.setLabel('bottom', 'time', units='s')
             plot.setLabel('left', 'EEG Amplitude', units='μV')
             self.layout.addWidget(plot)  # Add plot to the layout
 
@@ -54,18 +54,20 @@ class EEGPlotterWidget(QWidget):
         - data (np.ndarray): Array with shape (n_samples, 4) for 4 EEG channels.
         - times (np.ndarray): Array of timestamps for the EEG samples.
         """
-        # for i in range(len(self.eeg_channels)):
-        #     # Append the new data to the buffer
-        #     self.plot_data[i].extend(data[:, i].tolist())
-        #     self.time_data[i].extend(times.tolist())
+        self.time_data.extend(times.tolist())
+        if len(self.time_data) > self.MAX_BUFFER_SIZE:
+            self.time_data = self.time_data[-self.MAX_BUFFER_SIZE:]
 
-        #     # Keep the buffer within the maximum size
-        #     if len(self.plot_data[i]) > self.MAX_BUFFER_SIZE:
-        #         self.plot_data[i] = self.plot_data[i][-self.MAX_BUFFER_SIZE:]
-        #         self.time_data[i] = self.time_data[i][-self.MAX_BUFFER_SIZE:]
+        for i in range(data.shape[1]):
+            # Append the new data to the buffer
+            self.plot_data[i].extend(data[:, i].tolist())
 
-        #     # Update the plot with new data
-        #     self.curves[i].setData(self.time_data[i], self.plot_data[i])  # X-axis as time, Y-axis as EEG data
+            # Keep the buffer within the maximum size
+            if len(self.plot_data[i]) > self.MAX_BUFFER_SIZE:
+                self.plot_data[i] = self.plot_data[i][-self.MAX_BUFFER_SIZE:]
+
+            # Update the plot with new data
+            self.curves[i].setData(self.time_data, self.plot_data[i])  # X-axis as time, Y-axis as EEG data
 
 class CLASatHome(QMainWindow):
     draw_timer = None
