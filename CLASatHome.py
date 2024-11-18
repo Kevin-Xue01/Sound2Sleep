@@ -94,7 +94,7 @@ class CLASatHome(QMainWindow):
 
         # Create "Stop Streaming" button
         self.btn_stop = QPushButton('Stop Streaming')
-        self.btn_stop.clicked.connect(self.stop_streaming)
+        self.btn_stop.clicked.connect(self.blue_muse.stop_streaming_signal.emit)
         self.button_layout.addWidget(self.btn_stop)
 
         # Add the horizontal layout of buttons to the main layout
@@ -109,7 +109,6 @@ class CLASatHome(QMainWindow):
         self.blue_muse_thread = QThread()
         self.blue_muse.moveToThread(self.blue_muse_thread)
         self.blue_muse_thread.started.connect(self.blue_muse.run)  # Ensure run is the main task
-        self.blue_muse_thread.finished.connect(self.blue_muse.stop_streaming_signal.emit)
 
     def __init__(self):
         super().__init__()
