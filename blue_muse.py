@@ -1,6 +1,8 @@
 import subprocess
 import traceback
 import time
+import os
+import csv
 import numpy as np
 from PyQt5.QtCore import QThreadPool, QRunnable, pyqtSignal, QObject, QTimer
 from pylsl import StreamInlet, resolve_stream, resolve_byprop, StreamInfo
@@ -21,6 +23,9 @@ class BlueMuse(QObject):
         self.stream_inlets: dict[StreamType, StreamInlet] = {}
         self.no_data_count = 0
         self.reset_attempt_count = 0
+        # File setup
+        self.csv_file = "eeg_data.csv"
+        self.ensure_csv_file()
 
         # start bluemuse if not already started
         subprocess.call('start bluemuse:', shell=True)
@@ -32,6 +37,17 @@ class BlueMuse(QObject):
         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
 
         # self.stop_streaming_signal.connect(self.stop_streaming)
+
+    def ensure_csv_file(self):
+        """
+        Ensures the CSV file exists and writes the header if it doesn't.
+        """
+        if not os.path.exists(self.csv_file):
+            with open(self.csv_file, mode='w', newline='') as f:
+                writer = csv.writer(f)
+                # Write header with assumed 4 EEG channels; adjust if needed
+                writer.writerow(["timestamp", "TP9", "AF7", "AF8", "TP10"])
+
     def lsl_reload(self):
         ''' 
         Resolve all 3 LSL streams from the Muse S.
@@ -75,7 +91,12 @@ class BlueMuse(QObject):
                     # print(unique_times, np.array(data))
                     # Emit the data with the generated unique timestamps
                     self.data_signal.update_data.emit(streamtype, unique_times, np.array(data))
-
+                    # Write to CSV
+                    with open(self.csv_file, mode='a', newline='') as f:
+                        writer = csv.writer(f)
+                        # Write rows: Each time with corresponding data
+                        for timestamp, row in zip(unique_times, data):
+                            writer.writerow([timestamp, *row])
                     # # store the data
                     # self.plots[d].add_data(chunk)
 
