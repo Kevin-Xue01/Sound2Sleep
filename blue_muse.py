@@ -14,7 +14,7 @@ class BlueMuse(QObject):
     start_timer_signal = pyqtSignal()
     stop_timer_signal = pyqtSignal()
 
-    def __init__(self, data_signal: BlueMuseSignal, sleep_duration: float=12/256):
+    def __init__(self, data_signal: BlueMuseSignal, sleep_duration: float=1/256):
         super().__init__()
         self.data_signal = data_signal
         self.sleep_duration = sleep_duration
@@ -24,7 +24,7 @@ class BlueMuse(QObject):
         self.no_data_count = 0
         self.reset_attempt_count = 0
         # File setup
-        self.csv_file = "eeg_data.csv"
+        self.csv_file = "data/kevin/eeg_data.csv"
         self.ensure_csv_file()
 
         # start bluemuse if not already started
@@ -35,8 +35,6 @@ class BlueMuse(QObject):
         subprocess.call('start bluemuse://setting?key=accelerometer_enabled!value=true', shell=True)
         subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=false', shell=True)
         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
-
-        # self.stop_streaming_signal.connect(self.stop_streaming)
 
     def ensure_csv_file(self):
         """
@@ -57,7 +55,7 @@ class BlueMuse(QObject):
         allok = True
         self.stream_infos = {}
         for streamtype in StreamType:
-            result = resolve_byprop('type', streamtype.value, timeout=10)
+            result = resolve_byprop('type', streamtype.value, timeout=20)
 
             if result:
                 self.stream_infos[streamtype] = result[0]
@@ -96,7 +94,7 @@ class BlueMuse(QObject):
                         writer = csv.writer(f)
                         # Write rows: Each time with corresponding data
                         for timestamp, row in zip(unique_times, data):
-                            writer.writerow([timestamp, *row])
+                            writer.writerow([times[0], *row])
                     # # store the data
                     # self.plots[d].add_data(chunk)
 
