@@ -21,7 +21,6 @@ from data_controller import DataWriter
 
 class EEGPlotterWidget(QWidget):
     MAX_BUFFER_SIZE = 1000  # Maximum number of data points to retain for each channel
-
     def __init__(self, eeg_channels=['TP9', 'AF7', 'AF8', 'TP10']):
         super().__init__()
         self.eeg_channels = eeg_channels
@@ -38,6 +37,8 @@ class EEGPlotterWidget(QWidget):
             plot = pg.PlotWidget(title=channel)
             plot.setLabel('bottom', 'time', units='s')
             plot.setLabel('left', 'EEG Amplitude', units='μV')
+            plot.showGrid(x=True, y=True)  # Show grid lines
+            plot.enableAutoRange(axis=pg.ViewBox.YAxis)  # Enable auto-scaling
             self.layout.addWidget(plot)  # Add plot to the layout
 
             curve = plot.plot([], pen=pg.mkPen('w'))  # Plot line initialized with an empty array
@@ -53,8 +54,6 @@ class EEGPlotterWidget(QWidget):
         - times (np.ndarray): Array of timestamps for the EEG samples.
         """
         if streamtype == StreamType.EEG:
-            print('Plotter')
-        
             self.time_data.extend(times.tolist())
             if len(self.time_data) > self.MAX_BUFFER_SIZE:
                 self.time_data = self.time_data[-self.MAX_BUFFER_SIZE:]
@@ -62,7 +61,7 @@ class EEGPlotterWidget(QWidget):
             for i in range(data.shape[1]):
                 # Append the new data to the buffer
                 self.plot_data[i].extend(data[:, i].tolist())
-
+                print(f'Max: {max(data[:, i])}, Min: {min(data[:, i])}')
                 # Keep the buffer within the maximum size
                 if len(self.plot_data[i]) > self.MAX_BUFFER_SIZE:
                     self.plot_data[i] = self.plot_data[i][-self.MAX_BUFFER_SIZE:]
@@ -103,8 +102,8 @@ class CLASatHome(QMainWindow):
 
     def init_BlueMuse(self):
         self.blue_muse_signal = BlueMuseSignal()
-        self.blue_muse_signal.update_data.connect(self.write_data)
-        self.blue_muse_signal.update_data.connect(self.eeg_plotter.update_plots)
+        # self.blue_muse_signal.update_data.connect(self.write_data)
+        # self.blue_muse_signal.update_data.connect(self.eeg_plotter.update_plots)
         self.blue_muse = BlueMuse(self.blue_muse_signal)
         self.blue_muse.start_timer_signal.connect(self.start_timer)
         self.blue_muse.stop_timer_signal.connect(self.stop_timer)
@@ -127,7 +126,6 @@ class CLASatHome(QMainWindow):
 
     def write_data(self, streamtype, timestamps, data):
         if streamtype == StreamType.EEG:
-            print('Writer')
             self.eeg_data_writer.write_data(timestamps, data)
 
     def start_timer(self):
