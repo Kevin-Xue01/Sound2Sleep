@@ -94,7 +94,7 @@ class CLASatHome(QMainWindow):
 
         # Create "Stop Streaming" button
         self.btn_stop = QPushButton('Stop Streaming')
-        self.btn_stop.clicked.connect(self.blue_muse.stop_streaming_signal.emit)
+        self.btn_stop.clicked.connect(self.stop_streaming)
         self.button_layout.addWidget(self.btn_stop)
 
         # Add the horizontal layout of buttons to the main layout
@@ -106,14 +106,19 @@ class CLASatHome(QMainWindow):
         self.blue_muse_signal.update_data.connect(self.write_data)
         self.blue_muse_signal.update_data.connect(self.eeg_plotter.update_plots)
         self.blue_muse = BlueMuse(self.blue_muse_signal)
+        self.blue_muse.start_timer_signal.connect(self.start_timer)
+        self.blue_muse.stop_timer_signal.connect(self.stop_timer)
         self.blue_muse_thread = QThread()
         self.blue_muse.moveToThread(self.blue_muse_thread)
-        self.blue_muse_thread.started.connect(self.blue_muse.run)  # Ensure run is the main task
+        # self.blue_muse_thread.started.connect(self.blue_muse.start_streaming)
+        # self.blue_muse_thread.finished.connect(self.blue_muse.stop_streaming)
 
     def __init__(self):
         super().__init__()
         self.init_UI()
         self.init_BlueMuse()
+        self.lsl_timer = QTimer()
+        self.lsl_timer.timeout.connect(self.blue_muse.lsl_timer_callback)
 
         output_file = os.path.join(os.getcwd(), 'data', 'kevin', 'output.h5')
         self.eeg_data_writer = DataWriter(output_file, 4, 12)
@@ -125,93 +130,22 @@ class CLASatHome(QMainWindow):
             print('Writer')
             self.eeg_data_writer.write_data(timestamps, data)
 
-    # def draw_timer_callback(self):
-    #     ''' 
-    #     Tell all the plots to redraw.
-    #     Callback for draw_timer.
-    #     '''
+    def start_timer(self):
+        if not self.lsl_timer.isActive():
+            self.lsl_timer.start(200)
 
-    #     # redraw the plots on timeout
-    #     for k in self.plots:
-    #         try:
-    #             self.plots[k].redraw()
-    #         except Exception as ex:
-    #             # construct traceback
-    #             tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-    #             tbstring.insert(0, '=== ' + datetime.datetime.now().toISOString() + ' ===')
-
-    #             # print to screen and error log file
-    #             print('\n'.join(tbstring))
-    #             self.files['err'].writelines(tbstring)
+    def stop_timer(self):
+        if self.lsl_timer.isActive():
+            self.lsl_timer.stop()
     
     def start_streaming(self):
-        ''' 
-        Callback for "Start" button
-        Start bluemuse, streams, initialize recording files
-        '''
         if not self.blue_muse_thread.isRunning():
             self.blue_muse_thread.start()
 
-        # # initialize metadata file
-        # fileroot = uuid.uuid4().hex
-        # starttime = datetime.now()
-        # self.meta = {
-        #     "start_time": starttime.isoformat(),
-        #     "data": {},
-        #     "fs": {},
-        #     "nchan": {},
-        #     "error_log": fileroot + '_err.txt'
-        # }
-
-        # start the selected steram
-        # self.stream_inlet
-        # for streamtype in StreamType:
-            # self.plots[k].init_data(fsample=self.lsl[k].nominal_srate(),
-            #                         history_time=8,
-            #                         nchan=self.lsl[k].channel_count())
-
-            # # include details in metadata
-            # self.meta['data'][k] = fileroot + '_' + k + '.dat'
-            # self.meta['fs'][k] = self.lsl[k].nominal_srate()
-            # self.meta['nchan'][k] = self.lsl[k].channel_count()
-            # curr_path = os.path.join('output', self.meta['data'][k])
-            # # os.makedirs(curr_path, exist_ok=True)
-            # self.files[k] = open(curr_path, 'wb')
-
-        # # save the metafile
-        # with open(os.path.join('output', 'cah_%s.json' % starttime.strftime('%Y%m%dT%H%M%S')), 'w') as f:
-        #     json.dump(self.meta, f)
-
-        # # initialize the plot refresh timer
-        # self.draw_timer = QTimer()
-        # self.draw_timer.timeout.connect(self.draw_timer_callback)
-        # self.draw_timer.start(500)
-
-        # # set button state
-        # self.status.setStyleSheet("background-color: green")
-        # self.status.setText('Streaming...')
-
     def stop_streaming(self):
-        ''' 
-        Callback for "Stop" button
-        Stop lsl chunk timers, GUI update timers, stop streams
-        '''
         if self.blue_muse_thread.isRunning():
             self.blue_muse_thread.quit()  # Gracefully stop the thread
             self.blue_muse_thread.wait()  # Wait for the thread to fully finish
-            print("Streaming stopped")
-        # if self.draw_timer is not None:
-        #     self.draw_timer.stop()
-        #     self.draw_timer = None
-
-        # for k in self.files:
-        #     self.files[k].close()
-
-        # # set button state
-        # self.status.setStyleSheet("background-color: white")
-        # self.status.setText('Ready.')
-
-        # subprocess.call('start bluemuse://stop?stopall', shell=True)
 
 class TimeseriesPlot(FigureCanvasQTAgg):
 

@@ -9,7 +9,8 @@ from utils import find_procs_by_name, StreamType, BlueMuseSignal
 
 
 class BlueMuse(QObject):
-    stop_streaming_signal = pyqtSignal()
+    start_timer_signal = pyqtSignal()
+    stop_timer_signal = pyqtSignal()
 
     def __init__(self, data_signal: BlueMuseSignal, sleep_duration: float=12/256):
         super().__init__()
@@ -18,7 +19,6 @@ class BlueMuse(QObject):
 
         self.stream_infos: dict[StreamType, StreamInfo] = {}
         self.stream_inlets: dict[StreamType, StreamInlet] = {}
-        # self.files = {}
         self.no_data_count = 0
         self.reset_attempt_count = 0
 
@@ -31,7 +31,7 @@ class BlueMuse(QObject):
         subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=false', shell=True)
         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
 
-        self.stop_streaming_signal.connect(self.stop_streaming)
+        # self.stop_streaming_signal.connect(self.stop_streaming)
     def lsl_reload(self):
         ''' 
         Resolve all 3 LSL streams from the Muse S.
@@ -146,66 +146,19 @@ class BlueMuse(QObject):
             self.reset_attempt_count = 0
             self.start_streaming()
 
-    def run(self):
-        self.start_streaming()
-
     def start_streaming(self):
-        ''' 
-        Callback for "Start" button
-        Start bluemuse, streams, initialize recording files
-        '''
-
-        # initialize bluemuse and try to resolve LSL streams
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
         self.lsl_reload()
-        #     # self.status.setStyleSheet("background-color: yellow")
-        #     # self.status.setText('Unable to connect to Muse S...')
-        #     return
-
-        # # initialize metadata file
-        # fileroot = uuid.uuid4().hex
-        # starttime = datetime.now()
-        # self.meta = {
-        #     "start_time": starttime.isoformat(),
-        #     "data": {},
-        #     "fs": {},
-        #     "nchan": {},
-        #     "error_log": fileroot + '_err.txt'
-        # }
-
-        # start the selected steram
         for streamtype, streaminfo in self.stream_infos.items():
             self.stream_inlets[streamtype] = StreamInlet(streaminfo)
-            # self.plots[k].init_data(fsample=self.lsl[k].nominal_srate(),
-            #                         history_time=8,
-            #                         nchan=self.lsl[k].channel_count())
-
-            # # include details in metadata
-            # self.meta['data'][k] = fileroot + '_' + k + '.dat'
-            # self.meta['fs'][k] = self.lsl[k].nominal_srate()
-            # self.meta['nchan'][k] = self.lsl[k].channel_count()
-            # curr_path = os.path.join('output', self.meta['data'][k])
-            # # os.makedirs(curr_path, exist_ok=True)
-            # self.files[k] = open(curr_path, 'wb')
-
-        # # save the metafile
-        # with open(os.path.join('output', 'cah_%s.json' % starttime.strftime('%Y%m%dT%H%M%S')), 'w') as f:
-        #     json.dump(self.meta, f)
-
-        # # initialize the error log
-        # self.files['err'] = open(os.path.join('output', self.meta['error_log']), 'w')
-        self.lsl_timer = QTimer()
-        self.lsl_timer.timeout.connect(self.lsl_timer_callback)
-        self.lsl_timer.start(200)
+        self.start_timer_signal.emit()
 
     def stop_streaming(self):
         ''' 
         Callback for "Stop" button
         Stop lsl chunk timers, GUI update timers, stop streams
         '''
-        if hasattr(self, 'lsl_timer'):
-            self.lsl_timer.stop()
-
+        self.stop_timer_signal.emit()
         for _, streaminlet in self.stream_inlets.items():
             try:
                 streaminlet.close_stream()
