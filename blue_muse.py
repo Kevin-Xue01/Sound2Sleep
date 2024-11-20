@@ -14,7 +14,7 @@ class BlueMuse(QObject):
     start_timer_signal = pyqtSignal()
     stop_timer_signal = pyqtSignal()
 
-    def __init__(self, data_signal: BlueMuseSignal, sleep_duration: float=1/256):
+    def __init__(self, data_signal: BlueMuseSignal, sleep_duration: float=10/256):
         super().__init__()
         self.data_signal = data_signal
         self.sleep_duration = sleep_duration
@@ -72,6 +72,8 @@ class BlueMuse(QObject):
         Callback for lsl_timer.
         '''
         for streamtype, streaminlet in self.stream_inlets.items():
+            if streamtype != StreamType.EEG:
+                continue
             try:
                 data, times = streaminlet.pull_chunk()
                 data = np.array(data)
@@ -117,7 +119,7 @@ class BlueMuse(QObject):
                     # if no data after 2 seconds, attempt to reset and recover
                     if self.no_data_count > 20:
                         self.lsl_reset_stream_step1()
-                time.sleep(self.sleep_duration)
+                # time.sleep(self.sleep_duration)
                 
             except Exception as ex:
                 # construct traceback
