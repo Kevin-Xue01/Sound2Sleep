@@ -115,11 +115,13 @@ class BlueMuse(QObject):
 
                 else:
                     self.no_data_count += 1
-
+                    with open(self.csv_file, mode='a', newline='') as f:
+                        writer = csv.writer(f)
+                        # Write rows: Each time with corresponding data
+                        writer.writerow([0,0,0,0])
                     # if no data after 2 seconds, attempt to reset and recover
                     if self.no_data_count > 20:
                         self.lsl_reset_stream_step1()
-                # time.sleep(self.sleep_duration)
                 
             except Exception as ex:
                 # construct traceback
