@@ -85,10 +85,10 @@ class BlueMuse(QObject):
                     start_time = times[0]
 
                     # Calculate the time step between consecutive samples
-                    time_step = 1.0 / self.stream_infos[StreamType.EEG].nominal_srate()
+                    dt = 1.0 / self.stream_infos[StreamType.EEG].nominal_srate()
 
                     # Generate unique timestamps for each sample within the chunk
-                    unique_times = np.array([start_time + i * time_step for i in range(len(data))])
+                    unique_times = start_time + np.arange(data.shape[0]) * dt
                     # print(unique_times, np.array(data))
                     # Emit the data with the generated unique timestamps
                     self.data_signal.update_data.emit(streamtype, unique_times, np.array(data))
