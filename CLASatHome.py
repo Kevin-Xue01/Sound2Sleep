@@ -130,7 +130,7 @@ class CLASatHome(QMainWindow):
 
     def start_timer(self):
         if not self.lsl_timer.isActive():
-            self.lsl_timer.start(120)
+            self.lsl_timer.start(200)
 
     def stop_timer(self):
         if self.lsl_timer.isActive():

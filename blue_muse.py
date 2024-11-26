@@ -118,7 +118,7 @@ class BlueMuse(QObject):
                     with open(self.csv_file, mode='a', newline='') as f:
                         writer = csv.writer(f)
                         # Write rows: Each time with corresponding data
-                        writer.writerow([0,0,0,0])
+                        writer.writerow([0.0]*5)
                     # if no data after 2 seconds, attempt to reset and recover
                     if self.no_data_count > 20:
                         self.lsl_reset_stream_step1()
