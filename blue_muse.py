@@ -59,6 +59,7 @@ class BlueMuse(QObject):
 
             if result:
                 self.stream_infos[streamtype] = result[0]
+                print(result[0].nominal_srate())
                 print('%s OK.' % streamtype.value)
             else:
                 print('%s not found.' % streamtype.value)
@@ -84,19 +85,19 @@ class BlueMuse(QObject):
                     start_time = times[0]
 
                     # Calculate the time step between consecutive samples
-                    time_step = 1.0 / 256
+                    time_step = 1.0 / self.stream_infos[StreamType.EEG].nominal_srate()
 
                     # Generate unique timestamps for each sample within the chunk
                     unique_times = np.array([start_time + i * time_step for i in range(len(data))])
                     # print(unique_times, np.array(data))
                     # Emit the data with the generated unique timestamps
                     self.data_signal.update_data.emit(streamtype, unique_times, np.array(data))
-                    # Write to CSV
-                    with open(self.csv_file, mode='a', newline='') as f:
-                        writer = csv.writer(f)
-                        # Write rows: Each time with corresponding data
-                        for timestamp, row in zip(unique_times, data):
-                            writer.writerow([times[0], *row])
+                    # # Write to CSV
+                    # with open(self.csv_file, mode='a', newline='') as f:
+                    #     writer = csv.writer(f)
+                    #     # Write rows: Each time with corresponding data
+                    #     for timestamp, row in zip(unique_times, data):
+                    #         writer.writerow([times[0], *row])
                     # # store the data
                     # self.plots[d].add_data(chunk)
 

@@ -102,8 +102,8 @@ class CLASatHome(QMainWindow):
 
     def init_BlueMuse(self):
         self.blue_muse_signal = BlueMuseSignal()
-        # self.blue_muse_signal.update_data.connect(self.write_data)
-        # self.blue_muse_signal.update_data.connect(self.eeg_plotter.update_plots)
+        self.blue_muse_signal.update_data.connect(self.write_data)
+        self.blue_muse_signal.update_data.connect(self.eeg_plotter.update_plots)
         self.blue_muse = BlueMuse(self.blue_muse_signal)
         self.blue_muse.start_timer_signal.connect(self.start_timer)
         self.blue_muse.stop_timer_signal.connect(self.stop_timer)
