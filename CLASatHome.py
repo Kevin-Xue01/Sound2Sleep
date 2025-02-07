@@ -2,9 +2,10 @@ import csv
 import subprocess
 import time
 import traceback
+from datetime import datetime
 from multiprocessing import Process
 from threading import Thread, Timer
-from datetime import datetime
+
 import matplotlib
 import matplotlib.figure
 import matplotlib.pyplot as plt
@@ -394,7 +395,8 @@ class CLASatHome:
                             self.lsl_reset_stream_step1()
 
                 except Exception as ex:
-                    print(ex)
+                    tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
+                    print('\n'.join(tbstring))
 
     def acc_callback(self):
         while True:
