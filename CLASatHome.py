@@ -421,16 +421,19 @@ class CLASatHome:
 
     def lsl_reset_stream_step1(self):
         # restart bluemuse streaming, wait, and restart
-        print('Resetting stream step 1 at ' + str(datetime.now()))
+        # print('Resetting stream step 1 at ' + str(datetime.now()))
         subprocess.call('start bluemuse://stop?stopall', shell=True)
-        Timer(3, self.lsl_reset_stream_step2)
-        print('Resetting stream step 1 done at' + str(datetime.now()))
+        time.sleep(3)
+        self.lsl_reset_stream_step2()
+        # print('Resetting stream step 1 done at' + str(datetime.now()))
 
 
     def lsl_reset_stream_step2(self):
-        print('Resetting stream step 2')
+        # print('Resetting stream step 2')
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-        Timer(3, self.lsl_reset_stream_step3)
+        # Timer(3, self.lsl_reset_stream_step3)
+        time.sleep(3)
+        self.lsl_reset_stream_step3()
 
     def lsl_reset_stream_step3(self):
         print('Resetting stream step 3')
@@ -450,7 +453,9 @@ class CLASatHome:
 
                 # try the reset process again
                 print('Resetting stream again')
-                Timer(3, self.lsl_reset_stream_step1)
+                # Timer(3, self.lsl_reset_stream_step1)
+                time.sleep(3)
+                self.lsl_reset_stream_step1()
         else:
             # if all streams have resolved, start polling data again!
             self.reset_attempt_count = 0
