@@ -16,7 +16,14 @@ from muselsl.constants import LSL_SCAN_TIMEOUT
 from pylsl import StreamInfo, StreamInlet, resolve_byprop, resolve_streams
 from scipy.signal import firwin, lfilter, lfilter_zi
 
-from constants import CHANNEL_NAMES, NB_CHANNELS, CHUNK_SIZE, SAMPLING_RATE, Config, DataStream
+from constants import (
+    CHANNEL_NAMES,
+    CHUNK_SIZE,
+    NB_CHANNELS,
+    SAMPLING_RATE,
+    Config,
+    DataStream,
+)
 
 
 # HELPER STATIC FUNCTIONS
@@ -276,8 +283,7 @@ class CLASatHome:
         self.lines = []
 
         for ii in range(self.eeg_nchan):
-            line, = self.axes.plot(self.times[::Config.UI.subsample],
-                              self.data[::Config.UI.subsample, ii] - ii, lw=1)
+            line, = self.axes.plot(self.times[::Config.UI.subsample], self.data[::Config.UI.subsample, ii] - ii, lw=1)
             self.lines.append(line)
 
         self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
@@ -415,9 +421,11 @@ class CLASatHome:
 
     def lsl_reset_stream_step1(self):
         # restart bluemuse streaming, wait, and restart
-        print('Resetting stream step 1')
+        print('Resetting stream step 1 at ' + str(datetime.now()))
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         Timer(3, self.lsl_reset_stream_step2)
+        print('Resetting stream step 1 done at' + str(datetime.now()))
+
 
     def lsl_reset_stream_step2(self):
         print('Resetting stream step 2')
