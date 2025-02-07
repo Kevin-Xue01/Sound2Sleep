@@ -4,7 +4,7 @@ import time
 import traceback
 from multiprocessing import Process
 from threading import Thread, Timer
-
+from datetime import datetime
 import matplotlib
 import matplotlib.figure
 import matplotlib.pyplot as plt
@@ -303,7 +303,7 @@ class CLASatHome:
         subprocess.call('start bluemuse://setting?key=channel_data_type!value=float32', shell=True)
         subprocess.call('start bluemuse://setting?key=eeg_enabled!value=true', shell=True)
         subprocess.call('start bluemuse://setting?key=accelerometer_enabled!value=true', shell=True)
-        subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=false', shell=True)
+        subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=true', shell=True)
         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
 
     def __init__(self, filt=True):
@@ -327,7 +327,7 @@ class CLASatHome:
         self.stream_info = dict()
         self.stream_inlet = dict()
         for stream in DataStream:
-            self.stream_info[stream] = resolve_byprop('type', stream.value, timeout=LSL_SCAN_TIMEOUT)
+            self.stream_info[stream] = resolve_byprop('type', stream.value, timeout=2*LSL_SCAN_TIMEOUT)
 
             if self.stream_info[stream]:
                 self.stream_info[stream] = self.stream_info[stream][0]
@@ -339,7 +339,7 @@ class CLASatHome:
         return allok
 
     def eeg_callback(self):
-        with open('data/kevin/eeg_data.csv', mode='a', newline='') as file:
+        with open(f'data/kevin/eeg_data_{datetime.now().strftime("%Y-%m-%d")}.csv', mode='a', newline='') as file:
             writer = csv.writer(file)
             if file.tell() == 0:
                 writer.writerow(['Timestamp'] + CHANNEL_NAMES[DataStream.EEG])
@@ -395,11 +395,15 @@ class CLASatHome:
                     print(ex)
 
     def acc_callback(self):
-        pass
+        while True:
+            print('ACC callback')
+            time.sleep(3)
 
 
     def ppg_callback(self):
-        pass
+        while True:
+            print('PPG callback')
+            time.sleep(3)
 
     def lsl_reset_stream_step1(self):
         # restart bluemuse streaming, wait, and restart
@@ -471,7 +475,8 @@ class CLASatHome:
 
         # initialize bluemuse and try to resolve LSL streams
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-        if not self.lsl_reload(): return
+        while not self.lsl_reload(): 
+            time.sleep(3)
 
         # start the selected steram
         for stream in DataStream:

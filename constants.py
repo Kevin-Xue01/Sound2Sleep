@@ -18,30 +18,30 @@ from muselsl.constants import (  # MUSE_NB_GYRO_CHANNELS,; MUSE_SAMPLING_GYRO_RA
 class DataStream(Enum):
     EEG = "EEG"
     ACCELEROMETER = "Accelerometer"
-    PPG = "PPG"
+    # PPG = "PPG"
 
 SAMPLING_RATE = {
     DataStream.EEG: MUSE_SAMPLING_EEG_RATE,
     DataStream.ACCELEROMETER: MUSE_SAMPLING_EEG_RATE,
-    DataStream.PPG: MUSE_SAMPLING_EEG_RATE,
+    # DataStream.PPG: MUSE_SAMPLING_EEG_RATE,
 }
 
 NB_CHANNELS = {
     DataStream.EEG: MUSE_NB_EEG_CHANNELS,
     DataStream.ACCELEROMETER: MUSE_NB_ACC_CHANNELS,
-    DataStream.PPG: MUSE_NB_PPG_CHANNELS,
+    # DataStream.PPG: MUSE_NB_PPG_CHANNELS,
 }
 
 CHUNK_SIZE = {
     DataStream.EEG: LSL_EEG_CHUNK,
     DataStream.ACCELEROMETER: LSL_ACC_CHUNK,
-    DataStream.PPG: LSL_PPG_CHUNK,
+    # DataStream.PPG: LSL_PPG_CHUNK,
 }
 
 CHANNEL_NAMES = {
     DataStream.EEG: ['TP9', 'TP10', 'AF1', 'AF2', 'Right AUX'],
     DataStream.ACCELEROMETER: ['Acc_X', 'Acc_Y', 'Acc_Z'],
-    DataStream.PPG: ['PPG'],
+    # DataStream.PPG: ['PPG'],
 }
 
 class Config:
