@@ -506,7 +506,8 @@ class CLASatHome:
 
 if __name__ == "__main__":
     clas = CLASatHome()
+    clas.init_EEG_UI()
     clas.init_BlueMuse()
     clas.start_streaming()
-    plt.show()
+    # plt.show()
     time.sleep(100)
