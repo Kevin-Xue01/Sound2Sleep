@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from typing import Callable
 
@@ -94,8 +95,7 @@ class Simulator():
         self.signal_buffer = deque(maxlen = self.window_len)
         self.wavelet_method = wavelet_method
     @staticmethod
-    def generate_eeg_signal(fs: int, duration: int, noise_level=0.2, mode = 'stationary'):
-
+    def generate_eeg_signal(fs: int, duration: int, noise_level=0.2, mode = 'stationary', eeg_path = None):
         t = np.linspace(0, duration, fs * duration, endpoint=False)
         if mode == 'stationary':
             f = 1.25
@@ -106,9 +106,16 @@ class Simulator():
             # test_signal = np.sin(2*np.pi*t / w_n)
             test_signal = np.sin(phi)
         elif mode == 'eeg':
-            raw = np.load('/d/gmi/1/vickili/clas/data/processed_data/017_raw.npy')
-            val = 9625600 # from visual inspection
-            test_signal = raw[val:val + fs * duration]
+            if eeg_path is None:
+                raise ValueError("Please provide an EEG path")
+            raw = np.load(eeg_path)
+            duration = len(raw) // fs   # duration in seconds
+            test_signal = raw[:fs * duration]
+            t = np.linspace(0, duration, fs * duration, endpoint=False)
+
+            # val = 9625600 # from visual inspection
+            # test_signal = raw[val:val + fs * duration]
+            # test_signal = raw[:fs * duration]
         return test_signal, t
     
     @staticmethod
@@ -120,6 +127,23 @@ class Simulator():
         true_phase = np.unwrap(np.angle(analytic_signal)) % (2 * pi) 
 
         return true_phase
+    
+    def parametric_ci(stim_phases, ci=95):
+        mean_phase = np.angle(np.mean(np.exp(1j * stim_phases)))
+        R = np.abs(np.mean(np.exp(1j * stim_phases)))  # Mean resultant length
+        n = len(stim_phases)
+
+        # Compute Circular Standard Error (CSE)
+        CSE = 1 / np.sqrt(n * R)
+
+        # Compute confidence interval bounds
+        z = stats.norm.ppf(1 - (1 - ci/100) / 2)  # Critical value for 95% CI
+        ci_lower = (mean_phase - z * CSE) % (2 * np.pi)
+        ci_upper = (mean_phase + z * CSE) % (2 * np.pi)
+
+        return ci_lower, ci_upper
+
+
 
     def simulate(self, signal: np.ndarray, real_time_step: float = 0.1):
         # backoff period
@@ -158,7 +182,7 @@ class Simulator():
                 hl_ratio = self.identify_sw(np.array(lp_signal), np.array(hp_signal), self.fs)
                 max_amp = np.nanmax(np.abs(window[fs:]))
 
-                if hl_ratio < - 2 and max_amp > 4e-4:
+                if hl_ratio < - 2 and max_amp >  75e-6:
                     target_phase = 2 * pi
                     # delta_t = (target_phase - phase) % (2 * pi) / (2 * pi * freq)
                     delta_t = (target_phase - phase) % (2 * pi) / (2 * pi * freq)
@@ -169,7 +193,8 @@ class Simulator():
 
                     if stim_count == 2:
                         backoff = True
-                        last_stim_time = i / self.fs
+                        stim_time.append(i / self.fs + delta_t)
+                        last_stim_time = i / self.fs + delta_t
                         stim_count = 0 
 
                 if backoff and (i / self.fs - last_stim_time) >= 5:
@@ -177,12 +202,11 @@ class Simulator():
         
         # unwrap phase
         phase_list = -np.unwrap(phase_list) % (2 * pi)
-        print(stim_time)
         return phase_list, time_indices, stim_time
     
 
 # Test accuracy and precision of phase estimation
-def phase_hist(signal, stim_trigs, fs = 256, lowcut = 0.5, highcut = 2, window_size = 2):
+def phase_hist(signal, stim_trigs, outpath, fs = 256, lowcut = 0.5, highcut = 2, window_size = 2):
     stim_idx = (np.array(stim_trigs) * fs).astype(int)
     # bandpass filter from 0.5 to 2 Hz
     b, a = scipy.signal.butter(4, [lowcut, highcut], 'band', fs=fs)
@@ -193,26 +217,31 @@ def phase_hist(signal, stim_trigs, fs = 256, lowcut = 0.5, highcut = 2, window_s
     # phase of signal at stim_trigs
     stim_phases = phase[stim_idx]
     mean_phase = scipy.stats.circmean(stim_phases)
-    std_phase = scipy.stats.circstd(stim_phases)    
+    std_phase = scipy.stats.circstd(stim_phases)   
 
-    # confidence interval
-    R = np.abs(np.mean(np.exp(1j * stim_phases)))  # Mean resultant length
+    # mean_phase = np.angle(np.mean(np.exp(1j * stim_phases)))
+    # R = np.abs(np.mean(np.exp(1j * stim_phases)))  # Mean resultant length
+    # n = len(stim_phases)
 
-# Compute circular standard error (CSE)
-    n = len(stim_phases)
-    CSE = 1 / np.sqrt(n * R)
+    # # Compute Circular Standard Error (CSE)
+    # CSE = 1 / np.sqrt(n * R)
 
-    # Compute confidence interval bounds
-    z = 1.96  # 95% confidence interval critical value
-    ci_lower = (mean_phase - z * CSE) % (2 * np.pi)
-    ci_upper = (mean_phase + z * CSE) % (2 * np.pi)
+    # # Compute confidence interval bounds
+    # z = scipy.stats.norm.ppf(1 - (1 - 95/100) / 2)  # Critical value for 95% CI
+    # ci_lower = (mean_phase - z * CSE) % (2 * np.pi)
+    # ci_upper = (mean_phase + z * CSE) % (2 * np.pi)
+
+    _, ci = bootstrap_confidence_interval(stim_phases, num_bootstrap_samples=1000, confidence_level=0.95)
+    ci_lower, ci_upper = ci
+    ci_lower = mean_phase - ci_lower
+    ci_upper = mean_phase + ci_upper
     # plot histogram of phase
     plt.figure(figsize=(10, 10))
     ax = plt.subplot(111, polar=True)
     ax.hist(stim_phases, bins=30)
     ax.set_xlabel('Phase')
     ax.set_title(f'Mean: {mean_phase:.2f}, Std: {std_phase:.2f}\nCI: [{ci_lower:.2f}, {ci_upper:.2f}]')
-    plt.savefig('phase_hist.png')
+    plt.savefig(outpath + '.png')
     return 0
 
 
@@ -220,54 +249,60 @@ def phase_hist(signal, stim_trigs, fs = 256, lowcut = 0.5, highcut = 2, window_s
 # modes = ['stationary', 'time-varying', 'eeg']
 modes = ['eeg']
 wavelet_methods = ['truncated_wavelet']
+
+datadir = '/d/gmi/1/vickili/clas/data/processed_data'
+
+data_paths = [os.path.join(datadir, f) for f in os.listdir(datadir) if f.endswith('.npy')]
+data_paths = data_paths[1:]
+
 for wavelet_method in wavelet_methods:
     for mode in modes:
-        fs = 256
-        duration = 20000
-        window_size = 2
-        real_time_step = 0.1
+        for data_path in data_paths:
+            print(data_path)
+            fs = 256
+            duration = 20000
+            window_size = 2
+            real_time_step = 0.1
 
-        sim = Simulator(phase_estimator, identify_sw, butter_filter, fs, window_size, wavelet_method = wavelet_method)
+            sim = Simulator(phase_estimator, identify_sw, butter_filter, fs, window_size, wavelet_method = wavelet_method)
+            test_signal, t_signal = sim.generate_eeg_signal(fs, duration, mode=mode, eeg_path = data_path)
 
-        test_signal, t_signal = sim.generate_eeg_signal(fs, duration, mode=mode)
+            true_phase = sim.true_phase(test_signal, fs)
+            estimated_phases, phase_times, stim_time = sim.simulate(test_signal, real_time_step)
+            phase_hist(test_signal, stim_time, os.path.basename(data_path).split('.')[0])
+    #         # Interpolate the true phase to match the estimated phase times
+    #         true_phase_interp = np.interp(phase_times, t_signal, true_phase)
 
-        true_phase = sim.true_phase(test_signal, fs)
-        estimated_phases, phase_times, stim_time = sim.simulate(test_signal, real_time_step)
-        phase_hist(test_signal, stim_time)
+    #         # plot unwrapped signals
+    #         plt.figure(figsize=(14, 7))
+    #         plt.plot(phase_times, np.unwrap(true_phase_interp), label='True Phase (Interpolated)')
+    #         plt.plot(phase_times, np.unwrap(estimated_phases), label='Estimated Phase')
+    #         plt.savefig(f'unwrapped_signals_{mode}.png')
 
-#         # Interpolate the true phase to match the estimated phase times
-#         true_phase_interp = np.interp(phase_times, t_signal, true_phase)
+    #         errors = np.abs(np.unwrap(true_phase_interp) - np.unwrap(estimated_phases))  # Phase errors
+        
 
-#         # plot unwrapped signals
-#         plt.figure(figsize=(14, 7))
-#         plt.plot(phase_times, np.unwrap(true_phase_interp), label='True Phase (Interpolated)')
-#         plt.plot(phase_times, np.unwrap(estimated_phases), label='Estimated Phase')
-#         plt.savefig(f'unwrapped_signals_{mode}.png')
+    #         # Visualization
+    #         plt.figure(figsize=(14, 7))
 
-#         errors = np.abs(np.unwrap(true_phase_interp) - np.unwrap(estimated_phases))  # Phase errors
-    
+    #         # Plot EEG signal
+    #         plt.subplot(2, 1, 1)
+    #         plt.plot(t_signal, test_signal, label="EEG Signal", alpha=0.7)
+    #         for stim in stim_time:
+    #             plt.axvline(stim, color='r', linestyle='--', alpha=0.5)
+    #         plt.xlabel("Time (s)")
+    #         plt.ylabel("Amplitude")
+    #         plt.title("Synthetic EEG Signal")
 
-#         # Visualization
-#         plt.figure(figsize=(14, 7))
+    #         # Plot true phase vs. estimated phase
+    #         plt.subplot(2, 1, 2)
+    #         plt.plot(t_signal, true_phase, label="True Phase", alpha=0.4)
+    #         # plt.step(phase_times, estimated_phases, label="Estimated Phase (Real-Time)", where="post", alpha=0.4)
+    #         plt.plot(phase_times, estimated_phases, label="Estimated Phase", alpha=0.4)
+    #         plt.xlabel("Time (s)")
+    #         plt.ylabel("Phase (radians)")
+    #         plt.title("True Phase vs. Estimated Phase")
+    #         plt.legend()
 
-#         # Plot EEG signal
-#         plt.subplot(2, 1, 1)
-#         plt.plot(t_signal, test_signal, label="EEG Signal", alpha=0.7)
-#         for stim in stim_time:
-#             plt.axvline(stim, color='r', linestyle='--', alpha=0.5)
-#         plt.xlabel("Time (s)")
-#         plt.ylabel("Amplitude")
-#         plt.title("Synthetic EEG Signal")
-
-#         # Plot true phase vs. estimated phase
-#         plt.subplot(2, 1, 2)
-#         plt.plot(t_signal, true_phase, label="True Phase", alpha=0.4)
-#         # plt.step(phase_times, estimated_phases, label="Estimated Phase (Real-Time)", where="post", alpha=0.4)
-#         plt.plot(phase_times, estimated_phases, label="Estimated Phase", alpha=0.4)
-#         plt.xlabel("Time (s)")
-#         plt.ylabel("Phase (radians)")
-#         plt.title("True Phase vs. Estimated Phase")
-#         plt.legend()
-
-#         plt.tight_layout()
-#         plt.savefig(f'simulated_phase_estimation_{mode}_{wavelet_method}.png')
+    #         plt.tight_layout()
+    #         plt.savefig(f'simulated_phase_estimation_{mode}_{wavelet_method}.png')
