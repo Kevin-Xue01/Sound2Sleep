@@ -296,6 +296,7 @@ class CLASatHome:
         zi = lfilter_zi(self.bf, self.af)
         self.filt_state = np.tile(zi, (self.eeg_nchan, 1)).transpose()
         self.data_f = np.zeros((self.n_samples, self.eeg_nchan))
+        plt.show()
 
     def init_BlueMuse(self):
         subprocess.call('start bluemuse:', shell=True)
@@ -347,6 +348,7 @@ class CLASatHome:
             display_every_counter = 0
             no_data_counter = 0
             while self.run_eeg_thread:
+                time.sleep(0.05)
                 try:
                     data, timestamps = self.stream_inlet[DataStream.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[DataStream.EEG])
                     if timestamps:
@@ -505,3 +507,4 @@ if __name__ == "__main__":
     clas.init_BlueMuse()
     clas.start_streaming()
     plt.show()
+    time.sleep(100)
