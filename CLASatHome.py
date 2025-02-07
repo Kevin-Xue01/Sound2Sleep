@@ -324,6 +324,7 @@ class CLASatHome:
             print('\n'.join(tbstring))
 
     def lsl_reload(self):
+        print('Reloading LSL streams')
         allok = True
         self.stream_info = dict()
         self.stream_inlet = dict()
@@ -373,23 +374,23 @@ class CLASatHome:
                         self.data_f = self.data_f[-self.n_samples:]
 
                         display_every_counter += 1
-                        if display_every_counter == self.display_every:
-                            print('Displaying data')
-                            if self.filt:
-                                plot_data = self.data_f
-                            elif not self.filt:
-                                plot_data = self.data - self.data.mean(axis=0)
-                            for ii in range(NB_CHANNELS[DataStream.EEG]):
-                                self.lines[ii].set_xdata(self.times[::Config.UI.subsample] -
-                                                        self.times[-1])
-                                self.lines[ii].set_ydata(plot_data[::Config.UI.subsample, ii] /
-                                                        self.scale - ii)
-                                self.impedances = np.std(plot_data, axis=0)
+                        # if display_every_counter == self.display_every:
+                        #     print('Displaying data')
+                        #     if self.filt:
+                        #         plot_data = self.data_f
+                        #     elif not self.filt:
+                        #         plot_data = self.data - self.data.mean(axis=0)
+                        #     for ii in range(NB_CHANNELS[DataStream.EEG]):
+                        #         self.lines[ii].set_xdata(self.times[::Config.UI.subsample] -
+                        #                                 self.times[-1])
+                        #         self.lines[ii].set_ydata(plot_data[::Config.UI.subsample, ii] /
+                        #                                 self.scale - ii)
+                        #         self.impedances = np.std(plot_data, axis=0)
 
-                            self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[DataStream.EEG], self.impedances)])
-                            self.axes.set_xlim(-self.ui_window_s, 0)
-                            self.fig.canvas.draw()
-                            display_every_counter = 0
+                        #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[DataStream.EEG], self.impedances)])
+                        #     self.axes.set_xlim(-self.ui_window_s, 0)
+                        #     self.fig.canvas.draw()
+                        #     display_every_counter = 0
                     else:
                         no_data_counter += 1
 
@@ -414,14 +415,17 @@ class CLASatHome:
 
     def lsl_reset_stream_step1(self):
         # restart bluemuse streaming, wait, and restart
+        print('Resetting stream step 1')
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         Timer(3, self.lsl_reset_stream_step2)
 
     def lsl_reset_stream_step2(self):
+        print('Resetting stream step 2')
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
         Timer(3, self.lsl_reset_stream_step3)
 
     def lsl_reset_stream_step3(self):
+        print('Resetting stream step 3')
         reset_success = self.lsl_reload()
 
         if not reset_success:
@@ -437,6 +441,7 @@ class CLASatHome:
                     p.kill()
 
                 # try the reset process again
+                print('Resetting stream again')
                 Timer(3, self.lsl_reset_stream_step1)
         else:
             # if all streams have resolved, start polling data again!
