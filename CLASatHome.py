@@ -430,7 +430,7 @@ class CLASatHome:
 
     def lsl_reset_stream_step1(self):
         # restart bluemuse streaming, wait, and restart
-        # print('Resetting stream step 1 at ' + str(datetime.now()))
+        print('Resetting stream step 1 at ' + str(datetime.now()))
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         time.sleep(2)
         self.lsl_reset_stream_step2()
@@ -438,7 +438,7 @@ class CLASatHome:
 
 
     def lsl_reset_stream_step2(self):
-        # print('Resetting stream step 2')
+        print('Resetting stream step 2')
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
         # Timer(3, self.lsl_reset_stream_step3)
         time.sleep(2)
