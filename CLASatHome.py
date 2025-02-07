@@ -347,7 +347,7 @@ class CLASatHome:
         return allok
 
     def eeg_callback(self):
-        with open(f'data/kevin/eeg_data_{datetime.now().strftime("%Y-%m-%d")}.csv', mode='a', newline='') as file:
+        with open(f'data/kevin/eeg_data_{datetime.now().strftime("%Y-%m-%d_%H-%M")}.csv', mode='a', newline='') as file:
             writer = csv.writer(file)
             if file.tell() == 0:
                 writer.writerow(['Timestamp'] + CHANNEL_NAMES[DataStream.EEG])
@@ -402,7 +402,7 @@ class CLASatHome:
 
                         # if no data after 2 seconds, attempt to reset and recover
                         if no_data_counter > 20:
-                            self.lsl_reset_stream_step1()
+                            self.lsl_reset_stream_step1(DataStream.EEG)
 
                 except Exception as ex:
                     tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
@@ -419,12 +419,12 @@ class CLASatHome:
             print('PPG callback')
             time.sleep(3)
 
-    def lsl_reset_stream_step1(self):
+    def lsl_reset_stream_step1(self, stream: DataStream):
         # restart bluemuse streaming, wait, and restart
         # print('Resetting stream step 1 at ' + str(datetime.now()))
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         time.sleep(3)
-        self.lsl_reset_stream_step2()
+        self.lsl_reset_stream_step2(stream)
         # print('Resetting stream step 1 done at' + str(datetime.now()))
 
 
