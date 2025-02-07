@@ -16,7 +16,7 @@ from muselsl.constants import LSL_SCAN_TIMEOUT
 from pylsl import StreamInfo, StreamInlet, resolve_byprop, resolve_streams
 from scipy.signal import firwin, lfilter, lfilter_zi
 
-from constants import CHANNEL_NAMES, CHUNK_SIZE, SAMPLING_RATE, Config, DataStream
+from constants import CHANNEL_NAMES, NB_CHANNELS, CHUNK_SIZE, SAMPLING_RATE, Config, DataStream
 
 
 # HELPER STATIC FUNCTIONS
@@ -351,6 +351,9 @@ class CLASatHome:
                 time.sleep(0.05)
                 try:
                     data, timestamps = self.stream_inlet[DataStream.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[DataStream.EEG])
+                    # data = np.array(data)
+                    # timestamps = np.array(timestamps)
+                    # print(f"Data shape: {data.shape}, Timestamps shape: {timestamps.shape}")
                     if timestamps:
                         if Config.UI.dejitter:
                             timestamps = np.float64(np.arange(len(timestamps))) # TODO: change to static call
@@ -371,11 +374,12 @@ class CLASatHome:
 
                         display_every_counter += 1
                         if display_every_counter == self.display_every:
+                            print('Displaying data')
                             if self.filt:
                                 plot_data = self.data_f
                             elif not self.filt:
                                 plot_data = self.data - self.data.mean(axis=0)
-                            for ii in range(self.n_chan):
+                            for ii in range(NB_CHANNELS[DataStream.EEG]):
                                 self.lines[ii].set_xdata(self.times[::Config.UI.subsample] -
                                                         self.times[-1])
                                 self.lines[ii].set_ydata(plot_data[::Config.UI.subsample, ii] /
