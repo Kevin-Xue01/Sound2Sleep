@@ -270,7 +270,7 @@ class CLASatHome:
         print(help_str)
         self.eeg_nchan = len(CHANNEL_NAMES[DataStream.EEG])
         self.eeg_ui_samples = int(self.ui_window_s * SAMPLING_RATE[DataStream.EEG])
-        self.eeg_ui_data = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
+        self.data = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
         self.times = np.arange(-self.ui_window_s, 0, 1. / SAMPLING_RATE[DataStream.EEG])
         self.impedances = np.std(self.data, axis=0)
         self.lines = []
@@ -297,7 +297,6 @@ class CLASatHome:
         zi = lfilter_zi(self.bf, self.af)
         self.filt_state = np.tile(zi, (self.eeg_nchan, 1)).transpose()
         self.data_f = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
-        plt.show()
 
     def init_BlueMuse(self):
         subprocess.call('start bluemuse:', shell=True)
@@ -509,5 +508,5 @@ if __name__ == "__main__":
     clas.init_EEG_UI()
     clas.init_BlueMuse()
     clas.start_streaming()
-    # plt.show()
-    time.sleep(100)
+    plt.show()
+    # time.sleep(100)
