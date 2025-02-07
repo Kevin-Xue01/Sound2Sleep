@@ -492,11 +492,3 @@ class CLASatHome:
                 print('\n' + str(ex))
 
         subprocess.call('start bluemuse://stop?stopall', shell=True)
-
-
-
-if __name__ == "__main__":
-    clas = CLASatHome()
-    clas.init_BlueMuse()
-    clas.start_streaming()
-    plt.show()

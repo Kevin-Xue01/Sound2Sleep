@@ -3,52 +3,77 @@ GUI for running the Closed Loop Auditory Stimulation experiment
 Author: Simeon Wong
 '''
 
-# Misc
-import datetime
-import io
-import json
-import logging
-import os
-import struct
 import sys
-import time
 import traceback
-from enum import Enum
 
 # Qt Framework
-from typing import Callable, Optional
+from typing import Callable
+from PyQt5 import QtWidgets, uic
+from PyQt5.QtCore import QRunnable, QTimer, Qt, QThreadPool, QPoint
+from PyQt5.QtGui import QPainter, QColor, QBrush, QPen, QStaticText
+from PyQt5.QtWidgets import QComboBox, QDateTimeEdit, QWidget, QFileDialog
+import qdarkstyle
+
+import os
+import io
+import json
+import struct
+import time
+from enum import Enum
+from typing import Optional
+import logging
+import psutil
+import yaml
 
 # Plot stuff
-import matplotlib
-import matplotlib.figure
+import matplotlib, matplotlib.figure
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 
 # Math stuff
 import numpy as np
-import psutil
-import qdarkstyle
 
-# for Pushover
-import requests
+# EEG streaming interface
+from QOpenBCI import QEEGStreamer, ConnectionState
 
 # triggers
 import serial
 import serial.tools.list_ports
-import yaml
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from PyQt5 import QtWidgets, uic
-from PyQt5.QtCore import QPoint, QRunnable, Qt, QThreadPool, QTimer
-from PyQt5.QtGui import QBrush, QColor, QPainter, QPen, QStaticText
-from PyQt5.QtWidgets import QComboBox, QDateTimeEdit, QFileDialog, QWidget
-
-# EEG streaming interface
-from QOpenBCI import ConnectionState, QEEGStreamer
 
 # CLAS algorithm
 import QCLASAlgo
 
+# Misc
+import datetime
+
+# for Pushover
+import requests
+import yaml
+
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+with open('pushover.yml', 'r') as f:
+    pushover_params = yaml.safe_load(f)
+
+def send_error(msg):
+    try:
+        requests.post('https://api.pushover.net/1/messages.json',
+                      data = {
+                          "token": pushover_params['token'],
+                          "user": pushover_params['user'],
+                          "message":msg
+                      })
+    except:
+        print('Pushover error')
+
+
+class ToggleButtonState(Enum):
+    DISABLED = 0
+    OFF = 1
+    ON = 2
 
 
 class CLASGUI(QtWidgets.QMainWindow):
@@ -343,8 +368,6 @@ class CLASGUI(QtWidgets.QMainWindow):
             self.btn_soundtest_startper.setEnabled(False)
             self.btn_soundtest_startcont.setEnabled(False)
             self.btn_soundtest_stop.setEnabled(False)
-            
-        # TODO: disable clas params loader if eeg is streaming
 
 
         if self.soundtest_timer is not None:
@@ -739,8 +762,7 @@ class CLASGUI(QtWidgets.QMainWindow):
         self.txt_triggertest.setText('Not running')
         self.update_gui_statuslabel_buttons()
 
-    def cue_stim(self, delay: float, trig: int, muted: bool):
-        delay = 1000 * int(delay)
+    def cue_stim(self, delay: int, trig: int, muted: bool):
         if delay > 0:
             QTimer.singleShot(delay, self.get_defer_stim(trig, muted))
         else:
