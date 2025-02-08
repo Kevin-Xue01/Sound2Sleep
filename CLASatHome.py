@@ -471,8 +471,9 @@ class CLASatHome:
             # if all streams have resolved, start polling data again!
             self.reset_attempt_count = 0
             print('Starting threads')
-            # subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
             time.sleep(3)
+            subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+
             # start the selected steram
             for stream in DataStream:
                 self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
