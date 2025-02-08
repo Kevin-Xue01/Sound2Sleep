@@ -358,13 +358,13 @@ class CLASatHome:
             display_every_counter = 0
             no_data_counter = 0
             while self.run_eeg_thread:
-                time.sleep(0.05)
+                time.sleep(CHUNK_SIZE[DataStream.EEG] / SAMPLING_RATE[DataStream.EEG])
                 try:
                     data, timestamps = self.stream_inlet[DataStream.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[DataStream.EEG])
                     # data = np.array(data)
                     # timestamps = np.array(timestamps)
                     # print(f"Data shape: {data.shape}, Timestamps shape: {timestamps.shape}")
-                    if timestamps:
+                    if timestamps and len(timestamps) == CHUNK_SIZE[DataStream.EEG]:
                         if Config.UI.dejitter:
                             timestamps = np.float64(np.arange(len(timestamps))) # TODO: change to static call
                             timestamps /= SAMPLING_RATE[DataStream.EEG]
@@ -409,7 +409,7 @@ class CLASatHome:
                             self.run_eeg_thread = False
                             self.run_acc_thread = False
                             self.run_ppg_thread = False
-                            Timer(1, self.lsl_reset_stream_step1)
+                            Timer(1, self.lsl_reset_stream_step1).start()
 
                 except Exception as ex:
                     tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
@@ -432,16 +432,16 @@ class CLASatHome:
         # restart bluemuse streaming, wait, and restart
         print('Resetting stream step 1 at ' + str(datetime.now()))
         subprocess.call('start bluemuse://stop?stopall', shell=True)
-        time.sleep(2)
+        time.sleep(3)
         self.lsl_reset_stream_step2()
         # print('Resetting stream step 1 done at' + str(datetime.now()))
 
 
     def lsl_reset_stream_step2(self):
         print('Resetting stream step 2')
-        subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+        subprocess.call('start bluemuse://start?startall', shell=True)
         # Timer(3, self.lsl_reset_stream_step3)
-        time.sleep(2)
+        time.sleep(3)
         self.lsl_reset_stream_step3()
 
     def lsl_reset_stream_step3(self):
