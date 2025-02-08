@@ -450,14 +450,16 @@ class CLASatHome:
 
         if not reset_success:
             # if we can't get the streams up, try again
-            self.reset_attempt_count = self.reset_attempt_count + 1
+            self.reset_attempt_count += 1
             if self.reset_attempt_count < Config.Connection.reset_attempt_count_max:
+                print('Resetting Attempt: ' + str(self.reset_attempt_count))
                 self.lsl_reset_stream_step1() 
             else:
                 self.reset_attempt_count = 0
 
                 # if the stream really isn't working.. kill bluemuse
                 for p in find_procs_by_name('BlueMuse.exe'):
+                    print('Killing BlueMuse')
                     p.kill()
 
                 # try the reset process again
@@ -468,7 +470,14 @@ class CLASatHome:
         else:
             # if all streams have resolved, start polling data again!
             self.reset_attempt_count = 0
-            self.start_streaming()
+            print('Starting threads')
+            # subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+            time.sleep(3)
+            # start the selected steram
+            for stream in DataStream:
+                self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
+            
+            self.start_threads()
 
 
     def on_key_press(self, event):
