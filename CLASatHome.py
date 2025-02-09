@@ -549,11 +549,14 @@ if __name__ == "__main__":
     ES_CONTINUOUS = 0x80000000
     ES_SYSTEM_REQUIRED = 0x00000001
     ES_AWAYMODE_REQUIRED = 0x0000040
-    ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
     
-    clas = CLASatHome()
-    clas.init_EEG_UI()
-    clas.init_BlueMuse()
-    clas.start_streaming()
-    plt.show()
-    # time.sleep(100)
+    ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
+
+    try:
+        clas = CLASatHome()
+        clas.init_EEG_UI()
+        clas.init_BlueMuse()
+        clas.start_streaming()
+        plt.show()
+    finally:
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
