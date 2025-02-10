@@ -6,7 +6,6 @@ import traceback
 from datetime import datetime
 from multiprocessing import Process
 from threading import Thread, Timer
-from typing import Union
 
 import matplotlib
 import matplotlib.figure
@@ -14,8 +13,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import psutil
 import seaborn as sns
-from muselsl.constants import LSL_SCAN_TIMEOUT
-from pylsl import StreamInfo, StreamInlet, resolve_byprop, resolve_streams
+from muselsl.constants import LSL_SCAN_TIMEOUT, VIEW_SUBSAMPLE
+from pylsl import StreamInfo, StreamInlet, resolve_byprop
 from scipy.signal import firwin, lfilter, lfilter_zi
 
 from constants import (
@@ -23,6 +22,7 @@ from constants import (
     CHUNK_SIZE,
     NB_CHANNELS,
     SAMPLING_RATE,
+    TIMESTAMPS,
     Config,
     DataStream,
 )
@@ -40,16 +40,15 @@ class CLASatHome:
     no_data_count = 0
     reset_attempt_count = 0
     
-    def init_EEG_UI(self, ui_window_s=Config.UI.window_s, scale=Config.UI.scale):
+    def init_EEG_UI(self):
         matplotlib.use('TkAgg')
         sns.set_theme(style="whitegrid")
         sns.despine(left=True)
 
-        self.figsize = np.int16(Config.UI.figure.split('x'))
-        self.ui_window_s = ui_window_s
-        self.scale = scale
+        self.ui_window_s = 5
+        self.scale = 100
 
-        self.fig, self.axes = plt.subplots(1, 1, figsize=self.figsize, sharex=True)
+        self.fig, self.axes = plt.subplots(1, 1, figsize=[15, 6], sharex=True)
         self.fig.canvas.mpl_connect('close_event', self.stop_streaming)
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         help_str = """
@@ -61,7 +60,7 @@ class CLASatHome:
                     decrease time scale : +
                 """
         print(help_str)
-        self.eeg_nchan = len(CHANNEL_NAMES[DataStream.EEG])
+        self.eeg_nchan = NB_CHANNELS[DataStream.EEG]
         self.eeg_ui_samples = int(self.ui_window_s * SAMPLING_RATE[DataStream.EEG])
         self.data = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
         self.times = np.arange(-self.ui_window_s, 0, 1. / SAMPLING_RATE[DataStream.EEG])
@@ -69,7 +68,7 @@ class CLASatHome:
         self.lines = []
 
         for ii in range(self.eeg_nchan):
-            line, = self.axes.plot(self.times[::Config.UI.subsample], self.data[::Config.UI.subsample, ii] - ii, lw=1)
+            line, = self.axes.plot(self.times[::VIEW_SUBSAMPLE], self.data[::VIEW_SUBSAMPLE, ii] - ii, lw=1)
             self.lines.append(line)
 
         self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
@@ -81,7 +80,7 @@ class CLASatHome:
 
         self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[DataStream.EEG], self.impedances)])
 
-        self.display_every = int(0.2 / (12 / SAMPLING_RATE[DataStream.EEG]))
+        self.display_every = 5
 
         self.bf = firwin(32, np.array([1, 40]) / (SAMPLING_RATE[DataStream.EEG] / 2.), width=0.05, pass_zero=False)
         self.af = [1.0]
@@ -146,14 +145,8 @@ class CLASatHome:
                 time.sleep(CHUNK_SIZE[DataStream.EEG] / SAMPLING_RATE[DataStream.EEG])
                 try:
                     data, timestamps = self.stream_inlet[DataStream.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[DataStream.EEG])
-                    # data = np.array(data)
-                    # timestamps = np.array(timestamps)
-                    # print(f"Data shape: {data.shape}, Timestamps shape: {timestamps.shape}")
                     if timestamps and len(timestamps) == CHUNK_SIZE[DataStream.EEG]:
-                        if Config.UI.dejitter:
-                            timestamps = np.float64(np.arange(len(timestamps))) # TODO: change to static call
-                            timestamps /= SAMPLING_RATE[DataStream.EEG]
-                            timestamps += time.time() + 1. / SAMPLING_RATE[DataStream.EEG]
+                        timestamps = TIMESTAMPS[DataStream.EEG] + time.time() + 1. / SAMPLING_RATE[DataStream.EEG]
 
                         for t, s in zip(timestamps, data):
                             writer.writerow([t] + list(s))
@@ -188,9 +181,7 @@ class CLASatHome:
                     else:
                         no_data_counter += 1
 
-                        # if no data after 2 seconds, attempt to reset and recover
                         if no_data_counter > 20:
-                            # self.lsl_reset_stream_step1(DataStream.EEG)
                             self.run_eeg_thread = False
                             self.run_acc_thread = False
                             self.run_ppg_thread = False
