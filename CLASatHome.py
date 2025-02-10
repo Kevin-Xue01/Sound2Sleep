@@ -36,222 +36,6 @@ def find_procs_by_name(name) -> list[Process]:
             ls.append(p)
     return ls
 
-# class CLASatHome:
-#     # stream information
-#     lsl = dict()
-#     inlet = dict()
-
-#     def __init__(self):
-#         # start bluemuse if not already started
-#         self.lsl: dict[DataStream, StreamInlet] = dict()
-#         subprocess.call('start bluemuse:', shell=True)
-#         subprocess.call('start bluemuse://setting?key=primary_timestamp_format!value=BLUEMUSE', shell=True)
-#         subprocess.call('start bluemuse://setting?key=channel_data_type!value=float32', shell=True)
-#         subprocess.call('start bluemuse://setting?key=eeg_enabled!value=true', shell=True)
-#         subprocess.call('start bluemuse://setting?key=accelerometer_enabled!value=true', shell=True)
-#         subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=false', shell=True)
-#         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
-
-#     def screenoff(self):
-#         ''' Darken the screen by starting the blank screensaver '''
-#         try:
-#             subprocess.call(['C:\Windows\System32\scrnsave.scr', '/start'])
-#         except Exception as ex:
-#             # construct traceback
-#             tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-#             tbstring.insert(0, '=== ' + datetime.datetime.now().toISOString() + ' ===')
-
-#             # print to screen and error log file
-#             print('\n'.join(tbstring))
-#             self.files['err'].writelines(tbstring)
-
-#     def lsl_reload(self):
-#         allok = True
-#         self.lsl = dict()
-#         for stream in DataStream:
-#             self.lsl[stream] = resolve_byprop('type', stream.value, timeout=LSL_SCAN_TIMEOUT)
-
-#             if self.lsl[stream]:
-#                 self.lsl[stream] = self.lsl[stream][0]
-#                 print(f'{stream.name} OK.')
-#             else:
-#                 print(f'{stream.name} not found.')
-#                 allok = False
-
-#         return allok
-
-#     def lsl_timer_callback(self):
-#         for stream in DataStream:
-#             try:
-#                 chunk, times = self.inlet[d].pull_chunk()
-#                 chunk = np.array(chunk)
-
-#                 if len(times) > 0:
-#                     self.no_data_count = 0
-
-#                     # store the data
-#                     self.plots[d].add_data(chunk)
-
-#                     # submit EEG data to the PLL
-#                     # if d == 'EEG':
-#                     #     _, ts_ref, ts_lockbin = self.pll.process_block(chunk[:, 0])
-#                     #     self.plots['PLL'].add_data(np.stack((ts_ref, ts_lockbin), axis=1))
-
-#                     self.files[d].write('NCHK'.encode('ascii'))
-#                     self.files[d].write(chunk.dtype.char.encode('ascii'))
-#                     self.files[d].write(np.array(chunk.shape).astype(np.uint32).tobytes())
-#                     self.files[d].write(np.array(times).astype(np.double).tobytes())
-#                     self.files[d].write('TTTT'.encode('ascii'))
-#                     self.files[d].write(chunk.tobytes(order='C'))
-
-#                 else:
-#                     self.no_data_count += 1
-
-#                     # if no data after 2 seconds, attempt to reset and recover
-#                     if self.no_data_count > 20:
-#                         self.lsl_reset_stream_step1()
-
-#             except Exception as ex:
-#                 print(ex)
-
-#     def lsl_reset_stream_step1(self):
-#         self.no_data_count = 0  # reset no data counter
-#         self.lsl_timer.stop()  # stop data pulling loop
-
-#         # restart bluemuse streaming, wait, and restart
-#         subprocess.call('start bluemuse://stop?stopall', shell=True)
-#         Timer(3, self.lsl_reset_stream_step2)
-
-#     def lsl_reset_stream_step2(self):
-#         ''' 
-#         Try to restart streams the lsl pull timer.
-#         Part of interrupted stream restart process.
-#         '''
-#         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-#         Timer(3, self.lsl_reset_stream_step3)
-
-#     def lsl_reset_stream_step3(self):
-#         reset_success = self.lsl_reload()
-
-#         if not reset_success:
-#             # if we can't get the streams up, try again
-#             self.reset_attempt_count = self.reset_attempt_count + 1
-#             if self.reset_attempt_count < 3:
-#                 self.lsl_reset_stream_step1()
-#             else:
-#                 self.reset_attempt_count = 0
-
-#                 # if the stream really isn't working.. kill bluemuse
-#                 for p in find_procs_by_name('BlueMuse.exe'):
-#                     p.kill()
-
-#                 # try the reset process again
-#                 QTimer.singleShot(3000, self.lsl_reset_stream_step1)
-#         else:
-#             # if all streams have resolved, start polling data again!
-#             self.reset_attempt_count = 0
-#             self.lsl_timer.start()
-
-#     def start_streaming(self):
-#         ''' 
-#         Callback for "Start" button
-#         Start bluemuse, streams, initialize recording files
-#         '''
-
-#         # initialize bluemuse and try to resolve LSL streams
-#         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-#         if not self.lsl_reload():
-#             self.status.setStyleSheet("background-color: yellow")
-#             self.status.setText('Unable to connect to Muse S...')
-#             return
-
-#         # initialize metadata file
-#         fileroot = uuid.uuid4().hex
-#         starttime = datetime.now()
-#         self.meta = {
-#             "start_time": starttime.isoformat(),
-#             "data": {},
-#             "fs": {},
-#             "nchan": {},
-#             "error_log": fileroot + '_err.txt'
-#         }
-
-#         # start the selected steram
-#         self.inlet = dict()
-#         for k in self.datastreams:
-#             self.inlet[k] = StreamInlet(self.lsl[k])
-#             self.plots[k].init_data(fsample=self.lsl[k].nominal_srate(),
-#                                     history_time=8,
-#                                     nchan=self.lsl[k].channel_count())
-
-#             # include details in metadata
-#             self.meta['data'][k] = fileroot + '_' + k + '.dat'
-#             self.meta['fs'][k] = self.lsl[k].nominal_srate()
-#             self.meta['nchan'][k] = self.lsl[k].channel_count()
-
-#             self.files[k] = open(os.path.join('output', self.meta['data'][k]), 'wb')
-
-#         # save the metafile
-#         with open(os.path.join('output', 'cah_%s.json' % starttime.strftime('%Y%m%dT%H%M%S')), 'w') as f:
-#             json.dump(self.meta, f)
-
-#         # initialize the error log
-#         self.files['err'] = open(os.path.join('output', self.meta['error_log']), 'w')
-
-#         # initialize the PLL
-#         self.plots['PLL'].init_data(fsample=self.lsl['EEG'].nominal_srate(), history_time=8, nchan=2)
-#         self.pll = PhaseLockedLoop(fs=self.lsl['EEG'].nominal_srate())
-
-#         # initialize the data stream timer
-#         self.lsl_timer = QTimer()
-#         self.lsl_timer.timeout.connect(self.lsl_timer_callback)
-#         self.lsl_timer.start(100)
-
-#         # initialize the plot refresh timer
-#         self.draw_timer = QTimer()
-#         self.draw_timer.timeout.connect(self.draw_timer_callback)
-#         self.draw_timer.start(500)
-
-#         # set button state
-#         self.status.setStyleSheet("background-color: green")
-#         self.status.setText('Streaming...')
-
-#     def stop_streaming(self):
-#         ''' 
-#         Callback for "Stop" button
-#         Stop lsl chunk timers, GUI update timers, stop streams
-#         '''
-#         if self.lsl_timer is not None:
-#             self.lsl_timer.stop()
-#             self.lsl_timer = None
-
-#         if self.draw_timer is not None:
-#             self.draw_timer.stop()
-#             self.draw_timer = None
-
-#         for k in self.inlet:
-#             try:
-#                 self.inlet[k].close_stream()
-#             except Exception as ex:
-#                 # construct traceback
-#                 tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-#                 tbstring.insert(0, '=== ' + datetime.datetime.now().toISOString() + ' ===')
-
-#                 # print to screen and error log file
-#                 print('\n'.join(tbstring))
-#                 self.files['err'].writelines(tbstring)
-
-#         for k in self.files:
-#             self.files[k].close()
-
-#         # set button state
-#         self.status.setStyleSheet("background-color: white")
-#         self.status.setText('Ready.')
-
-#         subprocess.call('start bluemuse://stop?stopall', shell=True)
-
-
-
 class CLASatHome:
     no_data_count = 0
     reset_attempt_count = 0
@@ -430,18 +214,15 @@ class CLASatHome:
         print('PPG thread stopped')
 
     def lsl_reset_stream_step1(self):
-        # restart bluemuse streaming, wait, and restart
-        print('Resetting stream step 1 at ' + str(datetime.now()))
+        print('Resetting stream step 1')
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         time.sleep(3)
         self.lsl_reset_stream_step2()
-        # print('Resetting stream step 1 done at' + str(datetime.now()))
 
 
     def lsl_reset_stream_step2(self):
         print('Resetting stream step 2')
         subprocess.call('start bluemuse://start?startall', shell=True)
-        # Timer(3, self.lsl_reset_stream_step3)
         time.sleep(3)
         self.lsl_reset_stream_step3()
 
@@ -450,7 +231,6 @@ class CLASatHome:
         reset_success = self.lsl_reload()
 
         if not reset_success:
-            # if we can't get the streams up, try again
             self.reset_attempt_count += 1
             if self.reset_attempt_count < Config.Connection.reset_attempt_count_max:
                 print('Resetting Attempt: ' + str(self.reset_attempt_count))
@@ -513,12 +293,6 @@ class CLASatHome:
         self.ppg_thread.start()
 
     def start_streaming(self):
-        ''' 
-        Callback for "Start" button
-        Start bluemuse, streams, initialize recording files
-        '''
-
-        # initialize bluemuse and try to resolve LSL streams
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
         while not self.lsl_reload(): 
             time.sleep(3)
