@@ -26,15 +26,8 @@ from constants import (
     Config,
     DataStream,
 )
+from logger import LoggerWrapper as Logger
 
-
-# HELPER STATIC FUNCTIONS
-def find_procs_by_name(name) -> list[Process]:
-    ls = []
-    for p in psutil.process_iter(['name']):
-        if p.info['name'] == name:
-            ls.append(p)
-    return ls
 
 class CLASatHome:
     no_data_count = 0
@@ -104,18 +97,17 @@ class CLASatHome:
 
         self.filt = filt
         self.processing_window_s = 2
+        self.logger = Logger()
 
     def screenoff(self):
         ''' Darken the screen by starting the blank screensaver '''
         try:
             subprocess.call(['C:\Windows\System32\scrnsave.scr', '/start'])
         except Exception as ex:
-            # construct traceback
-            tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-            print('\n'.join(tbstring))
+            self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
 
     def lsl_reload(self):
-        print('Reloading LSL streams')
+        self.logger.info('Reloading LSL streams')
 
         allok = True
         self.stream_info = dict()
@@ -125,9 +117,9 @@ class CLASatHome:
 
             if self.stream_info[stream]:
                 self.stream_info[stream] = self.stream_info[stream][0]
-                print(f'{stream.name} OK.')
+                self.logger.info(f'{stream.name} OK.')
             else:
-                print(f'{stream.name} not found.')
+                self.logger.warning(f'{stream.name} not found.')
                 allok = False
 
         return allok
@@ -188,61 +180,61 @@ class CLASatHome:
                             Timer(1, self.lsl_reset_stream_step1).start()
 
                 except Exception as ex:
-                    tbstring = traceback.format_exception(type(ex), ex, ex.__traceback__)
-                    print('\n'.join(tbstring))
-            print('EEG thread stopped')
+                    self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+
+            self.logger.info('EEG thread stopped')
 
     def acc_callback(self):
         while self.run_acc_thread:
             print('ACC callback')
             time.sleep(3)
-        print('ACC thread stopped')
+        self.logger.critical('ACC thread stopped')
 
     def ppg_callback(self):
         while self.run_ppg_thread:
             print('PPG callback')
             time.sleep(3)
-        print('PPG thread stopped')
+        self.logger.critical('PPG thread stopped')
 
     def lsl_reset_stream_step1(self):
-        print('Resetting stream step 1')
+        self.logger.info('Resetting stream step 1')
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         time.sleep(3)
         self.lsl_reset_stream_step2()
 
 
     def lsl_reset_stream_step2(self):
-        print('Resetting stream step 2')
+        self.logger.info('Resetting stream step 2')
         subprocess.call('start bluemuse://start?startall', shell=True)
         time.sleep(3)
         self.lsl_reset_stream_step3()
 
     def lsl_reset_stream_step3(self):
-        print('Resetting stream step 3')
+        self.logger.info('Resetting stream step 3')
         reset_success = self.lsl_reload()
 
         if not reset_success:
             self.reset_attempt_count += 1
             if self.reset_attempt_count < Config.Connection.reset_attempt_count_max:
-                print('Resetting Attempt: ' + str(self.reset_attempt_count))
+                self.logger.info('Resetting Attempt: ' + str(self.reset_attempt_count))
                 self.lsl_reset_stream_step1() 
             else:
                 self.reset_attempt_count = 0
 
-                # if the stream really isn't working.. kill bluemuse
-                for p in find_procs_by_name('BlueMuse.exe'):
-                    print('Killing BlueMuse')
-                    p.kill()
+                for p in psutil.process_iter(['name']):
+                    if p.info['name'] == 'BlueMuse.exe':
+                        self.logger.info('Killing BlueMuse')
+                        p.kill()
 
                 # try the reset process again
-                print('Resetting stream again')
+                self.logger.info('Resetting stream again')
                 # Timer(3, self.lsl_reset_stream_step1)
                 time.sleep(2)
                 self.lsl_reset_stream_step1()
         else:
             # if all streams have resolved, start polling data again!
             self.reset_attempt_count = 0
-            print('Starting threads')
+            self.logger.info('Starting threads')
             time.sleep(3)
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
 
@@ -304,7 +296,7 @@ class CLASatHome:
             try:
                 self.stream_inlet[stream].close_stream()
             except Exception as ex:
-                print('\n' + str(ex))
+                self.logger.critical(str(ex))
 
         subprocess.call('start bluemuse://stop?stopall', shell=True)
 
