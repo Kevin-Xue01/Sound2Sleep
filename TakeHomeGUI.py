@@ -3,72 +3,52 @@ GUI for running the Closed Loop Auditory Stimulation experiment - Take Hope
 Author: Simeon Wong
 '''
 
-import sys
-import traceback
-
-# Qt Framework
-from typing import Callable
-from PyQt5 import QtWidgets, uic, QtGui
-from PyQt5.QtCore import QRunnable, QTimer, Qt, QThreadPool, QPoint
-from PyQt5.QtGui import QPainter, QColor, QBrush, QPen, QStaticText
-import qdarkstyle
-
-from CLASQtWidgets import *
-
-import os
+# Misc
+import datetime
 import io
 import json
-import struct
-import time
-from enum import Enum
-from typing import Optional
 import logging
-import psutil
-import yaml
+import os
+import struct
+import sys
+import time
+import traceback
+from enum import Enum
+
+# Qt Framework
+from typing import Callable, Optional
 
 # Plot stuff
-import matplotlib, matplotlib.figure
+import matplotlib
+import matplotlib.figure
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 
 # Math stuff
 import numpy as np
+import psutil
+import qdarkstyle
 
-# EEG streaming interface
-from QOpenBCI import QEEGStreamer, ConnectionState
+# for Pushover
+import requests
 
 # triggers
 import serial
 import serial.tools.list_ports
+import yaml
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from PyQt5 import QtGui, QtWidgets, uic
+from PyQt5.QtCore import QPoint, QRunnable, Qt, QThreadPool, QTimer
+from PyQt5.QtGui import QBrush, QColor, QPainter, QPen, QStaticText
+
+# EEG streaming interface
+from QOpenBCI import ConnectionState, QEEGStreamer
 
 # CLAS algorithm
 import QCLASAlgo
-
-# Misc
-import datetime
-
-# for Pushover
-import requests
-import yaml
-
+from CLASQtWidgets import *
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
-
-with open('pushover.yml', 'r') as f:
-    pushover_params = yaml.safe_load(f)
-
-def send_error(msg):
-    try:
-        requests.post('https://api.pushover.net/1/messages.json',
-                      data = {
-                          "token": pushover_params['token'],
-                          "user": pushover_params['user'],
-                          "message":msg
-                      })
-    except:
-        print('Pushover error')
 
 
 class CLASGUI(QtWidgets.QMainWindow):
@@ -98,7 +78,6 @@ class CLASGUI(QtWidgets.QMainWindow):
         self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
         plt.style.use('dark_background')
 
-        self.setStyleSheet("background-image: url(./images/background.png); background-repeat: no-repeat; font-family: 'DM Sans';")
 
         self.mainlayout = QtWidgets.QVBoxLayout()
         self.mainlayout.setContentsMargins(0, 0, 0, 0)
