@@ -23,7 +23,6 @@ from constants import (
     NB_CHANNELS,
     SAMPLING_RATE,
     TIMESTAMPS,
-    Config,
     DataStream,
 )
 from logger import LoggerWrapper as Logger
@@ -39,11 +38,9 @@ class CLASatHome:
         sns.despine(left=True)
 
         self.ui_window_s = 5
-        self.scale = 100
 
         self.fig, self.axes = plt.subplots(1, 1, figsize=[15, 6], sharex=True)
         self.fig.canvas.mpl_connect('close_event', self.stop_streaming)
-        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         help_str = """
                     toggle filter : d
                     toogle full screen : f
@@ -153,23 +150,21 @@ class CLASatHome:
                         self.data_f = self.data_f[-self.n_samples:]
 
                         display_every_counter += 1
-                        # if display_every_counter == self.display_every:
-                        #     print('Displaying data')
-                        #     if self.filt:
-                        #         plot_data = self.data_f
-                        #     elif not self.filt:
-                        #         plot_data = self.data - self.data.mean(axis=0)
-                        #     for ii in range(NB_CHANNELS[DataStream.EEG]):
-                        #         self.lines[ii].set_xdata(self.times[::Config.UI.subsample] -
-                        #                                 self.times[-1])
-                        #         self.lines[ii].set_ydata(plot_data[::Config.UI.subsample, ii] /
-                        #                                 self.scale - ii)
-                        #         self.impedances = np.std(plot_data, axis=0)
+                        if display_every_counter == self.display_every:
+                            print('Displaying data')
+                            if self.filt:
+                                plot_data = self.data_f
+                            elif not self.filt:
+                                plot_data = self.data - self.data.mean(axis=0)
+                            for ii in range(NB_CHANNELS[DataStream.EEG]):
+                                self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
+                                self.lines[ii].set_ydata(plot_data[::VIEW_SUBSAMPLE, ii] - ii)
+                                self.impedances = np.std(plot_data, axis=0)
 
-                        #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[DataStream.EEG], self.impedances)])
-                        #     self.axes.set_xlim(-self.ui_window_s, 0)
-                        #     self.fig.canvas.draw()
-                        #     display_every_counter = 0
+                            self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[DataStream.EEG], self.impedances)])
+                            self.axes.set_xlim(-self.ui_window_s, 0)
+                            self.fig.canvas.draw()
+                            display_every_counter = 0
                     else:
                         no_data_counter += 1
 
@@ -215,7 +210,7 @@ class CLASatHome:
 
         if not reset_success:
             self.reset_attempt_count += 1
-            if self.reset_attempt_count < Config.Connection.reset_attempt_count_max:
+            if self.reset_attempt_count <= 3:
                 self.logger.info('Resetting Attempt: ' + str(self.reset_attempt_count))
                 self.lsl_reset_stream_step1() 
             else:
@@ -226,7 +221,6 @@ class CLASatHome:
                         self.logger.info('Killing BlueMuse')
                         p.kill()
 
-                # try the reset process again
                 self.logger.info('Resetting stream again')
                 # Timer(3, self.lsl_reset_stream_step1)
                 time.sleep(2)
@@ -244,19 +238,6 @@ class CLASatHome:
             
             self.start_threads()
 
-
-    def on_key_press(self, event):
-        if event.key == '/':
-            self.scale *= 1.2
-        elif event.key == '*':
-            self.scale /= 1.2
-        elif event.key == '+':
-            self.ui_window_s += 1
-        elif event.key == '-':
-            if self.ui_window_s > 1:
-                self.ui_window_s -= 1
-        elif event.key == 'd':
-            self.filt = not(self.filt)
 
     def start_threads(self):
         self.run_eeg_thread = True
