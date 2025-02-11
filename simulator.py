@@ -109,15 +109,15 @@ class Simulator():
             test_signal = raw[val:val + fs * duration]
         return test_signal, t
     
-    @staticmethod
-    def true_phase(signal: np.ndarray, fs: int):
+    # @staticmethod
+    # def true_phase(signal: np.ndarray, fs: int):
 
-        b, a = scipy.signal.butter(4, 2, 'low', fs=fs)
-        filtered = scipy.signal.filtfilt(b, a, signal)
-        analytic_signal = scipy.signal.hilbert(filtered)
-        true_phase = np.unwrap(np.angle(analytic_signal)) % (2 * pi) 
+    #     b, a = scipy.signal.butter(4, 2, 'low', fs=fs)
+    #     filtered = scipy.signal.filtfilt(b, a, signal)
+    #     analytic_signal = scipy.signal.hilbert(filtered)
+    #     true_phase = np.unwrap(np.angle(analytic_signal)) % (2 * pi) 
 
-        return true_phase
+    #     return true_phase
 
     def simulate(self, signal: np.ndarray, real_time_step: float = 0.1):
         # backoff period
@@ -215,8 +215,8 @@ def phase_hist(signal, stim_trigs, fs = 256, lowcut = 0.5, highcut = 2, window_s
 
 
     
-# modes = ['stationary', 'time-varying', 'eeg']
-modes = ['eeg']
+modes = ['stationary', 'time-varying', 'eeg']
+# modes = ['eeg']
 wavelet_methods = ['truncated_wavelet']
 for wavelet_method in wavelet_methods:
     for mode in modes:

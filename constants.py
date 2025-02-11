@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto
 
 import numpy as np
 from muselsl.constants import (
@@ -55,20 +55,9 @@ DELAYS = {
     DataStream.PPG: CHUNK_SIZE[DataStream.PPG] / SAMPLING_RATE[DataStream.PPG]
 }
 
-
-class Config:
-    class UI:
-        window_s = 5
-        refresh = 0.2
-        dejitter = True
-    class Connection:
-        no_data_counter_max = 0
-
-        reset_stream_step1_delay = 3 # [s]
-        reset_stream_step2_delay = 3 # [s]
-        reset_stream_step3_delay = 3 # [s]
-
-        reset_attempt_count_max = 3
-    
-    class Processing:
-        window_s = 2
+class ExperimentMode(Enum):
+    DISABLED = auto() # disabled CLAS
+    SHAM_DELAY = auto() # CLAS with specific target phase + configurable delay and audio off
+    CLAS = auto() # CLAS with specific target phase and audio on
+    SHAM_PHASE = auto() # CLAS with random target phase and audio off
+    SHAM_MUTED = auto() # CLAS with specific target phase and audio ff
