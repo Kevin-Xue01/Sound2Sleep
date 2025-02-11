@@ -1,18 +1,16 @@
-import numpy as np
-from typing import Callable
-
-# phase estimator imports
-import scipy.signal 
-import scipy.stats
-from math import pi
-
 # data generation
 from collections import deque
+from math import pi
+from typing import Callable
 
 # visualization 
 import matplotlib.pyplot as plt
+import numpy as np
 
-from tqdm import tqdm # progress bar
+# phase estimator imports
+import scipy.signal
+import scipy.stats
+from tqdm import tqdm  # progress bar
 
 # yasa for sleep staging
 # import yasa
@@ -34,15 +32,15 @@ def phase_estimator(signal: np.ndarray, fs: int, analysis_len: int, method = 'tr
         freq = wavelet_freqs[max_idx]
         phase = np.angle(conv_vals[max_idx])
 
-    # dot product of full wavelet
-    if method == 'full_wavelet':
-        wavelet_len = analysis_len * fs # length of the signal
-        wavelets = [scipy.signal.morlet2(wavelet_len, wavelet_width(f), w) for f in wavelet_freqs]
-        dot_prod_vals = [np.dot(signal, w) for w in wavelets]
-        max_idx = np.argmax(np.abs(dot_prod_vals))
-        freq = wavelet_freqs[max_idx]
-        conv_vals = np.dot(signal, trunc_wavelets[max_idx])
-        phase = np.angle(conv_vals) % (2 * pi)
+    # # dot product of full wavelet
+    # if method == 'full_wavelet':
+    #     wavelet_len = analysis_len * fs # length of the signal
+    #     wavelets = [scipy.signal.morlet2(wavelet_len, wavelet_width(f), w) for f in wavelet_freqs]
+    #     dot_prod_vals = [np.dot(signal, w) for w in wavelets]
+    #     max_idx = np.argmax(np.abs(dot_prod_vals))
+    #     freq = wavelet_freqs[max_idx]
+    #     conv_vals = np.dot(signal, trunc_wavelets[max_idx])
+    #     phase = np.angle(conv_vals) % (2 * pi)
     
     return phase, freq, conv_vals
 
@@ -66,21 +64,21 @@ def butter_filter(cut, type, fs, order = 4):
     sos = scipy.signal.butter(order, cut, btype = type, output = 'sos')
     return sos
 
-def bootstrap_confidence_interval(data, num_bootstrap_samples=1000, confidence_level=0.95):
+# def bootstrap_confidence_interval(data, num_bootstrap_samples=1000, confidence_level=0.95):
 
-    bootstrap_means = []
-    n = len(data)
+#     bootstrap_means = []
+#     n = len(data)
     
-    for _ in range(num_bootstrap_samples):
-        bootstrap_sample = np.random.choice(data, size=n, replace=True)
-        bootstrap_means.append(np.mean(bootstrap_sample))
+#     for _ in range(num_bootstrap_samples):
+#         bootstrap_sample = np.random.choice(data, size=n, replace=True)
+#         bootstrap_means.append(np.mean(bootstrap_sample))
     
-    lower_percentile = (1 - confidence_level) / 2
-    upper_percentile = 1 - lower_percentile
-    lower_bound = np.percentile(bootstrap_means, lower_percentile * 100)
-    upper_bound = np.percentile(bootstrap_means, upper_percentile * 100)
+#     lower_percentile = (1 - confidence_level) / 2
+#     upper_percentile = 1 - lower_percentile
+#     lower_bound = np.percentile(bootstrap_means, lower_percentile * 100)
+#     upper_bound = np.percentile(bootstrap_means, upper_percentile * 100)
     
-    return np.mean(data), (lower_bound, upper_bound)
+#     return np.mean(data), (lower_bound, upper_bound)
 
 
 class Simulator():
