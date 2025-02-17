@@ -55,9 +55,27 @@ DELAYS = {
     DataStream.PPG: CHUNK_SIZE[DataStream.PPG] / SAMPLING_RATE[DataStream.PPG]
 }
 
+class AppState(Enum):
+    DISCONNECTED = "Disconnected"
+    CONNECTING = "Connecting"
+    CONNECTED = "Connected"
+    RECORDING = "Recording"
+
 class ExperimentMode(Enum):
-    DISABLED = auto() # disabled CLAS
-    SHAM_DELAY = auto() # CLAS with specific target phase + configurable delay and audio off
-    CLAS = auto() # CLAS with specific target phase and audio on
-    SHAM_PHASE = auto() # CLAS with random target phase and audio off
-    SHAM_MUTED = auto() # CLAS with specific target phase and audio ff
+    DISABLED = "Disabled" # disabled CLAS => NOTE: NULL HYPOTHESIS #1
+    RANDOM_PHASE = "Random Phase" # CLAS with random target phase and audio off => NOTE: NULL HYPOTHESIS #2
+    CONFIGURE_DELAY = "Configure Delay" # CLAS with specific target phase + configurable delay and audio off
+    CLAS = "CLAS" # CLAS with specific target phase and audio on
+
+class CLASResult(Enum):
+    NOT_RUNNING = auto()
+
+    STIM = auto()
+    STIM2 = auto()
+
+    HL_RATIO = auto()
+    AMPLITUDE = auto()
+    BACKOFF = auto()
+    BACKOFF2 = auto()
+    FUTURE = auto()
+    FUTURE2 = auto()

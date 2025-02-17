@@ -1,3 +1,4 @@
+import json
 import sys
 import threading
 import time
@@ -6,28 +7,35 @@ from enum import Enum
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from pydantic import BaseModel, ValidationError
 from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt5.QtGui import QScreen
 from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
+from constants import AppState, ExperimentMode
 
-class AppState(Enum):
-    DISCONNECTED = "Disconnected"
-    CONNECTING = "Connecting"
-    CONNECTED = "Connected"
-    RECORDING = "Recording"
-    NOT_RECORDING = "Not Recording"
+
+class ConfigModel(BaseModel):
+    sampling_rate: float
+    filter_low_cut: float
+    filter_high_cut: float
+    window_size: float
+
+
 
 class BluetoothConnectionThread(QThread):
     connection_established = pyqtSignal()
@@ -45,6 +53,8 @@ class EEGPlot(QWidget):
     def __init__(self):
         super().__init__()
         self.initUI()
+        self.ymin = -2  # Initial minimum value for y-axis
+        self.ymax = 2   # Initial maximum value for y-axis
 
     def initUI(self):
         layout = QVBoxLayout()
@@ -58,6 +68,7 @@ class EEGPlot(QWidget):
         self.data = np.zeros((4, 100))  # Placeholder EEG data
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plot)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def start_plotting(self):
         self.timer.start(100)  # Update every 100ms
@@ -72,16 +83,46 @@ class EEGPlot(QWidget):
         for i, ax in enumerate(self.axes):
             ax.clear()
             ax.plot(self.data[i, :])
-            ax.set_ylim(-2, 2)
+            ax.set_ylim(self.ymin, self.ymax)
+
+            # Calculate variance for the current signal (data row)
+            variance = np.var(self.data[i, :])
+            
+            # Display the variance on the top right of the plot
+            ax.text(0.95, 0.95, f"Variance: {variance:.4f}", transform=ax.transAxes,
+                    ha="right", va="top", fontsize=10, color="red")
         
         self.canvas.draw()
 
+    def keyPressEvent(self, event):
+        """Handle key press events to adjust the vertical axis scale."""
+        if event.key() == Qt.Key.Key_Plus:  # Increase y-axis range
+            self.ymin *= 1.2
+            self.ymax *= 1.2
+        elif event.key() == Qt.Key.Key_Minus:  # Decrease y-axis range
+            self.ymin /= 1.2
+            self.ymax /= 1.2
+    
+    def clear_plots(self):
+        """Clears all plots and resets EEG data."""
+        self.data = np.zeros((4, 100))  # Reset EEG data
+        for ax in self.axes:
+            ax.clear()
+            ax.set_ylim(-2, 2)  # Keep the y-axis limits consistent
+        self.canvas.draw()
+
+
 class ControlPanel(QWidget):
-    def __init__(self, eeg_plot):
+    def __init__(self, eeg_plot: EEGPlot):
         super().__init__()
+        self.save_folder = None
         self.eeg_plot = eeg_plot
         self.state = AppState.DISCONNECTED
         self.elapsed_time = 0  # Elapsed time in seconds
+        self.subjects = ["Subject 1", "Subject 2", "Subject 3", "Subject 4"]
+        self.selected_subject = self.subjects[0]  # Default to the first subject
+        self.selected_experiment_mode = ExperimentMode.DISABLED  # Default mode
+
         self.initUI()
 
     def initUI(self):
@@ -109,10 +150,45 @@ class ControlPanel(QWidget):
         recording_layout = QHBoxLayout()
         recording_layout.addWidget(self.elapsed_time_label)
         recording_layout.addWidget(self.recording_button)
+
+        # Save Folder Selection
+        self.folder_button = QPushButton("Choose Save Folder")
+        self.folder_button.clicked.connect(self.choose_save_folder)
         
+        # Subject Selection Horizontal Layout (QLabel + QComboBox)
+        subject_layout = QHBoxLayout()
+        self.subject_label = QLabel("Select Subject:")
+        self.subject_dropdown = QComboBox()
+        self.subject_dropdown.addItems(self.subjects)
+        self.subject_dropdown.setCurrentIndex(0)  # Default to first subject
+        # self.subject_dropdown.currentIndexChanged.connect(self.update_selected_subject)
+
+        # Experiment Mode Selection (Horizontally Aligned)
+        experiment_layout = QHBoxLayout()
+        self.experiment_label = QLabel("Experiment Mode:")
+        self.experiment_dropdown = QComboBox()
+        self.experiment_dropdown.addItems([mode.value for mode in ExperimentMode])
+        self.experiment_dropdown.setCurrentIndex(0)  # Default to first mode (Disabled)
+        self.experiment_dropdown.currentIndexChanged.connect(self.update_experiment_mode)
+
+        experiment_layout.addWidget(self.experiment_label)
+        experiment_layout.addWidget(self.experiment_dropdown)
+
+        subject_layout.addWidget(self.subject_label)
+        subject_layout.addWidget(self.subject_dropdown)
+
         layout.addLayout(connection_layout)
+        layout.addWidget(self.folder_button)
         layout.addLayout(recording_layout)
+        layout.addLayout(subject_layout)
+        layout.addLayout(experiment_layout)
+        
         self.setLayout(layout)
+
+    def update_experiment_mode(self):
+        """Update the selected experiment mode."""
+        selected_mode_str = self.experiment_dropdown.currentText()
+        self.selected_experiment_mode = ExperimentMode(selected_mode_str)
     
     def toggle_connection(self):
         if self.state == AppState.DISCONNECTED:
@@ -131,13 +207,37 @@ class ControlPanel(QWidget):
             self.recording_button.setText("Start Recording")
             self.elapsed_time_label.setText("Elapsed Time: 0s")
             self.elapsed_time = 0  # Reset elapsed time
-    
+        elif self.state == AppState.RECORDING:
+            self.show_disconnect_warning()
+
+    def show_disconnect_warning(self):
+        print('Test')
+        reply = QMessageBox.warning(
+            self, 'Warning', 
+            "You are currently recording data. Disconnecting will stop the recording. Are you sure you want to disconnect?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            # TODO: save data before disconnecting
+            self.state = AppState.DISCONNECTED
+            self.eeg_plot.stop_plotting()
+            self.elapsed_time_timer.stop()  # Stop the timer
+            self.elapsed_time = 0  # Reset elapsed time
+            self.connection_label.setText("Disconnected")
+            self.connection_button.setText("Connect")
+            self.recording_button.setEnabled(False)
+            self.recording_button.setText("Start Recording")
+            self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
+            self.recording_button.setText("Start Recording")
+
     def on_connection_success(self):
         self.state = AppState.CONNECTED
         self.connection_label.setText("Connected")
         self.connection_button.setText("Disconnect")
         self.connection_button.setEnabled(True)
         self.recording_button.setEnabled(True)
+        self.update_recording_button_state()
 
     def on_connection_failure(self):
         self.state = AppState.DISCONNECTED
@@ -146,9 +246,10 @@ class ControlPanel(QWidget):
         self.connection_button.setEnabled(True)
     
     def toggle_recording(self):
-        if self.state == AppState.CONNECTED:
+        if self.state == AppState.CONNECTED and self.save_folder:
             self.state = AppState.RECORDING
             self.recording_button.setText("Stop Recording")
+            self.eeg_plot.clear_plots()
             self.eeg_plot.start_plotting()
             self.elapsed_time = 0  # Reset elapsed time on start
             self.elapsed_time_timer.start(1000)  # Update every second
@@ -158,11 +259,21 @@ class ControlPanel(QWidget):
             self.eeg_plot.stop_plotting()
             self.elapsed_time_timer.stop()  # Stop the timer
             self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
-    
+
     def update_elapsed_time(self):
         self.elapsed_time += 1
         self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
 
+    def choose_save_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Folder")
+        if folder:
+            self.save_folder = folder
+            self.folder_button.setText(f"{folder}")
+            print(f"Selected Save Folder: {self.save_folder}")
+        self.update_recording_button_state()
+
+    def update_recording_button_state(self):
+        self.recording_button.setEnabled(self.state == AppState.CONNECTED and bool(self.save_folder))
             
 
 class ConfigPanel(QWidget):
@@ -170,19 +281,47 @@ class ConfigPanel(QWidget):
         super().__init__()
         self.initUI()
 
+        self.config = ConfigModel(
+            sampling_rate=256.0,
+            filter_low_cut=0.5,
+            filter_high_cut=30.0,
+            window_size=1.0,
+        )
+        self.update_json_editor()
+
     def initUI(self):
-        layout = QGridLayout()
+        layout = QVBoxLayout()
         
         self.params = {}
-        labels = ["Sampling Rate (Hz):", "Filter Low Cut (Hz):", "Filter High Cut (Hz):", "Window Size (s):"]
-        
-        for i, label in enumerate(labels):
-            layout.addWidget(QLabel(label), i, 0)
-            entry = QLineEdit()
-            layout.addWidget(entry, i, 1)
-            self.params[label] = entry
-        
+
+        # JSON Editor Section
+        self.json_editor_label = QLabel("Config JSON:")
+        layout.addWidget(self.json_editor_label)
+        self.json_editor = QTextEdit()
+        self.json_editor.setAcceptRichText(False)
+        self.json_editor.setReadOnly(False)  # Allow editing the JSON
+        layout.addWidget(self.json_editor)
+
+        # Load and save buttons
+        self.save_button = QPushButton("Save Config")
+        self.save_button.clicked.connect(self.save_config)
+        layout.addWidget(self.save_button)
+
         self.setLayout(layout)
+
+    def update_json_editor(self):
+        """Update the JSON editor with the current config serialized to JSON."""
+        config_json = self.config.model_dump_json(indent=4)
+        self.json_editor.setText(config_json)
+
+    def save_config(self):
+        """Parse the JSON from the editor and update the config model."""
+        try:
+            updated_config = json.loads(self.json_editor.toPlainText())
+            self.config = ConfigModel(**updated_config)
+            print("Config updated successfully:", self.config)
+        except (json.JSONDecodeError, ValidationError) as e:
+            print("Error updating config:", e)
 
 class EEGApp(QWidget):
     def __init__(self):

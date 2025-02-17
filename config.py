@@ -20,14 +20,12 @@ class WaveletParams(BaseModel):
 class ProcessingParams(BaseModel):
     truncated_wavelet: WaveletParams = Field(default_factory=WaveletParams)
     window_len: int = 2 # [seconds]
-    hl_ratio_threshold: callable = Field(default_factory=lambda x: x < -2)
-    amp_threshold: callable = Field(default_factory=lambda x: x > 4e-4)
+    hl_ratio_threshold: int = -2
+    amp_threshold: float = 4e-4
     target_phase: float = 2 * np.pi
 
 class EEGSessionConfig(BaseModel):
-    random_key: str = Field(default_factory=generate_random_key)
     datetime: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d_%H-%M"))
-    subject_name: str
     processing_params: ProcessingParams = Field(default_factory=ProcessingParams)
     audio_params: dict = Field(default_factory=dict)
 
