@@ -21,8 +21,8 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from config import EEGSessionConfig
-from constants import AppState, ExperimentMode
+from utils.config import EEGSessionConfig
+from utils.constants import AppState, ExperimentMode
 
 
 class ConfigModel(BaseModel):
