@@ -1,39 +1,35 @@
 import json
 import sys
-import threading
 import time
-from enum import Enum
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from pydantic import BaseModel, ValidationError
 from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
-from PyQt5.QtGui import QScreen
 from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
     QFileDialog,
-    QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
+from config import EEGSessionConfig
 from constants import AppState, ExperimentMode
 
 
 class ConfigModel(BaseModel):
-    sampling_rate: float
-    filter_low_cut: float
-    filter_high_cut: float
-    window_size: float
+    sampling_rate: float = 1.0
+    filter_low_cut: float = 1.0
+    filter_high_cut: float = 1.0
+    window_size: float = 1.0
 
 
 
@@ -53,15 +49,16 @@ class EEGPlot(QWidget):
     def __init__(self):
         super().__init__()
         self.initUI()
-        self.ymin = -2  # Initial minimum value for y-axis
-        self.ymax = 2   # Initial maximum value for y-axis
+        self.ymin = -2
+        self.ymax = 2
 
     def initUI(self):
         layout = QVBoxLayout()
         
-        self.figure, self.axes = plt.subplots(4, 1, figsize=(8, 6))
+        self.figure, self.axes = plt.subplots(4, 1, figsize=(8, 6), sharex=True)
         self.figure.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=0.95) 
         self.canvas = FigureCanvas(self.figure)
+        # self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self.canvas)
         
         self.setLayout(layout)
@@ -69,6 +66,9 @@ class EEGPlot(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plot)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumSize(800, 600)
+        self.setMaximumWidth(1100)
 
     def start_plotting(self):
         self.timer.start(100)  # Update every 100ms
@@ -281,54 +281,57 @@ class ConfigPanel(QWidget):
         super().__init__()
         self.initUI()
 
-        self.config = ConfigModel(
-            sampling_rate=256.0,
-            filter_low_cut=0.5,
-            filter_high_cut=30.0,
-            window_size=1.0,
-        )
-        self.update_json_editor()
+        # self.config = ConfigModel(
+        #     sampling_rate=256.0,
+        #     filter_low_cut=0.5,
+        #     filter_high_cut=30.0,
+        #     window_size=1.0,
+        # )
+        self.config = EEGSessionConfig()
+        config_json = self.config.model_dump_json(indent=4)
+        self.param_config_editor.setText(config_json)
 
     def initUI(self):
         layout = QVBoxLayout()
         
         self.params = {}
 
-        # JSON Editor Section
-        self.json_editor_label = QLabel("Config JSON:")
-        layout.addWidget(self.json_editor_label)
-        self.json_editor = QTextEdit()
-        self.json_editor.setAcceptRichText(False)
-        self.json_editor.setReadOnly(False)  # Allow editing the JSON
-        layout.addWidget(self.json_editor)
+        self.param_config_label = QLabel("Current Parameter Config:")
+        layout.addWidget(self.param_config_label)
+        self.param_config_editor = QTextEdit()
+        self.param_config_editor.setAcceptRichText(False)
+        self.param_config_editor.setReadOnly(False)  # Allow editing the JSON
+        layout.addWidget(self.param_config_editor)
 
-        # Load and save buttons
-        self.save_button = QPushButton("Save Config")
+        self.save_button = QPushButton("Update Config")
         self.save_button.clicked.connect(self.save_config)
         layout.addWidget(self.save_button)
 
-        self.setLayout(layout)
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: red;")
+        self.error_label.hide()
 
-    def update_json_editor(self):
-        """Update the JSON editor with the current config serialized to JSON."""
-        config_json = self.config.model_dump_json(indent=4)
-        self.json_editor.setText(config_json)
+        layout.addWidget(self.error_label)
+        self.setLayout(layout)
 
     def save_config(self):
         """Parse the JSON from the editor and update the config model."""
+        self.error_label.hide()
         try:
-            updated_config = json.loads(self.json_editor.toPlainText())
+            updated_config = json.loads(self.param_config_editor.toPlainText())
             self.config = ConfigModel(**updated_config)
+            print(self.config.model_dump())
             print("Config updated successfully:", self.config)
-        except (json.JSONDecodeError, ValidationError) as e:
-            print("Error updating config:", e)
+        except json.JSONDecodeError as e:
+            self.error_label.setText("Invalid JSON")  # Display the first error message
+            self.error_label.show()
+        except ValidationError as e:
+            self.error_label.setText(str("\n".join([f'{k}: {v}' for k, v in e.errors()[0].items() if k != "url"])))  # Display the first error message
+            self.error_label.show()
 
 class EEGApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.initUI()
-
-    def initUI(self):
         screen = QApplication.primaryScreen().geometry()
         width, height = int(screen.width() * 0.9), int(screen.height() * 0.9)
         self.setGeometry(
@@ -345,12 +348,10 @@ class EEGApp(QWidget):
         self.control_panel = ControlPanel(self.eeg_plot)
         self.config_panel = ConfigPanel()
         
-        self.eeg_plot.setFixedWidth(int(width * 0.65))
-        
         right_panel.addWidget(self.control_panel)
         right_panel.addWidget(self.config_panel)
         
-        main_layout.addWidget(self.eeg_plot)
+        main_layout.addWidget(self.eeg_plot, stretch=1)
         main_layout.addLayout(right_panel)
         
         self.setLayout(main_layout)
