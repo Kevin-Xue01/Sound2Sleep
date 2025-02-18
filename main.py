@@ -1,154 +1,364 @@
+import json
 import sys
 import time
+
+import matplotlib.pyplot as plt
 import numpy as np
-import pyqtgraph as pg
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel
-from PyQt5.QtCore import QThreadPool, QRunnable, pyqtSignal, QObject
-from pylsl import StreamInlet, resolve_stream
-from multiprocessing import Process, Queue
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from pydantic import BaseModel, ValidationError
+from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
+from PyQt5.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
-class DataSignal(QObject):
-    update_data = pyqtSignal(np.ndarray, np.ndarray)  # Emit a tuple of (data, timestamp)
-    update_fft_data = pyqtSignal(np.ndarray)
+from config import EEGSessionConfig
+from constants import AppState, ExperimentMode
 
-class FFTProcess(Process):
-    def __init__(self, input_queue: Queue, output_queue: Queue):
-        super().__init__()
-        self.input_queue = input_queue
-        self.output_queue = output_queue
+
+class ConfigModel(BaseModel):
+    sampling_rate: float = 1.0
+    filter_low_cut: float = 1.0
+    filter_high_cut: float = 1.0
+    window_size: float = 1.0
+
+
+
+class BluetoothConnectionThread(QThread):
+    connection_established = pyqtSignal()
+    connection_failed = pyqtSignal()
 
     def run(self):
-        """Calculate FFT in a separate process."""
-        while True:
-            if not self.input_queue.empty():
-                buffer_data = self.input_queue.get()
-                if buffer_data is None:  # Check for termination signal
-                    break
-                # Perform FFT
-                fft_result = np.fft.fft(buffer_data, axis=0)
-                fft_magnitude = np.abs(fft_result)  # Calculate magnitude
-                self.output_queue.put(fft_magnitude)  # Send results back to the main process
+        time.sleep(3)  # Simulating connection delay
+        success = np.random.choice([True, False], p=[0.8, 0.2])  # Simulate success rate
+        if success:
+            self.connection_established.emit()
+        else:
+            self.connection_failed.emit()
 
-class EEGApp(QMainWindow):
-    MAX_BUFFER_SIZE = 1000  # Define the maximum buffer size
-
+class EEGPlot(QWidget):
     def __init__(self):
         super().__init__()
+        self.initUI()
+        self.ymin = -2
+        self.ymax = 2
 
-        self.label = QLabel('EEG Data', self)
-        self.label.setGeometry(100, 100, 400, 200)
+    def initUI(self):
+        layout = QVBoxLayout()
+        
+        self.figure, self.axes = plt.subplots(4, 1, figsize=(8, 6), sharex=True)
+        self.figure.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=0.95) 
+        self.canvas = FigureCanvas(self.figure)
+        # self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(self.canvas)
+        
+        self.setLayout(layout)
+        self.data = np.zeros((4, 100))  # Placeholder EEG data
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_plot)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumSize(800, 600)
+        self.setMaximumWidth(1100)
 
-        self.fft_label = QLabel('FFT Data', self)
-        self.fft_label.setGeometry(100, 300, 400, 200)
+    def start_plotting(self):
+        self.timer.start(100)  # Update every 100ms
 
-        # Set up the main window
-        self.setWindowTitle('Real-time EEG Viewer')
-        self.setGeometry(100, 100, 1200, 1200)
+    def stop_plotting(self):
+        self.timer.stop()
 
-        # Create a central widget and set the layout for the plots
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-        self.layout = QVBoxLayout(self.central_widget)
+    def update_plot(self):
+        self.data = np.roll(self.data, -1, axis=1)  # Simulate incoming data
+        self.data[:, -1] = np.random.randn(4)  # Simulated EEG signal
+        
+        for i, ax in enumerate(self.axes):
+            ax.clear()
+            ax.plot(self.data[i, :])
+            ax.set_ylim(self.ymin, self.ymax)
 
-        # Create 4 time series plots using pyqtgraph
-        self.plots = []
-        self.curves = []
-        self.plot_data = [[] for _ in range(4)]  # To hold data for each channel
-        self.time_data = [[] for _ in range(4)]  # Time data for each channel
-
-        for i in range(4):
-            plot = pg.PlotWidget(title=f"EEG Channel {i + 1}")  # Create a new plot for each channel
-            self.plots.append(plot)
-            self.layout.addWidget(plot)  # Add plot to the vertical layout
-            curve = plot.plot([], pen=pg.mkPen('w'))  # Initialize the plot line with an empty array
-            self.curves.append(curve)
-
-        # FFT Magnitude Plot
-        self.fft_plots = []  # Stores FFT plot widgets
-        self.fft_curves = []  # Stores FFT curve objects
-        for i in range(4):
-            fft_plot = pg.PlotWidget(title=f"FFT Magnitude Channel {i + 1}")
-            self.fft_plots.append(fft_plot)
-            self.layout.addWidget(fft_plot)  # Add FFT plot to the vertical layout
-            fft_curve = fft_plot.plot([], pen=pg.mkPen('r'))  # Initialize the FFT plot line with an empty array
-            self.fft_curves.append(fft_curve)
-
-        # Create a data signal for GUI updates
-        self.data_signal = DataSignal()
-        self.data_signal.update_data.connect(self.update_gui)
-        self.data_signal.update_fft_data.connect(self.update_fft_gui)
-
-        # Create QQueues for inter-process communication
-        self.input_queue = Queue()
-        self.output_queue = Queue()
-
-        # Start the FFT process
-        self.fft_process = FFTProcess(self.input_queue, self.output_queue)
-        self.fft_process.start()
-
-        # Create a QThreadPool
-        self.threadpool = QThreadPool()
-
-        # Start the background task to ingest EEG data
-        self.start_ingestion_task()
-
-        self.show()
-
-        # Initialize the buffer for FFT
-        self.buffer = np.zeros((self.MAX_BUFFER_SIZE + 200, 4))  # Assuming 4 channels
-        self.buffer_count = 0  # Current number of accumulated samples
-
-    def start_ingestion_task(self):
-        self.ingest_task = IngestEEGDataTask(self.data_signal)
-        self.threadpool.start(self.ingest_task)
-
-    def update_gui(self, data: np.ndarray, times: np.ndarray):
-        for i in range(4):
+            # Calculate variance for the current signal (data row)
+            variance = np.var(self.data[i, :])
             
-            self.plot_data[i].extend(data[:, i].tolist())
-            self.time_data[i].extend(times.tolist())
+            # Display the variance on the top right of the plot
+            ax.text(0.95, 0.95, f"Variance: {variance:.4f}", transform=ax.transAxes,
+                    ha="right", va="top", fontsize=10, color="red")
+        
+        self.canvas.draw()
+
+    def keyPressEvent(self, event):
+        """Handle key press events to adjust the vertical axis scale."""
+        if event.key() == Qt.Key.Key_Plus:  # Increase y-axis range
+            self.ymin *= 1.2
+            self.ymax *= 1.2
+        elif event.key() == Qt.Key.Key_Minus:  # Decrease y-axis range
+            self.ymin /= 1.2
+            self.ymax /= 1.2
+    
+    def clear_plots(self):
+        """Clears all plots and resets EEG data."""
+        self.data = np.zeros((4, 100))  # Reset EEG data
+        for ax in self.axes:
+            ax.clear()
+            ax.set_ylim(-2, 2)  # Keep the y-axis limits consistent
+        self.canvas.draw()
+
+
+class ControlPanel(QWidget):
+    def __init__(self, eeg_plot: EEGPlot):
+        super().__init__()
+        self.save_folder = None
+        self.eeg_plot = eeg_plot
+        self.state = AppState.DISCONNECTED
+        self.elapsed_time = 0  # Elapsed time in seconds
+        self.subjects = ["Subject 1", "Subject 2", "Subject 3", "Subject 4"]
+        self.selected_subject = self.subjects[0]  # Default to the first subject
+        self.selected_experiment_mode = ExperimentMode.DISABLED  # Default mode
+
+        self.initUI()
+
+    def initUI(self):
+        layout = QVBoxLayout()
+        
+        # Connection Panel
+        self.connection_label = QLabel("Disconnected")
+        self.connection_button = QPushButton("Connect")
+        self.connection_button.clicked.connect(self.toggle_connection)
+        
+        connection_layout = QHBoxLayout()
+        connection_layout.addWidget(self.connection_label)
+        connection_layout.addWidget(self.connection_button)
+        
+        # Elapsed Time Panel
+        self.elapsed_time_label = QLabel("Elapsed Time: 0s")
+        self.elapsed_time_timer = QTimer(self)  # Timer for updating elapsed time
+        self.elapsed_time_timer.timeout.connect(self.update_elapsed_time)
+        
+        # Recording Control
+        self.recording_button = QPushButton("Start Recording")
+        self.recording_button.setEnabled(False)
+        self.recording_button.clicked.connect(self.toggle_recording)
+        
+        recording_layout = QHBoxLayout()
+        recording_layout.addWidget(self.elapsed_time_label)
+        recording_layout.addWidget(self.recording_button)
+
+        # Save Folder Selection
+        self.folder_button = QPushButton("Choose Save Folder")
+        self.folder_button.clicked.connect(self.choose_save_folder)
+        
+        # Subject Selection Horizontal Layout (QLabel + QComboBox)
+        subject_layout = QHBoxLayout()
+        self.subject_label = QLabel("Select Subject:")
+        self.subject_dropdown = QComboBox()
+        self.subject_dropdown.addItems(self.subjects)
+        self.subject_dropdown.setCurrentIndex(0)  # Default to first subject
+        # self.subject_dropdown.currentIndexChanged.connect(self.update_selected_subject)
+
+        # Experiment Mode Selection (Horizontally Aligned)
+        experiment_layout = QHBoxLayout()
+        self.experiment_label = QLabel("Experiment Mode:")
+        self.experiment_dropdown = QComboBox()
+        self.experiment_dropdown.addItems([mode.value for mode in ExperimentMode])
+        self.experiment_dropdown.setCurrentIndex(0)  # Default to first mode (Disabled)
+        self.experiment_dropdown.currentIndexChanged.connect(self.update_experiment_mode)
+
+        experiment_layout.addWidget(self.experiment_label)
+        experiment_layout.addWidget(self.experiment_dropdown)
+
+        subject_layout.addWidget(self.subject_label)
+        subject_layout.addWidget(self.subject_dropdown)
+
+        layout.addLayout(connection_layout)
+        layout.addWidget(self.folder_button)
+        layout.addLayout(recording_layout)
+        layout.addLayout(subject_layout)
+        layout.addLayout(experiment_layout)
+        
+        self.setLayout(layout)
+
+    def update_experiment_mode(self):
+        """Update the selected experiment mode."""
+        selected_mode_str = self.experiment_dropdown.currentText()
+        self.selected_experiment_mode = ExperimentMode(selected_mode_str)
+    
+    def toggle_connection(self):
+        if self.state == AppState.DISCONNECTED:
+            self.connection_button.setEnabled(False)
+            self.connection_label.setText("Connecting")
+            self.state = AppState.CONNECTING
+            self.connection_thread = BluetoothConnectionThread()
+            self.connection_thread.connection_established.connect(self.on_connection_success)
+            self.connection_thread.connection_failed.connect(self.on_connection_failure)
+            self.connection_thread.start()
+        elif self.state == AppState.CONNECTED:
+            self.state = AppState.DISCONNECTED
+            self.connection_label.setText("Disconnected")
+            self.connection_button.setText("Connect")
+            self.recording_button.setEnabled(False)
+            self.recording_button.setText("Start Recording")
+            self.elapsed_time_label.setText("Elapsed Time: 0s")
+            self.elapsed_time = 0  # Reset elapsed time
+        elif self.state == AppState.RECORDING:
+            self.show_disconnect_warning()
+
+    def show_disconnect_warning(self):
+        print('Test')
+        reply = QMessageBox.warning(
+            self, 'Warning', 
+            "You are currently recording data. Disconnecting will stop the recording. Are you sure you want to disconnect?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            # TODO: save data before disconnecting
+            self.state = AppState.DISCONNECTED
+            self.eeg_plot.stop_plotting()
+            self.elapsed_time_timer.stop()  # Stop the timer
+            self.elapsed_time = 0  # Reset elapsed time
+            self.connection_label.setText("Disconnected")
+            self.connection_button.setText("Connect")
+            self.recording_button.setEnabled(False)
+            self.recording_button.setText("Start Recording")
+            self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
+            self.recording_button.setText("Start Recording")
+
+    def on_connection_success(self):
+        self.state = AppState.CONNECTED
+        self.connection_label.setText("Connected")
+        self.connection_button.setText("Disconnect")
+        self.connection_button.setEnabled(True)
+        self.recording_button.setEnabled(True)
+        self.update_recording_button_state()
+
+    def on_connection_failure(self):
+        self.state = AppState.DISCONNECTED
+        self.connection_label.setText("Disconnected")
+        self.connection_button.setText("Connect")
+        self.connection_button.setEnabled(True)
+    
+    def toggle_recording(self):
+        if self.state == AppState.CONNECTED and self.save_folder:
+            self.state = AppState.RECORDING
+            self.recording_button.setText("Stop Recording")
+            self.eeg_plot.clear_plots()
+            self.eeg_plot.start_plotting()
+            self.elapsed_time = 0  # Reset elapsed time on start
+            self.elapsed_time_timer.start(1000)  # Update every second
+        elif self.state == AppState.RECORDING:
+            self.state = AppState.CONNECTED
+            self.recording_button.setText("Start Recording")
+            self.eeg_plot.stop_plotting()
+            self.elapsed_time_timer.stop()  # Stop the timer
+            self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
+
+    def update_elapsed_time(self):
+        self.elapsed_time += 1
+        self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
+
+    def choose_save_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Folder")
+        if folder:
+            self.save_folder = folder
+            self.folder_button.setText(f"{folder}")
+            print(f"Selected Save Folder: {self.save_folder}")
+        self.update_recording_button_state()
+
+    def update_recording_button_state(self):
+        self.recording_button.setEnabled(self.state == AppState.CONNECTED and bool(self.save_folder))
             
-            # Check if we exceed the maximum buffer size
-            if len(self.plot_data[i]) > self.MAX_BUFFER_SIZE:
-                # Remove the oldest samples
-                self.plot_data[i] = self.plot_data[i][-self.MAX_BUFFER_SIZE:]  # Keep only the most recent samples
-                self.time_data[i] = self.time_data[i][-self.MAX_BUFFER_SIZE:]  # Corresponding timestamps
 
-            # Update the plot curve using time data for x-axis
-            self.curves[i].setData(self.time_data[i], self.plot_data[i])  # Update the plot curve
+class ConfigPanel(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
 
-            # Accumulate data for FFT
-            if self.buffer_count < self.MAX_BUFFER_SIZE:
-                self.buffer[self.buffer_count:self.buffer_count + data.shape[0], i] = data[:, i]  # Store the data
-                self.buffer_count += data.shape[0]
-            
-            # If buffer is full, send to FFT process
-            if self.buffer_count >= self.MAX_BUFFER_SIZE:
-                self.input_queue.put(self.buffer[:self.MAX_BUFFER_SIZE, :])  # Send data to FFT process
-                self.buffer_count = 0  # Reset buffer count
+        # self.config = ConfigModel(
+        #     sampling_rate=256.0,
+        #     filter_low_cut=0.5,
+        #     filter_high_cut=30.0,
+        #     window_size=1.0,
+        # )
+        self.config = EEGSessionConfig()
+        config_json = self.config.model_dump_json(indent=4)
+        self.param_config_editor.setText(config_json)
 
-                # Check for results from the FFT process
-                if not self.output_queue.empty():
-                    fft_result = self.output_queue.get()
-                    self.update_fft_gui(fft_result)
+    def initUI(self):
+        layout = QVBoxLayout()
+        
+        self.params = {}
 
-    def update_fft_gui(self, fft_result):
-        """Update the GUI with FFT magnitude results."""
-        for i in range(fft_result.shape[1]):  # Assuming fft_result shape is (N, 4)
-            self.fft_curves[i].setData(fft_result[:, i])  # Update the FFT plot curve
+        self.param_config_label = QLabel("Current Parameter Config:")
+        layout.addWidget(self.param_config_label)
+        self.param_config_editor = QTextEdit()
+        self.param_config_editor.setAcceptRichText(False)
+        self.param_config_editor.setReadOnly(False)  # Allow editing the JSON
+        layout.addWidget(self.param_config_editor)
 
-    def closeEvent(self, event):
-        """Handle the window close event."""
-        self.input_queue.put(None)  # Send termination signal to the FFT process
-        self.fft_process.join()  # Wait for the process to finish
-        self.ingest_task.stop()
-        self.threadpool.waitForDone()
-        event.accept()  # Accept the close event
+        self.save_button = QPushButton("Update Config")
+        self.save_button.clicked.connect(self.save_config)
+        layout.addWidget(self.save_button)
 
-def main():
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: red;")
+        self.error_label.hide()
+
+        layout.addWidget(self.error_label)
+        self.setLayout(layout)
+
+    def save_config(self):
+        """Parse the JSON from the editor and update the config model."""
+        self.error_label.hide()
+        try:
+            updated_config = json.loads(self.param_config_editor.toPlainText())
+            self.config = ConfigModel(**updated_config)
+            print(self.config.model_dump())
+            print("Config updated successfully:", self.config)
+        except json.JSONDecodeError as e:
+            self.error_label.setText("Invalid JSON")  # Display the first error message
+            self.error_label.show()
+        except ValidationError as e:
+            self.error_label.setText(str("\n".join([f'{k}: {v}' for k, v in e.errors()[0].items() if k != "url"])))  # Display the first error message
+            self.error_label.show()
+
+class EEGApp(QWidget):
+    def __init__(self):
+        super().__init__()
+        screen = QApplication.primaryScreen().geometry()
+        width, height = int(screen.width() * 0.9), int(screen.height() * 0.9)
+        self.setGeometry(
+            (screen.width() - width) // 2, 
+            (screen.height() - height) // 2, 
+            width, 
+            height
+        )
+
+        main_layout = QHBoxLayout()
+        right_panel = QVBoxLayout()
+        
+        self.eeg_plot = EEGPlot()
+        self.control_panel = ControlPanel(self.eeg_plot)
+        self.config_panel = ConfigPanel()
+        
+        right_panel.addWidget(self.control_panel)
+        right_panel.addWidget(self.config_panel)
+        
+        main_layout.addWidget(self.eeg_plot, stretch=1)
+        main_layout.addLayout(right_panel)
+        
+        self.setLayout(main_layout)
+        self.setWindowTitle("EEG Recording Application")
+
+if __name__ == "__main__":
     app = QApplication(sys.argv)
-    eeg_app = EEGApp()
-    sys.exit(app.exec_())
-
-if __name__ == '__main__':
-    main()
+    window = EEGApp()
+    window.show()
+    sys.exit(app.exec())
