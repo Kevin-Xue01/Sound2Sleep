@@ -1,3 +1,4 @@
+import ctypes
 import json
 import sys
 import time
@@ -50,7 +51,6 @@ class EEGPlot(QWidget):
         self.figure, self.axes = plt.subplots(4, 1, figsize=(8, 6), sharex=True)
         self.figure.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=0.95) 
         self.canvas = FigureCanvas(self.figure)
-        # self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self.canvas)
         
         self.setLayout(layout)
@@ -111,7 +111,7 @@ class ControlPanel(QWidget):
         self.eeg_plot = eeg_plot
         self.state = AppState.DISCONNECTED
         self.elapsed_time = 0  # Elapsed time in seconds
-        self.subjects = ["Subject 1", "Subject 2", "Subject 3", "Subject 4"]
+        self.subjects = ["Kevin", "Vicki", "Jaeyoung", "Sean"]
         self.selected_subject = self.subjects[0]  # Default to the first subject
         self.selected_experiment_mode = ExperimentMode.DISABLED  # Default mode
 
@@ -178,9 +178,7 @@ class ControlPanel(QWidget):
         self.setLayout(layout)
 
     def update_experiment_mode(self):
-        """Update the selected experiment mode."""
-        selected_mode_str = self.experiment_dropdown.currentText()
-        self.selected_experiment_mode = ExperimentMode(selected_mode_str)
+        self.selected_experiment_mode = ExperimentMode(self.experiment_dropdown.currentText())
     
     def toggle_connection(self):
         if self.state == AppState.DISCONNECTED:
@@ -304,10 +302,15 @@ class ConfigPanel(QWidget):
         """Parse the JSON from the editor and update the config model."""
         self.error_label.hide()
         try:
-            updated_config = json.loads(self.param_config_editor.toPlainText())
-            self.config = EEGSessionConfig(**updated_config)
-            print(self.config.model_dump())
-            print("Config updated successfully:", self.config)
+            updated_config = EEGSessionConfig(**json.loads(self.param_config_editor.toPlainText()))
+            print(self.config._key)
+            print(self.config._created_at)
+            # print(updated_config.model_dump())
+            if updated_config != self.config:
+                self.config = updated_config
+                print(self.config._key)
+                print(self.config._created_at)
+                print("Config updated successfully:", self.config)
         except json.JSONDecodeError as e:
             self.error_label.setText("Invalid JSON")  # Display the first error message
             self.error_label.show()
@@ -344,7 +347,19 @@ class EEGApp(QWidget):
         self.setWindowTitle("EEG Recording Application")
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = EEGApp()
-    window.show()
-    sys.exit(app.exec())
+    if sys.platform.startswith("win"):
+        ES_CONTINUOUS = 0x80000000
+        ES_SYSTEM_REQUIRED = 0x00000001
+        ES_AWAYMODE_REQUIRED = 0x0000040
+        
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
+
+    try:
+        app = QApplication(sys.argv)
+        window = EEGApp()
+        window.show()
+        exit_code = app.exec()
+    finally:
+        if sys.platform.startswith("win"):
+            ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
+    sys.exit(exit_code)

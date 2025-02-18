@@ -7,8 +7,7 @@ import simpleaudio as sa
 
 
 class Audio:
-    def __init__(self, length: float = 4.0, ramp: float = 1.0):
-        """Initialize the noise player by generating the sound object."""
+    def __init__(self, length: float, ramp: float):
         fs = 44100
         noise_length = math.floor(length * fs)
         ramp_length = math.floor(ramp * fs)

@@ -4,38 +4,54 @@ import string
 from datetime import datetime
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 
 def generate_random_key(length=6):
     """Generates a random alphanumeric key of the specified length."""
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-class TruncatedWaveletParams(BaseModel):
+class TruncatedWaveletConfig(BaseModel):
     n: int = 30 # [number of wavelets]
     w: int = 5
     low: float = 0.5
     high: float = 2.0
 
-class ProcessingParams(BaseModel):
-    truncated_wavelet: TruncatedWaveletParams = Field(default_factory=TruncatedWaveletParams)
-    window_len: int = 2 # [seconds]
-    hl_ratio_threshold: int = -2
+class ProcessingConfig(BaseModel):
+    truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
+    window_len: float = 2.0 # [seconds]
+    hl_ratio_threshold: float = -2.0
     amp_threshold: float = 4e-4
     target_phase_deg: float = 0.0
     backoff_max_time: float = 5.0
     queue_stim_max_delta_t_: float = 0.1
 
-class EEGSessionConfig(BaseModel):
-    # datetime: str = Field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d_%H-%M"))
-    processing_params: ProcessingParams = Field(default_factory=ProcessingParams)
-    # audio_params: dict = Field(default_factory=dict)
+class AudioConfig(BaseModel):
+    ramp_up_s: float = 1.0
+    ramp_down_s: float = 1.0
+    total_s: float = 3.0
 
-    def update_processing_params(self, **kwargs):
-        """Updates processing parameters with provided key-value pairs."""
-        for key, value in kwargs.items():
-            if hasattr(self.processing_params, key):
-                setattr(self.processing_params, key, value)
+class DisplayConfig(BaseModel):
+    window_len: float = 5.0
+
+class EEGSessionConfig(BaseModel):
+    _key: str = PrivateAttr(default_factory=lambda: generate_random_key())
+    _created_at: str = PrivateAttr(default_factory=lambda: datetime.now().isoformat())
+    processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
+    audio: AudioConfig = Field(default_factory=AudioConfig)
+    display: DisplayConfig = Field(default_factory=DisplayConfig)
+    
+    def __eq__(self, other):
+        """Compare two EEGSessionConfig objects, ignoring private attributes."""
+        if not isinstance(other, EEGSessionConfig):
+            return NotImplemented
+        return self.model_dump() == other.model_dump()
+
+    # def update_processing_params(self, **kwargs):
+    #     """Updates processing parameters with provided key-value pairs."""
+    #     for key, value in kwargs.items():
+    #         if hasattr(self.processing_params, key):
+    #             setattr(self.processing_params, key, value)
     
     # def update_audio_params(self, **kwargs):
     #     """Updates audio parameters with provided key-value pairs."""

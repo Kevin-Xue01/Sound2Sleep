@@ -4,32 +4,34 @@ import sys
 import time
 from threading import Lock, Thread
 
+import numpy as np
 from PyQt5.QtCore import QObject, QThread, QTimer, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QVBoxLayout, QWidget
 
 # Constants
-NUM_TESTS = 100  # Number of latency tests per method
-DATA_INTERVAL = 0.01  # Simulated data arrival every 10ms
+NUM_TESTS = 1000  # Number of latency tests per method
+DATA_INTERVAL = 0.01  # Simulated data delay
+ARRAY_SIZE = (12, 5)  # NumPy array size
 
 # Standardized Data Function
 def simulate_data():
-    """Simulates external data arrival with a fixed delay."""
+    """Simulates external data and returns a NumPy array."""
     time.sleep(DATA_INTERVAL)
-    return time.time()
+    return np.random.rand(*ARRAY_SIZE)
 
-# Base Class for UI & Result Display
+# Base UI for Displaying Results
 class PerformanceTestUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Thread Communication Performance Test")
         self.setGeometry(100, 100, 600, 400)
-        
+
         self.text_edit = QTextEdit(self)
         self.text_edit.setReadOnly(True)
-        
+
         layout = QVBoxLayout()
         layout.addWidget(self.text_edit)
-        
+
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
@@ -43,15 +45,13 @@ class PerformanceTestUI(QMainWindow):
 class QueueWorker:
     def __init__(self, data_queue):
         self.data_queue = data_queue
-        self.running = True
         self.thread = Thread(target=self.run)
         self.thread.start()
 
     def run(self):
         for _ in range(NUM_TESTS):
-            timestamp = simulate_data()
-            self.data_queue.put(timestamp)
-        self.running = False
+            data = simulate_data()
+            self.data_queue.put((time.time(), data.copy()))
 
 class QueueTest(PerformanceTestUI):
     def __init__(self):
@@ -62,11 +62,11 @@ class QueueTest(PerformanceTestUI):
         self.latencies = []
         self.timer = QTimer()
         self.timer.timeout.connect(self.process_queue)
-        self.timer.start(1)  # Check every 1ms
+        self.timer.start(1)
 
     def process_queue(self):
         while not self.data_queue.empty():
-            timestamp = self.data_queue.get()
+            timestamp, _ = self.data_queue.get()
             latency = time.time() - timestamp
             self.latencies.append(latency)
             self.log(f"Queue Latency: {latency:.6f} sec")
@@ -76,17 +76,17 @@ class QueueTest(PerformanceTestUI):
             self.display_results("Queue", self.latencies)
 
     def display_results(self, method, latencies):
-        avg_latency = statistics.mean(latencies)
+        avg_latency = statistics.mean(latencies[NUM_TESTS // 2:])
         self.log(f"\n{method} Average Latency: {avg_latency:.6f} sec\n")
 
 # Method 2: Signal-Slot Communication
 class SignalWorker(QObject):
-    data_ready = pyqtSignal(float)
+    data_ready = pyqtSignal(object)
 
     def run(self):
         for _ in range(NUM_TESTS):
-            timestamp = simulate_data()
-            self.data_ready.emit(timestamp)
+            data = simulate_data()
+            self.data_ready.emit((time.time(), data.copy()))
 
 class SignalTest(PerformanceTestUI):
     def __init__(self):
@@ -100,7 +100,8 @@ class SignalTest(PerformanceTestUI):
         self.thread.started.connect(self.worker.run)
         self.thread.start()
 
-    def process_data(self, timestamp):
+    def process_data(self, result):
+        timestamp, _ = result
         latency = time.time() - timestamp
         self.latencies.append(latency)
         self.log(f"Signal Latency: {latency:.6f} sec")
@@ -118,18 +119,19 @@ class LockWorker:
     def __init__(self):
         self.lock = Lock()
         self.timestamp = None
-        self.running = True
+        self.data = None
         self.thread = Thread(target=self.run)
         self.thread.start()
 
     def run(self):
         for _ in range(NUM_TESTS):
             with self.lock:
-                self.timestamp = simulate_data()
+                self.timestamp = time.time()
+                self.data = simulate_data().copy()
 
     def get_data(self):
         with self.lock:
-            return self.timestamp
+            return self.timestamp, self.data.copy() if self.data is not None else None
 
 class LockTest(PerformanceTestUI):
     def __init__(self):
@@ -142,7 +144,7 @@ class LockTest(PerformanceTestUI):
         self.timer.start(1)
 
     def process_data(self):
-        timestamp = self.worker.get_data()
+        timestamp, _ = self.worker.get_data()
         if timestamp:
             latency = time.time() - timestamp
             self.latencies.append(latency)
@@ -160,16 +162,17 @@ class LockTest(PerformanceTestUI):
 class TimerWorker:
     def __init__(self):
         self.timestamp = None
-        self.running = True
+        self.data = None
         self.thread = Thread(target=self.run)
         self.thread.start()
 
     def run(self):
         for _ in range(NUM_TESTS):
-            self.timestamp = simulate_data()
+            self.timestamp = time.time()
+            self.data = simulate_data().copy()
 
     def get_data(self):
-        return self.timestamp
+        return self.timestamp, self.data.copy() if self.data is not None else None
 
 class TimerTest(PerformanceTestUI):
     def __init__(self):
@@ -182,7 +185,7 @@ class TimerTest(PerformanceTestUI):
         self.timer.start(10)  # Poll every 10ms
 
     def process_data(self):
-        timestamp = self.worker.get_data()
+        timestamp, _ = self.worker.get_data()
         if timestamp:
             latency = time.time() - timestamp
             self.latencies.append(latency)
