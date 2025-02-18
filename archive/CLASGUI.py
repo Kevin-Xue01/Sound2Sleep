@@ -3,53 +3,49 @@ GUI for running the Closed Loop Auditory Stimulation experiment
 Author: Simeon Wong
 '''
 
-import sys
-import traceback
-
-# Qt Framework
-from typing import Callable
-from PyQt5 import QtWidgets, uic
-from PyQt5.QtCore import QRunnable, QTimer, Qt, QThreadPool, QPoint
-from PyQt5.QtGui import QPainter, QColor, QBrush, QPen, QStaticText
-from PyQt5.QtWidgets import QComboBox, QDateTimeEdit, QWidget, QFileDialog
-import qdarkstyle
-
-import os
+# Misc
+import datetime
 import io
 import json
-import struct
-import time
-from enum import Enum
-from typing import Optional
 import logging
-import psutil
-import yaml
+import os
+import struct
+import sys
+import time
+import traceback
+from enum import Enum
+
+# Qt Framework
+from typing import Callable, Optional
 
 # Plot stuff
-import matplotlib, matplotlib.figure
+import matplotlib
+import matplotlib.figure
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 
 # Math stuff
 import numpy as np
+import psutil
+import qdarkstyle
 
-# EEG streaming interface
-from QOpenBCI import QEEGStreamer, ConnectionState
+# for Pushover
+import requests
 
 # triggers
 import serial
 import serial.tools.list_ports
+import yaml
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from PyQt5 import QtWidgets, uic
+from PyQt5.QtCore import QPoint, QRunnable, Qt, QThreadPool, QTimer
+from PyQt5.QtGui import QBrush, QColor, QPainter, QPen, QStaticText
+from PyQt5.QtWidgets import QComboBox, QDateTimeEdit, QFileDialog, QWidget
+
+# EEG streaming interface
+from QOpenBCI import ConnectionState, QEEGStreamer
 
 # CLAS algorithm
 import QCLASAlgo
-
-# Misc
-import datetime
-
-# for Pushover
-import requests
-import yaml
-
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -679,7 +675,7 @@ class CLASGUI(QtWidgets.QMainWindow):
             self.soundtest_callback_continuous)
         self.txt_soundtest.setText('Continuous tone playing...')
 
-        self.soundtest_continous_wav = QCLASAlgo.PinkNoiseGenerator.generate_noise(
+        self.soundtest_continous_wav = QCLASAlgo.audio.generate_noise(
             length=1, ramp=0)
 
         self.soundtest_callback_continuous()

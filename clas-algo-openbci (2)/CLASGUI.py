@@ -656,7 +656,7 @@ class CLASGUI(QtWidgets.QMainWindow):
             self.soundtest_callback_continuous)
         self.txt_soundtest.setText('Continuous tone playing...')
 
-        self.soundtest_continous_wav = QCLASAlgo.PinkNoiseGenerator.generate_noise(
+        self.soundtest_continous_wav = QCLASAlgo.audio.generate_noise(
             length=1, ramp=0)
 
         self.soundtest_callback_continuous()

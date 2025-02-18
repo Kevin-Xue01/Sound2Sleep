@@ -6,7 +6,7 @@ import numpy as np
 import simpleaudio as sa
 
 
-class NoisePlayer:
+class Audio:
     def __init__(self, length: float = 4.0, ramp: float = 1.0):
         """Initialize the noise player by generating the sound object."""
         fs = 44100
