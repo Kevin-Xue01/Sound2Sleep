@@ -14,14 +14,11 @@ from PyQt5.QtCore import QObject, QRunnable, pyqtSignal
 import CLASAlgo
 
 # custom
-import utils.audio as audio
 from CLASAlgo import CLASResult, ExperimentMode
 
 ##########
 # STATIC #
 ##########
-pink_noise = audio.generate_noise()
-
 
 ###########
 # CLASSES #

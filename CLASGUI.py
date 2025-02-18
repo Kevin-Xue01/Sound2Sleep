@@ -21,44 +21,21 @@ import matplotlib.pyplot as plt
 # Math stuff
 import numpy as np
 import psutil
-import qdarkstyle
-
-# for Pushover
-import requests
 
 # triggers
 import serial
 import serial.tools.list_ports
-import yaml
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtCore import QPoint, QRunnable, Qt, QThreadPool, QTimer
 from PyQt5.QtGui import QBrush, QColor, QPainter, QPen, QStaticText
 from PyQt5.QtWidgets import QComboBox, QDateTimeEdit, QFileDialog, QWidget
 
-# EEG streaming interface
-from QOpenBCI import ConnectionState, QEEGStreamer
-
 # CLAS algorithm
 import QCLASAlgo
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
-
-with open('pushover.yml', 'r') as f:
-    pushover_params = yaml.safe_load(f)
-
-def send_error(msg):
-    try:
-        requests.post('https://api.pushover.net/1/messages.json',
-                      data = {
-                          "token": pushover_params['token'],
-                          "user": pushover_params['user'],
-                          "message":msg
-                      })
-    except:
-        print('Pushover error')
 
 
 class ToggleButtonState(Enum):
@@ -83,12 +60,8 @@ class CLASGUI(QtWidgets.QMainWindow):
         # load the UI
         uic.loadUi('CLASGUI.ui', self)
 
-        # load config
-        with open('config.yml', 'r') as f:
-            self.config = yaml.load(f, Loader=yaml.SafeLoader)
 
         # set darkmode
-        self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
         plt.style.use('dark_background')
 
         # files and stuff
@@ -97,8 +70,6 @@ class CLASGUI(QtWidgets.QMainWindow):
         self.data_eeg = io.BytesIO()
         self.data_phase = io.BytesIO()
         self.data_intent = io.BytesIO()
-
-        self.eeg = QEEGStreamer()
 
 
         ### BIND BUTTONS ###
@@ -118,9 +89,6 @@ class CLASGUI(QtWidgets.QMainWindow):
         self.btn_soundtest_startcont.clicked.connect(
             self.soundtest_start_continuous)
         self.btn_soundtest_stop.clicked.connect(self.soundtest_stop)
-
-        self.btn_triggertest_seq.clicked.connect(self.triggertest_start)
-        self.btn_triggertest_max.clicked.connect(self.triggertest_max)
 
         self.triggertest_state = -1
 
@@ -213,10 +181,6 @@ class CLASGUI(QtWidgets.QMainWindow):
               ' → CLASGUI.btn_startstreaming_clicked() | Previous state: ' +
               str(self.eeg.state))
 
-        if self.eeg.state != ConnectionState.DISCONNECTED:
-            self.stop_streaming()
-        else:
-            self.start_streaming()
 
     def btn_startclas_clicked(self):
         ''' Start or stop CLAS algorithm, depending on toggle button state. '''
@@ -249,120 +213,6 @@ class CLASGUI(QtWidgets.QMainWindow):
         # the logic will set these, then we update the status at the end
         btn_eeg = ToggleButtonState.DISABLED
         btn_clas = ToggleButtonState.DISABLED
-
-        if self.eeg.state != ConnectionState.DISCONNECTED:  # is eeg streaming
-            if self.btn_startclas_running:  # has "start CLAS" been clicked
-                # eeg streaming, algo has been cued to start
-                if self.runner.ca.experiment_mode == QCLASAlgo.ExperimentMode.DISABLED:
-                    # algo cued to start, but not yet...
-                    status_text = 'Waiting for start...'
-                else:
-                    # algo cued to start and is currently running
-                    status_text = 'Running ' + str(
-                        self.runner.ca.experiment_mode).split('.')[-1]
-
-                btn_clas = ToggleButtonState.ON
-                btn_eeg = ToggleButtonState.DISABLED
-
-            else:
-                # eeg streaming, but algo is disabled
-                if self.eeg.state == ConnectionState.STREAMING:
-                    status_text = 'EEG streaming'
-                    btn_eeg = ToggleButtonState.ON
-                    btn_clas = ToggleButtonState.OFF
-
-                else:
-                    status_text = 'EEG connecting: ' + str(self.eeg.state)
-                    btn_eeg = ToggleButtonState.DISABLED
-                    btn_clas = ToggleButtonState.DISABLED
-
-        else:
-            # eeg not streaming
-            status_text = 'Disconnected'
-
-            # eeg control toggle button state
-            btn_eeg = ToggleButtonState.OFF
-            btn_clas = ToggleButtonState.DISABLED
-
-        ### BUTTON STATES
-        # eeg button
-        if btn_eeg == ToggleButtonState.DISABLED:
-            self.btn_startstreaming.setText('-')
-            self.btn_startstreaming.setStyleSheet('background-color: none')
-            self.btn_startstreaming.setEnabled(False)
-
-        elif btn_eeg == ToggleButtonState.OFF:
-            self.btn_startstreaming.setText('Start streaming')
-            self.btn_startstreaming.setStyleSheet('background-color: none')
-
-            if len(self.txt_clasparampath.text()) > 0:
-                self.btn_startstreaming.setEnabled(True)
-            else:
-                self.btn_startstreaming.setEnabled(False)
-
-        elif btn_eeg == ToggleButtonState.ON:
-            self.btn_startstreaming.setText('Stop streaming')
-            self.btn_startstreaming.setStyleSheet('background-color: orange')
-            self.btn_startstreaming.setEnabled(True)
-
-        # clas buttons
-        if btn_clas == ToggleButtonState.DISABLED:
-            self.btn_startclas.setText('-')
-            self.btn_startclas.setStyleSheet('background-color: none')
-            self.btn_startclas.setEnabled(False)
-
-            for el_c, el_t in zip(self.combo_modes, self.time_modes):
-                el_c.setEnabled(True)
-                el_t.setEnabled(True)
-
-        elif btn_clas == ToggleButtonState.OFF:
-            self.btn_startclas.setText('Start CLAS algo')
-            self.btn_startclas.setStyleSheet('background-color: none')
-            self.btn_startclas.setEnabled(True)
-
-            for el_c, el_t in zip(self.combo_modes, self.time_modes):
-                el_c.setEnabled(True)
-                el_t.setEnabled(True)
-
-        elif btn_clas == ToggleButtonState.ON:
-            self.btn_startclas.setText('Stop CLAS algo')
-            self.btn_startclas.setStyleSheet('background-color: orange')
-            self.btn_startclas.setEnabled(True)
-
-            for el_c, el_t in zip(self.combo_modes, self.time_modes):
-                el_c.setEnabled(False)
-                el_t.setEnabled(False)
-
-        # # trigger test
-        # if self.triggertest_timer is None and not self.btn_startclas_running:
-        #     self.btn_triggertest_seq.setEnabled(True)
-        #     self.btn_triggertest_max.setEnabled(True)
-        # else:
-        #     self.btn_triggertest_seq.setEnabled(False)
-        #     self.btn_triggertest_max.setEnabled(False)
-
-        # if self.triggertest_timer is not None:
-        #     status_text = 'Trigger test'  # override status text with test
-
-        # sound test
-        if self.soundtest_timer is None and not self.btn_startclas_running:
-            self.btn_soundtest_startper.setEnabled(True)
-            self.btn_soundtest_startcont.setEnabled(True)
-            self.btn_soundtest_stop.setEnabled(False)
-        elif self.soundtest_timer is not None:
-            self.btn_soundtest_startper.setEnabled(False)
-            self.btn_soundtest_startcont.setEnabled(False)
-            self.btn_soundtest_stop.setEnabled(True)
-        else:
-            self.btn_soundtest_startper.setEnabled(False)
-            self.btn_soundtest_startcont.setEnabled(False)
-            self.btn_soundtest_stop.setEnabled(False)
-
-
-        if self.soundtest_timer is not None:
-            status_text = 'Sound test'  # override status text with test
-
-        self.txt_status.setText(status_text)
 
     def start_algo(self):
         ''' Start the CLAS algorithm. '''
@@ -487,7 +337,6 @@ class CLASGUI(QtWidgets.QMainWindow):
         process.nice(psutil.HIGH_PRIORITY_CLASS)
 
         # initialize EEG system
-        self.eeg = QEEGStreamer()
         self.eeg.dataReceived.connect(self.eeg_data_received)  #type:ignore
         self.eeg.initialized.connect(self.eeg_connected)  #type:ignore
 
@@ -789,7 +638,6 @@ class CLASGUI(QtWidgets.QMainWindow):
 
 
 if __name__ == "__main__":
-    sys.excepthook = excepthook
     App = QtWidgets.QApplication(sys.argv)
     window = CLASGUI()
     sys.exit(App.exec())

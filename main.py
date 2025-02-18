@@ -25,14 +25,6 @@ from utils.config import EEGSessionConfig
 from utils.constants import AppState, ExperimentMode
 
 
-class ConfigModel(BaseModel):
-    sampling_rate: float = 1.0
-    filter_low_cut: float = 1.0
-    filter_high_cut: float = 1.0
-    window_size: float = 1.0
-
-
-
 class BluetoothConnectionThread(QThread):
     connection_established = pyqtSignal()
     connection_failed = pyqtSignal()
@@ -281,12 +273,6 @@ class ConfigPanel(QWidget):
         super().__init__()
         self.initUI()
 
-        # self.config = ConfigModel(
-        #     sampling_rate=256.0,
-        #     filter_low_cut=0.5,
-        #     filter_high_cut=30.0,
-        #     window_size=1.0,
-        # )
         self.config = EEGSessionConfig()
         config_json = self.config.model_dump_json(indent=4)
         self.param_config_editor.setText(config_json)
@@ -319,7 +305,7 @@ class ConfigPanel(QWidget):
         self.error_label.hide()
         try:
             updated_config = json.loads(self.param_config_editor.toPlainText())
-            self.config = ConfigModel(**updated_config)
+            self.config = EEGSessionConfig(**updated_config)
             print(self.config.model_dump())
             print("Config updated successfully:", self.config)
         except json.JSONDecodeError as e:
