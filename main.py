@@ -22,10 +22,14 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from utils.bluemuse import BlueMuse
-from utils.config import EEGSessionConfig
-from utils.constants import AppState, ExperimentMode
-from utils.database import FileWriter
+from utils import (
+    AppState,
+    Audio,
+    BlueMuse,
+    EEGSessionConfig,
+    ExperimentMode,
+    FileWriter,
+)
 
 
 class BluetoothConnectionThread(QThread):
