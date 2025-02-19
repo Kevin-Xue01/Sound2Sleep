@@ -67,6 +67,12 @@ class ExperimentMode(Enum):
     CONFIGURE_DELAY = "Configure Delay" # CLAS with specific target phase + configurable delay and audio off
     CLAS = "CLAS" # CLAS with specific target phase and audio on
 
+# ## Running modes
+# **CLAS**: (The full algorithm) Target specific phase and attempt to deliver stimulation exactly on target phase.  
+# **SHAM Muted**: (The full algorith, no auditory stim) Target specific phase and attempt to deliver stimulation exactly on target phase, but do not actually output any audio. Parallel port markers are are still outputted.
+# **SHAM Phase**: (previously "vary") Deliver stimulation on random phase. Rerandomize the target phase after each stimulation.
+# **SHAM Delay**: (previuosly "sham") Target specific phase, when stim is triggered, wait a random delay interval then deliver auditory stimuli.  
+
 class CLASResult(Enum):
     NOT_RUNNING = auto()
 
