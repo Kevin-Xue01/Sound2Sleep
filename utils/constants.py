@@ -14,45 +14,45 @@ from muselsl.constants import (
 )
 
 
-class DataStream(Enum):
+class MuseDataType(Enum):
     EEG = "EEG"
     ACCELEROMETER = "Accelerometer"
     PPG = "PPG"
 
 SAMPLING_RATE = {
-    DataStream.EEG: MUSE_SAMPLING_EEG_RATE,
-    DataStream.ACCELEROMETER: MUSE_SAMPLING_ACC_RATE,
-    DataStream.PPG: MUSE_SAMPLING_PPG_RATE,
+    MuseDataType.EEG: MUSE_SAMPLING_EEG_RATE,
+    MuseDataType.ACCELEROMETER: MUSE_SAMPLING_ACC_RATE,
+    MuseDataType.PPG: MUSE_SAMPLING_PPG_RATE,
 }
 
 NB_CHANNELS = {
-    DataStream.EEG: MUSE_NB_EEG_CHANNELS - 1,
-    DataStream.ACCELEROMETER: MUSE_NB_ACC_CHANNELS,
-    DataStream.PPG: MUSE_NB_PPG_CHANNELS,
+    MuseDataType.EEG: MUSE_NB_EEG_CHANNELS - 1,
+    MuseDataType.ACCELEROMETER: MUSE_NB_ACC_CHANNELS,
+    MuseDataType.PPG: MUSE_NB_PPG_CHANNELS,
 }
 
 CHUNK_SIZE = {
-    DataStream.EEG: LSL_EEG_CHUNK,
-    DataStream.ACCELEROMETER: LSL_ACC_CHUNK,
-    DataStream.PPG: LSL_PPG_CHUNK,
+    MuseDataType.EEG: LSL_EEG_CHUNK,
+    MuseDataType.ACCELEROMETER: LSL_ACC_CHUNK,
+    MuseDataType.PPG: LSL_PPG_CHUNK,
 }
 
 CHANNEL_NAMES = {
-    DataStream.EEG: ['TP9', 'TP10', 'AF1', 'AF2'],
-    DataStream.ACCELEROMETER: ['Acc_X', 'Acc_Y', 'Acc_Z'],
-    DataStream.PPG: ['PPG'],
+    MuseDataType.EEG: ['TP9', 'TP10', 'AF1', 'AF2'],
+    MuseDataType.ACCELEROMETER: ['Acc_X', 'Acc_Y', 'Acc_Z'],
+    MuseDataType.PPG: ['PPG'],
 }
 
 TIMESTAMPS = {
-    DataStream.EEG: np.float64(np.arange(CHUNK_SIZE[DataStream.EEG])) / SAMPLING_RATE[DataStream.EEG],
-    DataStream.ACCELEROMETER: np.float64(np.arange(CHUNK_SIZE[DataStream.ACCELEROMETER])) / SAMPLING_RATE[DataStream.ACCELEROMETER],
-    DataStream.PPG: np.float64(np.arange(CHUNK_SIZE[DataStream.PPG])) / SAMPLING_RATE[DataStream.PPG]
+    MuseDataType.EEG: np.float64(np.arange(CHUNK_SIZE[MuseDataType.EEG])) / SAMPLING_RATE[MuseDataType.EEG],
+    MuseDataType.ACCELEROMETER: np.float64(np.arange(CHUNK_SIZE[MuseDataType.ACCELEROMETER])) / SAMPLING_RATE[MuseDataType.ACCELEROMETER],
+    MuseDataType.PPG: np.float64(np.arange(CHUNK_SIZE[MuseDataType.PPG])) / SAMPLING_RATE[MuseDataType.PPG]
 }
 
 DELAYS = {
-    DataStream.EEG: CHUNK_SIZE[DataStream.EEG] / SAMPLING_RATE[DataStream.EEG],
-    DataStream.ACCELEROMETER: CHUNK_SIZE[DataStream.ACCELEROMETER] / SAMPLING_RATE[DataStream.ACCELEROMETER],
-    DataStream.PPG: CHUNK_SIZE[DataStream.PPG] / SAMPLING_RATE[DataStream.PPG]
+    MuseDataType.EEG: CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG],
+    MuseDataType.ACCELEROMETER: CHUNK_SIZE[MuseDataType.ACCELEROMETER] / SAMPLING_RATE[MuseDataType.ACCELEROMETER],
+    MuseDataType.PPG: CHUNK_SIZE[MuseDataType.PPG] / SAMPLING_RATE[MuseDataType.PPG]
 }
 
 class AppState(Enum):

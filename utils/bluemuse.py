@@ -13,22 +13,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 import psutil
 import seaborn as sns
+from config import BlueMuseConfig
 from constants import (
     CHANNEL_NAMES,
     CHUNK_SIZE,
     NB_CHANNELS,
     SAMPLING_RATE,
     TIMESTAMPS,
-    DataStream,
+    MuseDataType,
 )
-from logger import LoggerWrapper as Logger
+from logger import Logger as Logger
 from muselsl.constants import LSL_SCAN_TIMEOUT, VIEW_SUBSAMPLE
 from pylsl import StreamInfo, StreamInlet, resolve_byprop
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal
 from scipy.signal import firwin, lfilter, lfilter_zi
 
 
-class CLASatHome:
+class BlueMuse(QObject):
+    data_ready = pyqtSignal(np.ndarray, np.ndarray)
+    connection_timeout = pyqtSignal()
+
     no_data_count = 0
     reset_attempt_count = 0
     
@@ -50,36 +54,36 @@ class CLASatHome:
         #             decrease time scale : +
         #         """
         # print(help_str)
-        self.eeg_nchan = NB_CHANNELS[DataStream.EEG]
-        self.eeg_ui_samples = int(self.ui_window_s * SAMPLING_RATE[DataStream.EEG])
-        self.data = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
-        self.times = np.arange(-self.ui_window_s, 0, 1. / SAMPLING_RATE[DataStream.EEG])
-        self.impedances = np.std(self.data, axis=0)
-        self.lines = []
+        # self.eeg_nchan = NB_CHANNELS[MuseDataType.EEG]
+        # self.eeg_ui_samples = int(self.ui_window_s * SAMPLING_RATE[MuseDataType.EEG])
+        # self.data = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
+        # self.times = np.arange(-self.ui_window_s, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
+        # self.impedances = np.std(self.data, axis=0)
+        # self.lines = []
 
-        for ii in range(self.eeg_nchan):
-            line, = self.axes.plot(self.times[::VIEW_SUBSAMPLE], self.data[::VIEW_SUBSAMPLE, ii] - ii, lw=1)
-            self.lines.append(line)
+        # for ii in range(self.eeg_nchan):
+        #     line, = self.axes.plot(self.times[::VIEW_SUBSAMPLE], self.data[::VIEW_SUBSAMPLE, ii] - ii, lw=1)
+        #     self.lines.append(line)
 
-        self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
-        ticks = np.arange(0, -self.eeg_nchan, -1)
+        # self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
+        # ticks = np.arange(0, -self.eeg_nchan, -1)
 
-        self.axes.set_xlabel('Time (s)')
-        self.axes.xaxis.grid(False)
-        self.axes.set_yticks(ticks)
+        # self.axes.set_xlabel('Time (s)')
+        # self.axes.xaxis.grid(False)
+        # self.axes.set_yticks(ticks)
 
-        self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[DataStream.EEG], self.impedances)])
+        # self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
 
-        self.display_every = 5
+        # self.display_every = 5
 
-        self.bf = firwin(32, np.array([1, 40]) / (SAMPLING_RATE[DataStream.EEG] / 2.), width=0.05, pass_zero=False)
+        self.bf = firwin(32, np.array([1, 40]) / (SAMPLING_RATE[MuseDataType.EEG] / 2.), width=0.05, pass_zero=False)
         self.af = [1.0]
 
         zi = lfilter_zi(self.bf, self.af)
         self.filt_state = np.tile(zi, (self.eeg_nchan, 1)).transpose()
         self.data_f = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
 
-    def init_BlueMuse(self):
+    def __init__(self, config: BlueMuseConfig):
         subprocess.call('start bluemuse:', shell=True)
         subprocess.call('start bluemuse://setting?key=primary_timestamp_format!value=BLUEMUSE', shell=True)
         subprocess.call('start bluemuse://setting?key=channel_data_type!value=float32', shell=True)
@@ -88,13 +92,11 @@ class CLASatHome:
         subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=true', shell=True)
         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
 
-    def __init__(self, filt=True):
-        self.stream_info: dict[DataStream, StreamInfo] = dict()
-        self.stream_inlet: dict[DataStream, StreamInlet] = dict()
+        self.stream_info: dict[MuseDataType, StreamInfo] = dict()
+        self.stream_inlet: dict[MuseDataType, StreamInlet] = dict()
 
-        self.filt = filt
-        self.processing_window_s = 2
         self.logger = Logger()
+        self.config = config
 
     def screenoff(self):
         ''' Darken the screen by starting the blank screensaver '''
@@ -104,12 +106,10 @@ class CLASatHome:
             self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
 
     def lsl_reload(self):
-        self.logger.info('Reloading LSL streams')
-
         allok = True
         self.stream_info = dict()
         self.stream_inlet = dict()
-        for stream in DataStream:
+        for stream in MuseDataType:
             self.stream_info[stream] = resolve_byprop('type', stream.value, timeout=LSL_SCAN_TIMEOUT)
 
             if self.stream_info[stream]:
@@ -122,58 +122,103 @@ class CLASatHome:
         return allok
 
 
-    def eeg_callback(self):
-        with open(f'data/kevin/eeg_data_{datetime.now().strftime("%Y-%m-%d_%H-%M")}.csv', mode='a', newline='') as file:
-            writer = csv.writer(file)
-            if file.tell() == 0:
-                writer.writerow(['Timestamp'] + CHANNEL_NAMES[DataStream.EEG])
+    # def eeg_callback(self):
+    #     with open(f'data/kevin/eeg_data_{datetime.now().strftime("%Y-%m-%d_%H-%M")}.csv', mode='a', newline='') as file:
+    #         writer = csv.writer(file)
+    #         if file.tell() == 0:
+    #             writer.writerow(['Timestamp'] + CHANNEL_NAMES[MuseDataType.EEG])
             
-            display_every_counter = 0
-            no_data_counter = 0
-            while self.run_eeg_thread:
-                time.sleep(CHUNK_SIZE[DataStream.EEG] / SAMPLING_RATE[DataStream.EEG])
-                try:
-                    data, timestamps = self.stream_inlet[DataStream.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[DataStream.EEG])
-                    if timestamps and len(timestamps) == CHUNK_SIZE[DataStream.EEG]:
-                        timestamps = TIMESTAMPS[DataStream.EEG] + time.time() + 1. / SAMPLING_RATE[DataStream.EEG]
+    #         display_every_counter = 0
+    #         no_data_counter = 0
+    #         while self.run_eeg_thread:
+    #             time.sleep(CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG])
+    #             try:
+    #                 data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.EEG])
+    #                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
+    #                     timestamps = TIMESTAMPS[MuseDataType.EEG] + time.time() + 1. / SAMPLING_RATE[MuseDataType.EEG]
 
-                        for t, s in zip(timestamps, data):
-                            writer.writerow([t] + list(s))
+    #                     for t, s in zip(timestamps, data):
+    #                         writer.writerow([t] + list(s))
 
-                        self.times = np.concatenate([self.times, timestamps])
-                        self.n_samples = int(SAMPLING_RATE[DataStream.EEG] * self.processing_window_s)
-                        self.times = self.times[-self.n_samples:]
-                        self.data = np.vstack([self.data, data])
-                        self.data = self.data[-self.n_samples:]
-                        filt_samples, self.filt_state = lfilter(self.bf, self.af, data, axis=0, zi=self.filt_state)
-                        self.data_f = np.vstack([self.data_f, filt_samples])
-                        self.data_f = self.data_f[-self.n_samples:]
+    #                     self.times = np.concatenate([self.times, timestamps])
+    #                     self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
+    #                     self.times = self.times[-self.n_samples:]
+    #                     self.data = np.vstack([self.data, data])
+    #                     self.data = self.data[-self.n_samples:]
+    #                     filt_samples, self.filt_state = lfilter(self.bf, self.af, data, axis=0, zi=self.filt_state)
+    #                     self.data_f = np.vstack([self.data_f, filt_samples])
+    #                     self.data_f = self.data_f[-self.n_samples:]
 
-                        display_every_counter += 1
-                        if display_every_counter == self.display_every:
-                            print('Displaying data')
-                            for ii in range(NB_CHANNELS[DataStream.EEG]):
-                                self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
-                                self.lines[ii].set_ydata(self.data_f[::VIEW_SUBSAMPLE, ii] - ii)
-                                self.impedances = np.std(self.data_f, axis=0)
+    #                     display_every_counter += 1
+    #                     if display_every_counter == self.display_every:
+    #                         print('Displaying data')
+    #                         for ii in range(NB_CHANNELS[MuseDataType.EEG]):
+    #                             self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
+    #                             self.lines[ii].set_ydata(self.data_f[::VIEW_SUBSAMPLE, ii] - ii)
+    #                             self.impedances = np.std(self.data_f, axis=0)
 
-                            self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[DataStream.EEG], self.impedances)])
-                            self.axes.set_xlim(-self.ui_window_s, 0)
-                            self.fig.canvas.draw()
-                            display_every_counter = 0
-                    else:
-                        no_data_counter += 1
+    #                         self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
+    #                         self.axes.set_xlim(-self.ui_window_s, 0)
+    #                         self.fig.canvas.draw()
+    #                         display_every_counter = 0
+    #                 else:
+    #                     no_data_counter += 1
 
-                        if no_data_counter > 20:
-                            self.run_eeg_thread = False
-                            self.run_acc_thread = False
-                            self.run_ppg_thread = False
-                            Timer(1, self.lsl_reset_stream_step1).start()
+    #                     if no_data_counter > 20:
+    #                         self.run_eeg_thread = False
+    #                         self.run_acc_thread = False
+    #                         self.run_ppg_thread = False
+    #                         Timer(1, self.lsl_reset_stream_step1).start()
 
-                except Exception as ex:
-                    self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+    #             except Exception as ex:
+    #                 self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
 
-            self.logger.info('EEG thread stopped')
+    #         self.logger.info('EEG thread stopped')
+    def eeg_callback(self):
+        no_data_counter = 0
+        while self.run_eeg_thread:
+            time.sleep(CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG])
+            try:
+                data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.EEG])
+                if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
+                    timestamps = TIMESTAMPS[MuseDataType.EEG] + time.time() + 1. / SAMPLING_RATE[MuseDataType.EEG]
+
+                    self.times = np.concatenate([self.times, timestamps])
+                    self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
+                    self.times = self.times[-self.n_samples:]
+                    self.data = np.vstack([self.data, data])
+                    self.data = self.data[-self.n_samples:]
+                    filt_samples, self.filt_state = lfilter(self.bf, self.af, data, axis=0, zi=self.filt_state)
+                    self.data_f = np.vstack([self.data_f, filt_samples])
+                    self.data_f = self.data_f[-self.n_samples:]
+
+
+                    # self.data_ready.emit(timestamps)
+                    # display_every_counter += 1
+                    # if display_every_counter == self.display_every:
+                    #     print('Displaying data')
+                    #     for ii in range(NB_CHANNELS[MuseDataType.EEG]):
+                    #         self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
+                    #         self.lines[ii].set_ydata(self.data_f[::VIEW_SUBSAMPLE, ii] - ii)
+                    #         self.impedances = np.std(self.data_f, axis=0)
+
+                    #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
+                    #     self.axes.set_xlim(-self.ui_window_s, 0)
+                    #     self.fig.canvas.draw()
+                    #     display_every_counter = 0
+                else:
+                    no_data_counter += 1
+
+                    if no_data_counter > 20:
+                        self.run_eeg_thread = False
+                        self.run_acc_thread = False
+                        self.run_ppg_thread = False
+                        Timer(2, self.lsl_reset_stream_step1).start()
+
+            except Exception as ex:
+                self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+
+        self.logger.info('EEG thread stopped')
 
     def acc_callback(self):
         while self.run_acc_thread:
@@ -205,6 +250,7 @@ class CLASatHome:
         reset_success = self.lsl_reload()
 
         if not reset_success:
+            self.logger.info('LSL stream reset successful. Starting threads')
             self.reset_attempt_count += 1
             if self.reset_attempt_count <= 3:
                 self.logger.info('Resetting Attempt: ' + str(self.reset_attempt_count))
@@ -217,19 +263,17 @@ class CLASatHome:
                         self.logger.info('Killing BlueMuse')
                         p.kill()
 
-                self.logger.info('Resetting stream again')
-                # Timer(3, self.lsl_reset_stream_step1)
                 time.sleep(2)
                 self.lsl_reset_stream_step1()
         else:
             # if all streams have resolved, start polling data again!
             self.reset_attempt_count = 0
-            self.logger.info('Starting threads')
+            self.logger.info('LSL stream reset successful. Starting threads')
             time.sleep(3)
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
 
             # start the selected steram
-            for stream in DataStream:
+            for stream in MuseDataType:
                 self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
             
             self.start_threads()
@@ -240,36 +284,31 @@ class CLASatHome:
         self.run_acc_thread = True
         self.run_ppg_thread = True
 
-        self.eeg_thread = Thread(target=self.eeg_callback)
-        self.acc_thread = Thread(target=self.acc_callback)
-        self.ppg_thread = Thread(target=self.ppg_callback)
-
-        self.eeg_thread.daemon = True
-        self.acc_thread.daemon = True
-        self.ppg_thread.daemon = True
+        self.eeg_thread = Thread(target=self.eeg_callback, daemon=True)
+        self.acc_thread = Thread(target=self.acc_callback, daemon=True)
+        self.ppg_thread = Thread(target=self.ppg_callback, daemon=True)
 
         self.eeg_thread.start()
         self.acc_thread.start()
         self.ppg_thread.start()
 
-    def start_streaming(self):
+    def run(self):
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-        while not self.lsl_reload(): 
+        while not self.lsl_reload():
+            self.logger.error(f"LSL streams not found, retrying in 3 seconds") 
             time.sleep(3)
 
-        # start the selected steram
-        for stream in DataStream:
+        for stream in MuseDataType:
             self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
         
         self.start_threads()
 
-
-    def stop_streaming(self):
+    def stop(self):
         self.run_eeg_thread = False
         self.run_acc_thread = False
         self.run_ppg_thread = False
 
-        for stream in DataStream:
+        for stream in MuseDataType:
             try:
                 self.stream_inlet[stream].close_stream()
             except Exception as ex:
@@ -291,10 +330,9 @@ if __name__ == "__main__":
     ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
 
     try:
-        clas = CLASatHome()
+        clas = BlueMuse()
         clas.init_EEG_UI()
-        clas.init_BlueMuse()
-        clas.start_streaming()
+        # clas.start_streaming()
         plt.show()
     finally:
         ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)

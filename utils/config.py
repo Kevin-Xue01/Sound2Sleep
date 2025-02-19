@@ -33,6 +33,11 @@ class AudioConfig(BaseModel):
 
 class DisplayConfig(BaseModel):
     window_len: float = 5.0
+    display_every: int = 5
+
+class BlueMuseConfig(BaseModel):
+    low_pass_cutoff: float = 40.0
+    low_pass_transition_width: float = 0.05 # units of fs
 
 class EEGSessionConfig(BaseModel):
     _key: str = PrivateAttr(default_factory=lambda: generate_random_key())

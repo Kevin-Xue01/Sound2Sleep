@@ -1,8 +1,8 @@
 import logging
 
 
-class LoggerWrapper:
-    def __init__(self, filename: str = "", logger_name: str = "CLASatHome", level=logging.DEBUG, use_file=False):
+class Logger:
+    def __init__(self, filename: str = "", logger_name: str = "BlueMuse", level=logging.DEBUG, use_file=False):
         self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(level)
 

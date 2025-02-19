@@ -6,7 +6,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication,
@@ -22,8 +22,10 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from utils.bluemuse import BlueMuse
 from utils.config import EEGSessionConfig
 from utils.constants import AppState, ExperimentMode
+from utils.database import FileWriter
 
 
 class BluetoothConnectionThread(QThread):
@@ -41,11 +43,11 @@ class BluetoothConnectionThread(QThread):
 class EEGPlot(QWidget):
     def __init__(self):
         super().__init__()
-        self.initUI()
+        self.init_ui()
         self.ymin = -2
         self.ymax = 2
 
-    def initUI(self):
+    def init_ui(self):
         layout = QVBoxLayout()
         
         self.figure, self.axes = plt.subplots(4, 1, figsize=(8, 6), sharex=True)
@@ -115,9 +117,9 @@ class ControlPanel(QWidget):
         self.selected_subject = self.subjects[0]  # Default to the first subject
         self.selected_experiment_mode = ExperimentMode.DISABLED  # Default mode
 
-        self.initUI()
+        self.init_ui()
 
-    def initUI(self):
+    def init_ui(self):
         layout = QVBoxLayout()
         
         # Connection Panel
@@ -269,13 +271,13 @@ class ControlPanel(QWidget):
 class ConfigPanel(QWidget):
     def __init__(self):
         super().__init__()
-        self.initUI()
+        self.init_ui()
 
         self.config = EEGSessionConfig()
         config_json = self.config.model_dump_json(indent=4)
         self.param_config_editor.setText(config_json)
 
-    def initUI(self):
+    def init_ui(self):
         layout = QVBoxLayout()
         
         self.params = {}
@@ -319,8 +321,7 @@ class ConfigPanel(QWidget):
             self.error_label.show()
 
 class EEGApp(QWidget):
-    def __init__(self):
-        super().__init__()
+    def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
         width, height = int(screen.width() * 0.9), int(screen.height() * 0.9)
         self.setGeometry(
@@ -344,14 +345,27 @@ class EEGApp(QWidget):
         main_layout.addLayout(right_panel)
         
         self.setLayout(main_layout)
-        self.setWindowTitle("EEG Recording Application")
+        self.setWindowTitle("Sound2Sleep: CLAS at Home")
+    
+    def init_bluemuse(self):
+        self.blue_muse_thread = QThread()
+        self.blue_muse = BlueMuse()
+        self.blue_muse.moveToThread(self.blue_muse_thread)
+        self.blue_muse.data_ready.connect(self.file_writer.write_eeg_data)
+        self.blue_muse_thread.started.connect(self.blue_muse.run)
+
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+        self.init_bluemuse()
+        self.file_writer = FileWriter()
+        
 
 if __name__ == "__main__":
     if sys.platform.startswith("win"):
         ES_CONTINUOUS = 0x80000000
         ES_SYSTEM_REQUIRED = 0x00000001
         ES_AWAYMODE_REQUIRED = 0x0000040
-        
         ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
 
     try:
