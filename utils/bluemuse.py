@@ -4,6 +4,7 @@ import subprocess
 import time
 import traceback
 from datetime import datetime
+from functools import partial
 from multiprocessing import Process
 from threading import Thread, Timer
 
@@ -18,7 +19,7 @@ from pylsl import StreamInfo, StreamInlet, resolve_byprop
 from PyQt5.QtCore import QObject, pyqtSignal
 from scipy.signal import firwin, lfilter, lfilter_zi
 
-from .config import BlueMuseConfig
+from .config import EEGSessionConfig
 from .constants import (
     CHANNEL_NAMES,
     CHUNK_SIZE,
@@ -31,7 +32,10 @@ from .logger import Logger
 
 
 class BlueMuse(QObject):
-    data_ready = pyqtSignal(np.ndarray, np.ndarray)
+    eeg_data_ready = pyqtSignal(np.ndarray, np.ndarray)
+    acc_data_ready = pyqtSignal(np.ndarray, np.ndarray)
+    ppg_data_ready = pyqtSignal(np.ndarray, np.ndarray)
+
     connection_timeout = pyqtSignal()
     connected = pyqtSignal()
     disconnected = pyqtSignal()
@@ -87,22 +91,10 @@ class BlueMuse(QObject):
         # self.filt_state = np.tile(zi, (self.eeg_nchan, 1)).transpose()
         # self.data_f = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
 
-    def __init__(self, config: BlueMuseConfig):
+    def __init__(self):
         super().__init__()
-
-        subprocess.call('start bluemuse:', shell=True)
-        subprocess.call('start bluemuse://setting?key=primary_timestamp_format!value=BLUEMUSE', shell=True)
-        subprocess.call('start bluemuse://setting?key=channel_data_type!value=float32', shell=True)
-        subprocess.call('start bluemuse://setting?key=eeg_enabled!value=true', shell=True)
-        subprocess.call('start bluemuse://setting?key=accelerometer_enabled!value=true', shell=True)
-        subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=true', shell=True)
-        subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
-
         self.stream_info: dict[MuseDataType, StreamInfo] = dict()
         self.stream_inlet: dict[MuseDataType, StreamInlet] = dict()
-
-        self.logger = Logger()
-        self.config = config
 
     def screenoff(self):
         ''' Darken the screen by starting the blank screensaver '''
@@ -199,7 +191,7 @@ class BlueMuse(QObject):
                     # self.data_f = self.data_f[-self.n_samples:]
 
 
-                    self.data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
+                    self.eeg_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
                     # display_every_counter += 1
                     # if display_every_counter == self.display_every:
                     #     print('Displaying data')
@@ -227,16 +219,96 @@ class BlueMuse(QObject):
         self.logger.info('EEG thread stopped')
 
     def acc_callback(self):
+        no_data_counter = 0
         while self.run_acc_thread:
-            print('ACC callback')
-            time.sleep(3)
-        self.logger.critical('ACC thread stopped')
+            time.sleep(CHUNK_SIZE[MuseDataType.ACCELEROMETER] / SAMPLING_RATE[MuseDataType.ACCELEROMETER])
+            try:
+                data, timestamps = self.stream_inlet[MuseDataType.ACCELEROMETER].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.ACCELEROMETER])
+                if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACCELEROMETER]:
+                    timestamps = TIMESTAMPS[MuseDataType.ACCELEROMETER] + time.time() + 1. / SAMPLING_RATE[MuseDataType.ACCELEROMETER]
+
+                    # self.times = np.concatenate([self.times, timestamps])
+                    # self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
+                    # self.times = self.times[-self.n_samples:]
+                    # self.data = np.vstack([self.data, data])
+                    # self.data = self.data[-self.n_samples:]
+                    # filt_samples, self.filt_state = lfilter(self.bf, self.af, data, axis=0, zi=self.filt_state)
+                    # self.data_f = np.vstack([self.data_f, filt_samples])
+                    # self.data_f = self.data_f[-self.n_samples:]
+
+
+                    self.acc_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
+                    # display_every_counter += 1
+                    # if display_every_counter == self.display_every:
+                    #     print('Displaying data')
+                    #     for ii in range(NB_CHANNELS[MuseDataType.EEG]):
+                    #         self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
+                    #         self.lines[ii].set_ydata(self.data_f[::VIEW_SUBSAMPLE, ii] - ii)
+                    #         self.impedances = np.std(self.data_f, axis=0)
+
+                    #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
+                    #     self.axes.set_xlim(-self.ui_window_s, 0)
+                    #     self.fig.canvas.draw()
+                    #     display_every_counter = 0
+                else:
+                    no_data_counter += 1
+
+                    if no_data_counter > 20:
+                        self.run_eeg_thread = False
+                        self.run_acc_thread = False
+                        self.run_ppg_thread = False
+                        Timer(2, self.lsl_reset_stream_step1).start()
+
+            except Exception as ex:
+                self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+
+        self.logger.info('ACC thread stopped')
 
     def ppg_callback(self):
+        no_data_counter = 0
         while self.run_ppg_thread:
-            print('PPG callback')
-            time.sleep(3)
-        self.logger.critical('PPG thread stopped')
+            time.sleep(CHUNK_SIZE[MuseDataType.PPG] / SAMPLING_RATE[MuseDataType.PPG])
+            try:
+                data, timestamps = self.stream_inlet[MuseDataType.PPG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.PPG])
+                if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
+                    timestamps = TIMESTAMPS[MuseDataType.PPG] + time.time() + 1. / SAMPLING_RATE[MuseDataType.PPG]
+
+                    # self.times = np.concatenate([self.times, timestamps])
+                    # self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
+                    # self.times = self.times[-self.n_samples:]
+                    # self.data = np.vstack([self.data, data])
+                    # self.data = self.data[-self.n_samples:]
+                    # filt_samples, self.filt_state = lfilter(self.bf, self.af, data, axis=0, zi=self.filt_state)
+                    # self.data_f = np.vstack([self.data_f, filt_samples])
+                    # self.data_f = self.data_f[-self.n_samples:]
+
+
+                    self.ppg_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
+                    # display_every_counter += 1
+                    # if display_every_counter == self.display_every:
+                    #     print('Displaying data')
+                    #     for ii in range(NB_CHANNELS[MuseDataType.EEG]):
+                    #         self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
+                    #         self.lines[ii].set_ydata(self.data_f[::VIEW_SUBSAMPLE, ii] - ii)
+                    #         self.impedances = np.std(self.data_f, axis=0)
+
+                    #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
+                    #     self.axes.set_xlim(-self.ui_window_s, 0)
+                    #     self.fig.canvas.draw()
+                    #     display_every_counter = 0
+                else:
+                    no_data_counter += 1
+
+                    if no_data_counter > 20:
+                        self.run_eeg_thread = False
+                        self.run_acc_thread = False
+                        self.run_ppg_thread = False
+                        Timer(2, self.lsl_reset_stream_step1).start()
+
+            except Exception as ex:
+                self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+
+        self.logger.info('PPG thread stopped')
 
     def lsl_reset_stream_step1(self):
         self.logger.info('Resetting stream step 1')
@@ -298,8 +370,17 @@ class BlueMuse(QObject):
         self.acc_thread.start()
         self.ppg_thread.start()
 
-    def run(self):
+    def run(self, session_key: str):
+        subprocess.call('start bluemuse:', shell=True)
+        subprocess.call('start bluemuse://setting?key=primary_timestamp_format!value=BLUEMUSE', shell=True)
+        subprocess.call('start bluemuse://setting?key=channel_data_type!value=float32', shell=True)
+        subprocess.call('start bluemuse://setting?key=eeg_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=accelerometer_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+        self.logger = Logger(session_key, self.__class__.__name__)
+        time.sleep(3)
         while not self.lsl_reload():
             self.logger.error(f"LSL streams not found, retrying in 3 seconds") 
             time.sleep(3)
