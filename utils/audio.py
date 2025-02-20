@@ -9,6 +9,7 @@ from PyQt5.QtCore import QRunnable
 
 class Audio(QRunnable):
     def __init__(self, length: float, ramp: float):
+        super().__init__()
         fs = 44100
         noise_length = math.floor(length * fs)
         ramp_length = math.floor(ramp * fs)
@@ -31,6 +32,6 @@ class Audio(QRunnable):
 
         self.sound = sa.WaveObject(noisedata, 1, 2, fs)
 
-    def play(self):
+    def run(self):
         handle = self.sound.play()
         handle.wait_done()
