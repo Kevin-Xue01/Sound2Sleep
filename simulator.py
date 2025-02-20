@@ -40,9 +40,9 @@ def identify_sw(filtered_signal_lp: np.ndarray, filtered_signal_hp: np.ndarray, 
     return hl_ratio
     
 def butter_filter(cut, type, fs, order = 4):
-    nyquist = fs / 2
-    cut = [x / nyquist for x in cut]
-    sos = scipy.signal.butter(order, cut, btype = type, output = 'sos')
+    # nyquist = fs / 2
+    # cut = [x / nyquist for x in cut]
+    sos = scipy.signal.butter(order, cut, btype = type, output = 'sos', fs = fs)
     return sos
 
 def bootstrap_confidence_interval(data, num_bootstrap_samples=1000, confidence_level=0.95):
@@ -80,7 +80,6 @@ class Simulator():
         elif mode == 'time-varying':
             w_n = 1 + 0.5*np.sin((2*np.pi*t) / duration)
             phi = 2 * np.pi * np.cumsum(w_n) / fs
-            # test_signal = np.sin(2*np.pi*t / w_n)
             test_signal = np.sin(phi)
             t = np.linspace(0, duration, fs * duration, endpoint=False)
         elif mode == 'eeg':
@@ -100,25 +99,17 @@ class Simulator():
     
     @staticmethod
     def true_phase(signal: np.ndarray, fs: int):
-        # b, a = scipy.signal.butter(4, 2, 'low', fs=fs)
-        b, a = scipy.signal.butter(4, (0.5, 2), 'bandpass', fs=fs)
+        lowcut = 0.5
+        highcut = 2
+        # nyquist = fs / 2
+        # lowcut = lowcut / nyquist
+        # highcut = highcut / nyquist
+        b, a = scipy.signal.butter(4, (lowcut, highcut), btype = 'bandpass', fs = fs)
         filtered = scipy.signal.filtfilt(b, a, signal)
         analytic_signal = scipy.signal.hilbert(filtered)
         true_phase = np.unwrap(np.angle(analytic_signal)) % (2 * pi) 
 
         return true_phase
-    
-    def parametric_ci(stim_phases, ci=95):
-        mean_phase = np.angle(np.mean(np.exp(1j * stim_phases)))
-        R = np.abs(np.mean(np.exp(1j * stim_phases)))  # Mean resultant length
-        n = len(stim_phases)
-        # Circular Standard Error 
-        CSE = 1 / np.sqrt(n * R)
-        # Compute confidence interval bounds
-        z = scipy.stats.norm.ppf(1 - (1 - ci/100) / 2)  # Critical value for 95% CI
-        ci_lower = (mean_phase - z * CSE) % (2 * np.pi)
-        ci_upper = (mean_phase + z * CSE) % (2 * np.pi)
-        return ci_lower, ci_upper
 
     def simulate(self, signal: np.ndarray, real_time_step: float = 0.1):
         # backoff period
@@ -193,7 +184,10 @@ class Simulator():
 def phase_hist(signal, stim_trigs, outpath, stim_freqs, fs = 256, lowcut = 0.5, highcut = 2, window_size = 2):
     stim_idx = (np.array(stim_trigs) * fs).astype(int)
     # bandpass filter from 0.5 to 2 Hz
-    b, a = scipy.signal.butter(4, [lowcut, highcut], 'band', fs=fs)
+    # nyquist = fs / 2
+    # lowcut = lowcut / nyquist
+    # highcut = highcut / nyquist
+    b, a = scipy.signal.butter(4, [lowcut, highcut], 'bandpass', fs = fs)
     filtered = scipy.signal.filtfilt(b, a, signal)
     # compute the analytic signal
     analytic_signal = scipy.signal.hilbert(filtered)
@@ -203,21 +197,22 @@ def phase_hist(signal, stim_trigs, outpath, stim_freqs, fs = 256, lowcut = 0.5, 
     mean_phase = scipy.stats.circmean(stim_phases)
     std_phase = scipy.stats.circstd(stim_phases)   
 
-    _, ci = bootstrap_confidence_interval(stim_phases, num_bootstrap_samples=1000, confidence_level=0.95)
-    ci_lower, ci_upper = ci
-    ci_lower = mean_phase - ci_lower
-    ci_upper = mean_phase + ci_upper
     # plot histogram of phase
     plt.figure(figsize=(10, 10))
     ax = plt.subplot(211, polar=True)
-    ax.hist(stim_phases, bins=30)
+    ax.hist(stim_phases, bins=30, color='skyblue')
     ax.set_xlabel('Phase')
-    ax.set_title(f'TWave\nMean: {mean_phase:.2f}, Std: {std_phase:.2f}') #\nCI: [{ci_lower:.2f}, {ci_upper:.2f}]')
+    sub = outpath.split('_raw')[0]
+    ax.set_title(f'TWave - {sub}\nMean: {mean_phase:.2f}, Std: {std_phase:.2f}')
     ax = plt.subplot(212, polar=False)
-    ax.hist(stim_freqs, bins=30)
-    ax.set_xlabel('Phase')
+    ax.hist(stim_freqs, bins=30, color = 'skyblue')
+    ax.set_xlabel('Frequency')
+    ax.set_ylabel('Count')
+    # removespine
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
     plt.savefig(os.path.join('twave', outpath + '.png'))
-    return 0
+    return stim_phases
 
     
 # modes = ['stationary', 'time-varying', 'eeg']
@@ -229,6 +224,8 @@ datadir = '/d/gmi/1/vickili/clas/data/processed_data'
 
 data_paths = [os.path.join(datadir, f) for f in os.listdir(datadir) if f.endswith('.npy')]
 
+all_stim_phases = []
+all_stim_freqs = []
 for mode in modes:
     for data_path in data_paths:
         print(data_path)
@@ -242,7 +239,25 @@ for mode in modes:
 
         true_phase = sim.true_phase(test_signal, fs)
         estimated_phases, phase_times, stim_time, stim_freqs = sim.simulate(test_signal, real_time_step)
-        phase_hist(test_signal, stim_time, os.path.basename(data_path).split('.')[0], stim_freqs)
+        stim_phases = phase_hist(test_signal, stim_time, os.path.basename(data_path).split('.')[0], stim_freqs)
+        all_stim_phases.append(stim_phases)
+        all_stim_freqs.append(stim_freqs)
+
+# plot histogram of phase
+plt.figure(figsize=(10, 10))
+ax = plt.subplot(211, polar=True)
+ax.hist(np.concatenate(all_stim_phases), bins=30, color='skyblue')
+ax.set_xlabel('Phase')
+
+ax = plt.subplot(212, polar=False)
+ax.hist(np.concatenate(all_stim_freqs), bins=30, color = 'skyblue')
+ax.set_xlabel('Frequency')
+ax.set_ylabel('Count')
+# removespine
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+plt.title('TWave - multi-subject')
+plt.savefig(os.path.join('twave', 'all.png'))
 
 
 
