@@ -20,7 +20,9 @@ class TruncatedWaveletConfig(BaseModel):
 class ProcessingConfig(BaseModel):
     truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
     window_len: float = 2.0 # [seconds]
+    hl_ratio_buffer: int = 2
     hl_ratio_threshold: float = -2.0
+    amp_buffer: int = 2
     amp_threshold: float = 4e-4
     target_phase_deg: float = 0.0
     backoff_max_time: float = 5.0
@@ -45,6 +47,8 @@ class EEGSessionConfig(BaseModel):
     processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
+    connection: BlueMuseConfig = Field(default_factory=BlueMuseConfig)
+    log_dir: str = "logs/"
     
     def __eq__(self, other):
         """Compare two EEGSessionConfig objects, ignoring private attributes."""

@@ -2,7 +2,7 @@ import logging
 
 
 class Logger:
-    def __init__(self, filename: str = "", logger_name: str = "BlueMuse", level=logging.DEBUG, use_file=False):
+    def __init__(self, filename: str = "", logger_name: str = "BlueMuse", level=logging.DEBUG):
         self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(level)
 
@@ -17,7 +17,7 @@ class Logger:
         self.logger.addHandler(console_handler)
 
         # Optionally create a file handler
-        if use_file and filename:
+        if filename != "":
             file_handler = logging.FileHandler(filename, mode='a')
             file_handler.setLevel(level)
             file_handler.setFormatter(log_format)

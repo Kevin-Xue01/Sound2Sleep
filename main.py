@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from pydantic import ValidationError
-from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, QThreadPool, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
@@ -22,34 +22,97 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from utils import (
+from utils import (  # EEGProcessor,
+    CHANNEL_NAMES,
+    CHUNK_SIZE,
+    SAMPLING_RATE,
     AppState,
     Audio,
     BlueMuse,
+    DisplayConfig,
+    EEGProcessor,
     EEGSessionConfig,
     ExperimentMode,
     FileWriter,
+    MuseDataType,
 )
 
 
-class BluetoothConnectionThread(QThread):
-    connection_established = pyqtSignal()
-    connection_failed = pyqtSignal()
+class EEGApp(QWidget):
+    def init_ui(self):
+        screen = QApplication.primaryScreen().geometry()
+        width, height = int(screen.width() * 0.9), int(screen.height() * 0.9)
+        self.setGeometry(
+            (screen.width() - width) // 2, 
+            (screen.height() - height) // 2, 
+            width, 
+            height
+        )
 
-    def run(self):
-        time.sleep(3)  # Simulating connection delay
-        success = np.random.choice([True, False], p=[0.8, 0.2])  # Simulate success rate
-        if success:
-            self.connection_established.emit()
-        else:
-            self.connection_failed.emit()
+        main_layout = QHBoxLayout()
+        right_panel = QVBoxLayout()
+        self.config_panel = ConfigPanel(self)
+        
+        self.eeg_plot = EEGPlot(self.config_panel.config.display)
+        self.control_panel = ControlPanel(self, self.eeg_plot)
+        
+        right_panel.addWidget(self.control_panel)
+        right_panel.addWidget(self.config_panel)
+        
+        main_layout.addWidget(self.eeg_plot, stretch=1)
+        main_layout.addLayout(right_panel)
+        
+        self.setLayout(main_layout)
+        self.setWindowTitle("Sound2Sleep: CLAS at Home")
+        self.blue_muse.data_ready.connect(self.eeg_plot.update_plot)
 
-class EEGPlot(QWidget):
+    
+    def init_bluemuse(self):
+        self.blue_muse_thread = QThread()
+        self.blue_muse = BlueMuse(self.config.connection)
+        self.blue_muse.moveToThread(self.blue_muse_thread)
+        # self.blue_muse.connected.connect(self.)
+        self.blue_muse.data_ready.connect(self.eeg_processor.process_data)
+        self.blue_muse_thread.started.connect(self.blue_muse.run)
+        time.sleep(1)
+        self.blue_muse_thread.start()
+
+    def stop_bluemuse(self):
+        if self.blue_muse_thread.isRunning():
+            self.blue_muse.stop()
+            self.blue_muse_thread.quit()
+            self.blue_muse_thread.wait()
+            self.blue_muse_thread = None
+            self.blue_muse = None
+
+    def init_eeg_processor(self):
+        self.eeg_processor_thread = QThread()
+        self.eeg_processor = EEGProcessor(self.config.processing)
+        self.eeg_processor.moveToThread(self.eeg_processor_thread)
+        self.eeg_processor.results_ready.connect(self.file_writer.write_eeg_data)
+
     def __init__(self):
         super().__init__()
+        self.pool = QThreadPool.globalInstance()
+        self.config = EEGSessionConfig()
+        self.audio = Audio(3.0, 1.0)
+        self.file_writer = FileWriter("")
+        self.init_eeg_processor()
+        self.init_bluemuse()
+        self.init_ui()
+
+
+class EEGPlot(QWidget):
+    def __init__(self, config: DisplayConfig):
+        super().__init__()
+        self.config = config
+        self.display_every_counter = 0
         self.init_ui()
         self.ymin = -2
         self.ymax = 2
+        self.window_len_n = int(self.config.window_len * SAMPLING_RATE[MuseDataType.EEG])
+        self.timestamps = np.arange(-self.window_len_n, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
+        self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
 
     def init_ui(self):
         layout = QVBoxLayout()
@@ -60,37 +123,37 @@ class EEGPlot(QWidget):
         layout.addWidget(self.canvas)
         
         self.setLayout(layout)
-        self.data = np.zeros((4, 100))  # Placeholder EEG data
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_plot)
+        
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumSize(800, 600)
         self.setMaximumWidth(1100)
 
-    def start_plotting(self):
-        self.timer.start(100)  # Update every 100ms
+    def update_plot(self, timestamps, data):
+        # self.data = np.roll(self.data, -1, axis=1)  # Simulate incoming data
+        # self.data[:, -1] = np.random.randn(4)  # Simulated EEG signal
+        # self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
+        self.timestamps = np.concatenate([self.timestamps, timestamps])
+        self.timestamps = self.timestamps[-self.window_len_n:]
+        self.data = np.vstack([self.data, data])
+        self.data_f = self.data_f[-self.window_len_n:]
 
-    def stop_plotting(self):
-        self.timer.stop()
+        if self.display_every_counter == self.config.display_every:
+            for i, ax in enumerate(self.axes):
+                ax.clear()
+                ax.plot(self.data[i, :])
+                ax.set_ylim(self.ymin, self.ymax)
 
-    def update_plot(self):
-        self.data = np.roll(self.data, -1, axis=1)  # Simulate incoming data
-        self.data[:, -1] = np.random.randn(4)  # Simulated EEG signal
-        
-        for i, ax in enumerate(self.axes):
-            ax.clear()
-            ax.plot(self.data[i, :])
-            ax.set_ylim(self.ymin, self.ymax)
-
-            # Calculate variance for the current signal (data row)
-            variance = np.var(self.data[i, :])
+                # Calculate variance for the current signal (data row)
+                variance = np.var(self.data[i, :])
+                
+                # Display the variance on the top right of the plot
+                ax.text(0.95, 0.95, f"Variance: {variance:.4f}", transform=ax.transAxes,
+                        ha="right", va="top", fontsize=10, color="red")
             
-            # Display the variance on the top right of the plot
-            ax.text(0.95, 0.95, f"Variance: {variance:.4f}", transform=ax.transAxes,
-                    ha="right", va="top", fontsize=10, color="red")
-        
-        self.canvas.draw()
+            self.canvas.draw()
+            self.display_every_counter = 0
+        else: self.display_every_counter += 1
 
     def keyPressEvent(self, event):
         """Handle key press events to adjust the vertical axis scale."""
@@ -103,7 +166,7 @@ class EEGPlot(QWidget):
     
     def clear_plots(self):
         """Clears all plots and resets EEG data."""
-        self.data = np.zeros((4, 100))  # Reset EEG data
+        self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
         for ax in self.axes:
             ax.clear()
             ax.set_ylim(-2, 2)  # Keep the y-axis limits consistent
@@ -111,8 +174,9 @@ class EEGPlot(QWidget):
 
 
 class ControlPanel(QWidget):
-    def __init__(self, eeg_plot: EEGPlot):
+    def __init__(self, _parent: EEGApp, eeg_plot: EEGPlot):
         super().__init__()
+        self._parent = _parent
         self.save_folder = None
         self.eeg_plot = eeg_plot
         self.state = AppState.DISCONNECTED
@@ -122,6 +186,8 @@ class ControlPanel(QWidget):
         self.selected_experiment_mode = ExperimentMode.DISABLED  # Default mode
 
         self.init_ui()
+        self._parent.blue_muse.connected.connect(self.on_connected)
+        self._parent.blue_muse.disconnected.connect(self.on_disconnected)
 
     def init_ui(self):
         layout = QVBoxLayout()
@@ -191,18 +257,9 @@ class ControlPanel(QWidget):
             self.connection_button.setEnabled(False)
             self.connection_label.setText("Connecting")
             self.state = AppState.CONNECTING
-            self.connection_thread = BluetoothConnectionThread()
-            self.connection_thread.connection_established.connect(self.on_connection_success)
-            self.connection_thread.connection_failed.connect(self.on_connection_failure)
-            self.connection_thread.start()
+            self._parent.init_bluemuse()
         elif self.state == AppState.CONNECTED:
-            self.state = AppState.DISCONNECTED
-            self.connection_label.setText("Disconnected")
-            self.connection_button.setText("Connect")
-            self.recording_button.setEnabled(False)
-            self.recording_button.setText("Start Recording")
-            self.elapsed_time_label.setText("Elapsed Time: 0s")
-            self.elapsed_time = 0  # Reset elapsed time
+            self._parent.stop_bluemuse()
         elif self.state == AppState.RECORDING:
             self.show_disconnect_warning()
 
@@ -215,19 +272,9 @@ class ControlPanel(QWidget):
             QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
-            # TODO: save data before disconnecting
-            self.state = AppState.DISCONNECTED
-            self.eeg_plot.stop_plotting()
-            self.elapsed_time_timer.stop()  # Stop the timer
-            self.elapsed_time = 0  # Reset elapsed time
-            self.connection_label.setText("Disconnected")
-            self.connection_button.setText("Connect")
-            self.recording_button.setEnabled(False)
-            self.recording_button.setText("Start Recording")
-            self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
-            self.recording_button.setText("Start Recording")
+            self._parent.stop_bluemuse()
 
-    def on_connection_success(self):
+    def on_connected(self):
         self.state = AppState.CONNECTED
         self.connection_label.setText("Connected")
         self.connection_button.setText("Disconnect")
@@ -235,26 +282,30 @@ class ControlPanel(QWidget):
         self.recording_button.setEnabled(True)
         self.update_recording_button_state()
 
-    def on_connection_failure(self):
+    def on_disconnected(self):
         self.state = AppState.DISCONNECTED
         self.connection_label.setText("Disconnected")
         self.connection_button.setText("Connect")
-        self.connection_button.setEnabled(True)
+        self.recording_button.setEnabled(False)
+        self.recording_button.setText("Start Recording")
+        self.elapsed_time_label.setText("Elapsed Time: 0s")
+        self.elapsed_time = 0  # Reset elapsed time
     
     def toggle_recording(self):
         if self.state == AppState.CONNECTED and self.save_folder:
             self.state = AppState.RECORDING
             self.recording_button.setText("Stop Recording")
-            self.eeg_plot.clear_plots()
-            self.eeg_plot.start_plotting()
             self.elapsed_time = 0  # Reset elapsed time on start
             self.elapsed_time_timer.start(1000)  # Update every second
+            self._parent.blue_muse.data_ready.connect(self._parent.file_writer.write_eeg_data)
+
         elif self.state == AppState.RECORDING:
             self.state = AppState.CONNECTED
             self.recording_button.setText("Start Recording")
-            self.eeg_plot.stop_plotting()
+            self.eeg_plot.clear_plots()
             self.elapsed_time_timer.stop()  # Stop the timer
             self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
+            self._parent.blue_muse.data_ready.disconnect(self._parent.file_writer.write_eeg_data)
 
     def update_elapsed_time(self):
         self.elapsed_time += 1
@@ -273,8 +324,9 @@ class ControlPanel(QWidget):
             
 
 class ConfigPanel(QWidget):
-    def __init__(self):
+    def __init__(self, _parent: EEGApp):
         super().__init__()
+        self._parent = _parent
         self.init_ui()
 
         self.config = EEGSessionConfig()
@@ -309,13 +361,9 @@ class ConfigPanel(QWidget):
         self.error_label.hide()
         try:
             updated_config = EEGSessionConfig(**json.loads(self.param_config_editor.toPlainText()))
-            print(self.config._key)
-            print(self.config._created_at)
-            # print(updated_config.model_dump())
             if updated_config != self.config:
                 self.config = updated_config
-                print(self.config._key)
-                print(self.config._created_at)
+                # self._parent.
                 print("Config updated successfully:", self.config)
         except json.JSONDecodeError as e:
             self.error_label.setText("Invalid JSON")  # Display the first error message
@@ -324,45 +372,7 @@ class ConfigPanel(QWidget):
             self.error_label.setText(str("\n".join([f'{k}: {v}' for k, v in e.errors()[0].items() if k != "url"])))  # Display the first error message
             self.error_label.show()
 
-class EEGApp(QWidget):
-    def init_ui(self):
-        screen = QApplication.primaryScreen().geometry()
-        width, height = int(screen.width() * 0.9), int(screen.height() * 0.9)
-        self.setGeometry(
-            (screen.width() - width) // 2, 
-            (screen.height() - height) // 2, 
-            width, 
-            height
-        )
 
-        main_layout = QHBoxLayout()
-        right_panel = QVBoxLayout()
-        
-        self.eeg_plot = EEGPlot()
-        self.control_panel = ControlPanel(self.eeg_plot)
-        self.config_panel = ConfigPanel()
-        
-        right_panel.addWidget(self.control_panel)
-        right_panel.addWidget(self.config_panel)
-        
-        main_layout.addWidget(self.eeg_plot, stretch=1)
-        main_layout.addLayout(right_panel)
-        
-        self.setLayout(main_layout)
-        self.setWindowTitle("Sound2Sleep: CLAS at Home")
-    
-    def init_bluemuse(self):
-        self.blue_muse_thread = QThread()
-        self.blue_muse = BlueMuse()
-        self.blue_muse.moveToThread(self.blue_muse_thread)
-        self.blue_muse.data_ready.connect(self.file_writer.write_eeg_data)
-        self.blue_muse_thread.started.connect(self.blue_muse.run)
-
-    def __init__(self):
-        super().__init__()
-        self.init_ui()
-        self.init_bluemuse()
-        self.file_writer = FileWriter()
         
 
 if __name__ == "__main__":

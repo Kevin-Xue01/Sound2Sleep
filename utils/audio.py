@@ -4,9 +4,10 @@ import threading
 import colorednoise
 import numpy as np
 import simpleaudio as sa
+from PyQt5.QtCore import QRunnable
 
 
-class Audio:
+class Audio(QRunnable):
     def __init__(self, length: float, ramp: float):
         fs = 44100
         noise_length = math.floor(length * fs)
@@ -31,11 +32,5 @@ class Audio:
         self.sound = sa.WaveObject(noisedata, 1, 2, fs)
 
     def play(self):
-        """Play the sound asynchronously without overlapping previous playback."""
-        def _play():
-            # Wait for the previous sound to finish before playing a new one
-            handle = self.sound.play()
-            handle.wait_done()
-        
-        thread = threading.Thread(target=_play, daemon=True)
-        thread.start()
+        handle = self.sound.play()
+        handle.wait_done()

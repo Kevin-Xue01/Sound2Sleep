@@ -73,7 +73,7 @@ class ExperimentMode(Enum):
 # **SHAM Phase**: (previously "vary") Deliver stimulation on random phase. Rerandomize the target phase after each stimulation.
 # **SHAM Delay**: (previuosly "sham") Target specific phase, when stim is triggered, wait a random delay interval then deliver auditory stimuli.  
 
-class CLASResult(Enum):
+class EEGProcessorOutput(Enum):
     NOT_RUNNING = auto()
 
     STIM = auto()
