@@ -12,4 +12,4 @@ def minimize_window_by_name(partial_name):
     print(f"No window found containing '{partial_name}'.")
 
 # Example usage
-minimize_window_by_name("BlueMuse.exe")
+minimize_window_by_name("BlueMuse")
