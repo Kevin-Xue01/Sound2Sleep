@@ -198,9 +198,11 @@ def phase_hist(signal, stim_trigs, outpath, stim_freqs, fs = 256, lowcut = 0.5, 
     std_phase = scipy.stats.circstd(stim_phases)   
 
     # plot histogram of phase
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(8, 10))
     ax = plt.subplot(211, polar=True)
     ax.hist(stim_phases, bins=30, color='skyblue')
+    ax.set_xticks([ax.get_xticks()[-1]])
+    ax.grid(True, alpha = 0.2)
     ax.set_xlabel('Phase')
     sub = outpath.split('_raw')[0]
     ax.set_title(f'TWave - {sub}\nMean: {mean_phase:.2f}, Std: {std_phase:.2f}')
@@ -243,12 +245,19 @@ for mode in modes:
         all_stim_phases.append(stim_phases)
         all_stim_freqs.append(stim_freqs)
 
-# plot histogram of phase
-plt.figure(figsize=(10, 10))
-ax = plt.subplot(211, polar=True)
-ax.hist(np.concatenate(all_stim_phases), bins=30, color='skyblue')
-ax.set_xlabel('Phase')
+# calcualte mean and standard deviation of all stim phases
+all_stim_phases = np.concatenate(all_stim_phases)
+mean_phase = scipy.stats.circmean(all_stim_phases)
+std_phase = scipy.stats.circstd(all_stim_phases)
 
+
+# plot histogram of phase
+plt.figure(figsize=(8, 10))
+ax = plt.subplot(211, polar=True)
+ax.hist(all_stim_phases, bins=30, color='skyblue')
+plt.title(f'TWave - multi-subject\nMean: {mean_phase:.2f}, Std: {std_phase:.2f}')
+ax.set_xlabel('Phase')
+ax.grid(True, alpha = 0.2)
 ax = plt.subplot(212, polar=False)
 ax.hist(np.concatenate(all_stim_freqs), bins=30, color = 'skyblue')
 ax.set_xlabel('Frequency')
@@ -256,9 +265,7 @@ ax.set_ylabel('Count')
 # removespine
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
-plt.title('TWave - multi-subject')
 plt.savefig(os.path.join('twave', 'all.png'))
-
 
 
 #         # Interpolate the true phase to match the estimated phase times
