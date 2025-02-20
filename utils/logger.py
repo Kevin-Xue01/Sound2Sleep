@@ -1,14 +1,21 @@
 import logging
+import os
 
 
 class Logger:
-    def __init__(self, filename: str = "", logger_name: str = "BlueMuse", level=logging.DEBUG):
+    def is_valid_path(self, path: str) -> bool:
+        try:
+            return os.path.exists(path) or os.access(os.path.dirname(path), os.W_OK)
+        except Exception:
+            return False
+    
+    def __init__(self, session_key: str, logger_name: str, level=logging.DEBUG):
         self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(level)
 
         # Create a console handler for warnings and above
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.WARNING)
+        console_handler.setLevel(level)
         log_format = logging.Formatter(
             '%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
@@ -17,11 +24,13 @@ class Logger:
         self.logger.addHandler(console_handler)
 
         # Optionally create a file handler
-        if filename != "":
-            file_handler = logging.FileHandler(filename, mode='a')
-            file_handler.setLevel(level)
-            file_handler.setFormatter(log_format)
-            self.logger.addHandler(file_handler)
+        if session_key != "":
+            session_log_file_path = f"logs/{session_key}.txt"
+            if self.is_valid_path(session_log_file_path):
+                file_handler = logging.FileHandler(session_log_file_path, mode='a')
+                file_handler.setLevel(level)
+                file_handler.setFormatter(log_format)
+                self.logger.addHandler(file_handler)
     
     def debug(self, message: str):
         """Logs a debug message."""
