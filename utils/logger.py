@@ -3,6 +3,10 @@ import os
 
 
 class Logger:
+    log_format = logging.Formatter(
+        '%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
     def is_valid_path(self, path: str) -> bool:
         try:
             return os.path.exists(path) or os.access(os.path.dirname(path), os.W_OK)
@@ -10,28 +14,41 @@ class Logger:
             return False
     
     def __init__(self, session_key: str, logger_name: str, level=logging.DEBUG):
+        self.level = level
         self.logger = logging.getLogger(logger_name)
-        self.logger.setLevel(level)
+        self.logger.setLevel(self.level)
+        self.session_key = session_key
 
         # Create a console handler for warnings and above
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(level)
-        log_format = logging.Formatter(
-            '%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        console_handler.setFormatter(log_format)
+        console_handler.setLevel(self.level)
+        
+        console_handler.setFormatter(self.log_format)
         self.logger.addHandler(console_handler)
 
+        self.file_handler = None
+        self._setup_file_handler()
+
+    def _setup_file_handler(self):
         # Optionally create a file handler
-        if session_key != "":
-            session_log_file_path = f"logs/{session_key}.txt"
+        if self.session_key:
+            session_log_file_path = f"logs/{self.session_key}.txt"
             if self.is_valid_path(session_log_file_path):
-                file_handler = logging.FileHandler(session_log_file_path, mode='a')
-                file_handler.setLevel(level)
-                file_handler.setFormatter(log_format)
-                self.logger.addHandler(file_handler)
+                self.file_handler = logging.FileHandler(session_log_file_path, mode='a')
+                self.file_handler.setLevel(self.level)
+                self.file_handler.setFormatter(self.log_format)
+                self.logger.addHandler(self.file_handler)
     
+    def update_session_key(self, new_session_key: str):
+        """Update session key and reconfigure the logger."""
+        if self.file_handler:
+            self.logger.removeHandler(self.file_handler)
+            self.file_handler.close()
+            self.file_handler = None  # Reset file handler
+        
+        self.session_key = new_session_key  # Update session key
+        self._setup_file_handler()
+
     def debug(self, message: str):
         """Logs a debug message."""
         self.logger.debug(message)

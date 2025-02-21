@@ -43,6 +43,22 @@ from utils import (  # EEGProcessor,
 class EEGApp(QWidget):
     pool = QThreadPool.globalInstance()
 
+    def __init__(self):
+        super().__init__()
+        self.app_state = AppState.DISCONNECTED
+        self.elapsed_time = 0  # Elapsed time in seconds
+
+        self.config = EEGSessionConfig()
+        self.logger = Logger(self.config._session_key, "EEGApp")
+        
+        self.blue_muse = BlueMuse()
+        self.blue_muse.connected.connect(self.on_connected)
+        self.blue_muse.disconnected.connect(self.on_disconnected)
+
+        self.audio = Audio(self.config._audio)
+
+        self.init_ui()
+
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
         width, height = int(screen.width() * 0.9), int(screen.height() * 0.9)
@@ -63,7 +79,7 @@ class EEGApp(QWidget):
         self.param_config_editor = QTextEdit()
         self.param_config_editor.setAcceptRichText(False)
         self.param_config_editor.setReadOnly(False)  # Allow editing the JSON
-        self.param_config_editor.setText(self.config.model_dump_json(indent=4))
+        self.param_config_editor.setText(self.config.model_dump_json())
         config_panel_layout.addWidget(self.param_config_editor)
 
         save_button = QPushButton("Update Config")
@@ -76,14 +92,54 @@ class EEGApp(QWidget):
         config_panel_layout.addWidget(self.config_panel_error_label)
 
         self.eeg_plot = EEGPlot(self.config._display)
-        self.control_panel = ControlPanel(self)
+        control_panel_widget = QWidget()
+        control_panel_layout = QVBoxLayout(control_panel_widget)
+        
+        self.connection_label = QLabel("Disconnected")
+        self.connection_button = QPushButton("Connect")
+        self.connection_button.clicked.connect(self.on_toggle_connection_button)
+        
+        connection_layout = QHBoxLayout()
+        connection_layout.addWidget(self.connection_label)
+        connection_layout.addWidget(self.connection_button)
+        
+        self.elapsed_time_label = QLabel("Elapsed Time: 0s")
+        def update_elapsed_time():
+            self.elapsed_time += 1
+            self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
+        self.elapsed_time_timer = QTimer(self)  # Timer for updating elapsed time
+        self.elapsed_time_timer.timeout.connect(update_elapsed_time)
+        
+        # Recording Control
+        self.record_button = QPushButton("Start Recording")
+        self.record_button.setEnabled(False)
+        self.record_button.clicked.connect(self.on_toggle_record_button)
+        
+        recording_layout = QHBoxLayout()
+        recording_layout.addWidget(self.elapsed_time_label)
+        recording_layout.addWidget(self.record_button)
+
+        # Experiment Mode Selection (Horizontally Aligned)
+        experiment_layout = QHBoxLayout()
+        self.experiment_label = QLabel("Experiment Mode:")
+        self.experiment_dropdown = QComboBox()
+        self.experiment_dropdown.addItems([mode.value for mode in ExperimentMode])
+        self.experiment_dropdown.setCurrentIndex(0)  # Default to first mode (Disabled)
+        self.experiment_dropdown.currentIndexChanged.connect(self.update_experiment_mode)
+
+        experiment_layout.addWidget(self.experiment_label)
+        experiment_layout.addWidget(self.experiment_dropdown)
+
+        control_panel_layout.addLayout(connection_layout)
+        control_panel_layout.addLayout(recording_layout)
+        control_panel_layout.addLayout(experiment_layout)
 
         self.connection_timeout_error_label = QLabel("")
         self.connection_timeout_error_label.setStyleSheet("color: red;")
         self.connection_timeout_error_label.hide()
 
         right_panel.addWidget(self.connection_timeout_error_label)
-        right_panel.addWidget(self.control_panel)
+        right_panel.addWidget(control_panel_widget)
         right_panel.addWidget(config_panel_widget)
         
         main_layout.addWidget(self.eeg_plot, stretch=1)
@@ -91,6 +147,79 @@ class EEGApp(QWidget):
         
         self.setLayout(main_layout)
         self.setWindowTitle("Sound2Sleep: CLAS at Home")
+
+    def update_experiment_mode(self, index):
+        selected_experiment_mode = ExperimentMode(self.experiment_dropdown.itemText(index))
+        if self.config.experiment_mode != selected_experiment_mode:
+            self.on_config_update(EEGSessionConfig(**self.config.model_dump(), experiment_mode=selected_experiment_mode))
+    
+    def on_toggle_connection_button(self):
+        if self.app_state == AppState.DISCONNECTED:
+            self.connection_button.setEnabled(False)
+            self.record_button.setEnabled(False)
+            self.experiment_dropdown.setEnabled(False)
+            self.param_config_editor.setEnabled(False)
+            self.connection_label.setText("Connecting")
+            self.app_state = AppState.CONNECTING
+            self.start_bluemuse()
+        elif self.app_state == AppState.CONNECTED:
+            self.stop_bluemuse()
+        elif self.app_state == AppState.RECORDING:
+            reply = QMessageBox.warning(
+                self, 'Warning', 
+                "You are currently recording data. Disconnecting will stop the recording. Are you sure you want to disconnect?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.stop_bluemuse()
+
+    def on_connected(self):
+        self.app_state = AppState.CONNECTED
+        self.connection_label.setText("Connected")
+        self.connection_button.setText("Disconnect")
+        self.connection_button.setEnabled(True)
+        self.record_button.setEnabled(True)
+        self.experiment_dropdown.setEnabled(True)
+        self.param_config_editor.setEnabled(True)
+
+    def on_disconnected(self):
+        self.app_state = AppState.DISCONNECTED
+        self.connection_label.setText("Disconnected")
+        self.connection_button.setText("Connect")
+        self.record_button.setEnabled(False)
+        self.record_button.setText("Start Recording")
+        self.elapsed_time_label.setText("Elapsed Time: 0s")
+        self.elapsed_time = 0  # Reset elapsed time
+    
+    def on_toggle_record_button(self):
+        if self.app_state == AppState.CONNECTED:
+            self.app_state = AppState.RECORDING
+            self.record_button.setText("Stop Recording")
+            self.elapsed_time = 0  # Reset elapsed time on start
+            self.elapsed_time_timer.start(1000)  # Update every second
+            self.file_writer = FileWriter(self.config._session_key)
+            self.blue_muse.eeg_data_ready.connect(self.file_writer.write_eeg_data)
+
+        elif self.app_state == AppState.RECORDING:
+            self.blue_muse.eeg_data_ready.disconnect(self.file_writer.write_eeg_data)
+            self.app_state = AppState.CONNECTED
+            self.record_button.setText("Start Recording")
+            self.elapsed_time_timer.stop()  # Stop the timer
+            self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
+
+    def on_connection_timeout(self):
+        self.connection_timeout_error_label.setText("Connection Timeout")
+        self.connection_timeout_error_label.show()
+
+    def on_config_update(self, config: EEGSessionConfig):
+        self.config = config
+        self.logger.update_session_key(self.config._session_key)
+        self.file_writer.update_session_key(config._session_key)
+
+        if self.app_state == AppState.CONNECTED or self.app_state == AppState.RECORDING:
+            self.stop_bluemuse()
+            QTimer.singleShot(3000, self.start_bluemuse)
 
     def save_config(self):
         """Parse the JSON from the editor and update the config model."""
@@ -115,12 +244,8 @@ class EEGApp(QWidget):
         self.blue_muse.connection_timeout.connect(self.on_connection_timeout)
         self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
         self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_plot)
-        self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._key))
+        self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._session_key))
         self.blue_muse_thread.start()
-
-    def on_connection_timeout(self):
-        self.connection_timeout_error_label.setText("Connection Timeout")
-        self.connection_timeout_error_label.show()
 
     def stop_bluemuse(self):
         if self.blue_muse_thread.isRunning():
@@ -134,7 +259,6 @@ class EEGApp(QWidget):
         self.eeg_processor_thread = QThread()
         self.eeg_processor = EEGProcessor(self.config)
         self.eeg_processor.moveToThread(self.eeg_processor_thread)
-        self.eeg_processor.results_ready.connect(self.file_writer.write_eeg_data)
 
     def stop_eeg_processor(self):
         if self.eeg_processor_thread.isRunning():
@@ -145,22 +269,6 @@ class EEGApp(QWidget):
 
     def play_audio(self):
         self.pool.start(self.audio.run)
-
-    def __init__(self):
-        super().__init__()
-        self.config = EEGSessionConfig()
-        self.logger = Logger(self.config._key, "EEGApp")
-        self.blue_muse = BlueMuse()
-        self.audio = Audio(self.config._audio)
-        self.file_writer = FileWriter(self.config._key)
-        self.init_ui()
-    
-    def on_config_update(self, config: EEGSessionConfig):
-        self.config = config
-        self.logger = Logger(self.config._key, "EEGApp")
-        self.stop_bluemuse()
-        QTimer.singleShot(1000, self.start_bluemuse)
-        self.file_writer.update_session_key(config._key)
 
 
 class EEGPlot(QWidget):
@@ -230,187 +338,6 @@ class EEGPlot(QWidget):
             ax.set_ylim(-2, 2)  # Keep the y-axis limits consistent
         self.canvas.draw()
 
-
-class ControlPanel(QWidget):
-    def __init__(self, _parent: EEGApp):
-        super().__init__()
-        self._parent = _parent
-        self.save_folder = None
-        self.state = AppState.DISCONNECTED
-        self.elapsed_time = 0  # Elapsed time in seconds
-        self.selected_experiment_mode = ExperimentMode.DISABLED  # Default mode
-
-        self.init_ui()
-        self._parent.blue_muse.connected.connect(self.on_connected)
-        self._parent.blue_muse.disconnected.connect(self.on_disconnected)
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-        
-        # Connection Panel
-        self.connection_label = QLabel("Disconnected")
-        self.connection_button = QPushButton("Connect")
-        self.connection_button.clicked.connect(self.toggle_connection)
-        
-        connection_layout = QHBoxLayout()
-        connection_layout.addWidget(self.connection_label)
-        connection_layout.addWidget(self.connection_button)
-        
-        # Elapsed Time Panel
-        self.elapsed_time_label = QLabel("Elapsed Time: 0s")
-        self.elapsed_time_timer = QTimer(self)  # Timer for updating elapsed time
-        self.elapsed_time_timer.timeout.connect(self.update_elapsed_time)
-        
-        # Recording Control
-        self.recording_button = QPushButton("Start Recording")
-        self.recording_button.setEnabled(False)
-        self.recording_button.clicked.connect(self.toggle_recording)
-        
-        recording_layout = QHBoxLayout()
-        recording_layout.addWidget(self.elapsed_time_label)
-        recording_layout.addWidget(self.recording_button)
-
-        # Save Folder Selection
-        self.folder_button = QPushButton("Choose Save Folder")
-        self.folder_button.clicked.connect(self.choose_save_folder)
-        
-        # Experiment Mode Selection (Horizontally Aligned)
-        experiment_layout = QHBoxLayout()
-        self.experiment_label = QLabel("Experiment Mode:")
-        self.experiment_dropdown = QComboBox()
-        self.experiment_dropdown.addItems([mode.value for mode in ExperimentMode])
-        self.experiment_dropdown.setCurrentIndex(0)  # Default to first mode (Disabled)
-        self.experiment_dropdown.currentIndexChanged.connect(self.update_experiment_mode)
-
-        experiment_layout.addWidget(self.experiment_label)
-        experiment_layout.addWidget(self.experiment_dropdown)
-
-        layout.addLayout(connection_layout)
-        layout.addWidget(self.folder_button)
-        layout.addLayout(recording_layout)
-        layout.addLayout(experiment_layout)
-        
-        self.setLayout(layout)
-
-    def update_experiment_mode(self):
-        self.selected_experiment_mode = ExperimentMode(self.experiment_dropdown.currentText())
-    
-    def toggle_connection(self):
-        if self.state == AppState.DISCONNECTED:
-            self.connection_button.setEnabled(False)
-            self.connection_label.setText("Connecting")
-            self.state = AppState.CONNECTING
-            self._parent.start_bluemuse()
-        elif self.state == AppState.CONNECTED:
-            self._parent.stop_bluemuse()
-        elif self.state == AppState.RECORDING:
-            self.show_disconnect_warning()
-
-    def show_disconnect_warning(self):
-        print('Test')
-        reply = QMessageBox.warning(
-            self, 'Warning', 
-            "You are currently recording data. Disconnecting will stop the recording. Are you sure you want to disconnect?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-            QMessageBox.StandardButton.No
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            self._parent.stop_bluemuse()
-
-    def on_connected(self):
-        self.state = AppState.CONNECTED
-        self.connection_label.setText("Connected")
-        self.connection_button.setText("Disconnect")
-        self.connection_button.setEnabled(True)
-        self.recording_button.setEnabled(True)
-        self.update_recording_button_state()
-
-    def on_disconnected(self):
-        self.state = AppState.DISCONNECTED
-        self.connection_label.setText("Disconnected")
-        self.connection_button.setText("Connect")
-        self.recording_button.setEnabled(False)
-        self.recording_button.setText("Start Recording")
-        self.elapsed_time_label.setText("Elapsed Time: 0s")
-        self.elapsed_time = 0  # Reset elapsed time
-    
-    def toggle_recording(self):
-        if self.state == AppState.CONNECTED and self.save_folder:
-            self.state = AppState.RECORDING
-            self.recording_button.setText("Stop Recording")
-            self.elapsed_time = 0  # Reset elapsed time on start
-            self.elapsed_time_timer.start(1000)  # Update every second
-            self._parent.blue_muse.eeg_data_ready.connect(self._parent.file_writer.write_eeg_data)
-
-        elif self.state == AppState.RECORDING:
-            self._parent.blue_muse.eeg_data_ready.disconnect(self._parent.file_writer.write_eeg_data)
-            self.state = AppState.CONNECTED
-            self.recording_button.setText("Start Recording")
-            self.elapsed_time_timer.stop()  # Stop the timer
-            self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
-
-    def update_elapsed_time(self):
-        self.elapsed_time += 1
-        self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
-
-    def choose_save_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select Folder")
-        if folder:
-            self.save_folder = folder
-            self.folder_button.setText(f"{folder}")
-            print(f"Selected Save Folder: {self.save_folder}")
-        self.update_recording_button_state()
-
-    def update_recording_button_state(self):
-        self.recording_button.setEnabled(self.state == AppState.CONNECTED and bool(self.save_folder))
-            
-
-class ConfigPanel(QWidget):
-    def __init__(self, _parent: EEGApp):
-        super().__init__()
-        self._parent = _parent
-        self.init_ui()
-        self.param_config_editor.setText(self._parent.config.model_dump_json(indent=4))
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-        
-        self.param_config_label = QLabel("Current Parameter Config:")
-        layout.addWidget(self.param_config_label)
-        self.param_config_editor = QTextEdit()
-        self.param_config_editor.setAcceptRichText(False)
-        self.param_config_editor.setReadOnly(False)  # Allow editing the JSON
-        layout.addWidget(self.param_config_editor)
-
-        self.save_button = QPushButton("Update Config")
-        self.save_button.clicked.connect(self.save_config)
-        layout.addWidget(self.save_button)
-
-        self.error_label = QLabel("")
-        self.error_label.setStyleSheet("color: red;")
-        self.error_label.hide()
-
-        layout.addWidget(self.error_label)
-        self.setLayout(layout)
-
-    def save_config(self):
-        """Parse the JSON from the editor and update the config model."""
-        self.error_label.hide()
-        try:
-            updated_config = EEGSessionConfig(**json.loads(self.param_config_editor.toPlainText()))
-            if updated_config != self._parent.config:
-                self.config = updated_config
-                # self._parent.
-                print("Config updated successfully:", self.config)
-        except json.JSONDecodeError as e:
-            self.error_label.setText("Invalid JSON")  # Display the first error message
-            self.error_label.show()
-        except ValidationError as e:
-            self.error_label.setText(str("\n".join([f'{k}: {v}' for k, v in e.errors()[0].items() if k != "url"])))  # Display the first error message
-            self.error_label.show()
-
-
-        
 
 if __name__ == "__main__":
     if sys.platform.startswith("win"):

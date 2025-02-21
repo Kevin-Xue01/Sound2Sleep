@@ -380,7 +380,8 @@ class BlueMuse(QObject):
         subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=true', shell=True)
         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-        self.logger = Logger(session_key, self.__class__.__name__)
+        self.session_key = session_key
+        self.logger = Logger(self.session_key, self.__class__.__name__)
         time.sleep(3)
         while not self.lsl_reload():
             self.logger.error(f"LSL streams not found, retrying in 3 seconds") 

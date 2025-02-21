@@ -2,8 +2,9 @@ import random
 import string
 from datetime import datetime
 
-import numpy as np
 from pydantic import BaseModel, Field, PrivateAttr
+
+from .constants import ExperimentMode
 
 
 def generate_random_key(length=6):
@@ -38,10 +39,11 @@ class DisplayConfig(BaseModel):
     display_every: int = 5
 
 class EEGSessionConfig(BaseModel):
-    _key: str = PrivateAttr(default_factory=lambda: datetime.now().strftime("%m-%d_%H-%M-%S"))
+    _session_key: str = PrivateAttr(default_factory=lambda: datetime.now().strftime("%m-%d_%H-%M-%S"))
     _created_at: str = PrivateAttr(default_factory=lambda: datetime.now().isoformat())
     _audio: AudioConfig = PrivateAttr(default_factory=AudioConfig)
     _display: DisplayConfig = PrivateAttr(default_factory=DisplayConfig)
+    experiment_mode: ExperimentMode = ExperimentMode.DISABLED
     truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
     window_len_s: float = 2.0 # [seconds], duration of processing window
     hl_ratio_buffer_len: int = 2
@@ -59,6 +61,15 @@ class EEGSessionConfig(BaseModel):
         if not isinstance(other, EEGSessionConfig):
             return NotImplemented
         return self.model_dump() == other.model_dump()
+    
+    def model_dump_json(self, *, indent: int = 4, **kwargs) -> str:
+        """Override model_dump_json to exclude 'experiment_mode' from output."""
+        return super().model_dump_json(indent=indent, exclude={'experiment_mode'}, **kwargs)
+    
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude 'experiment_mode' from output."""
+        kwargs.setdefault("exclude", {"experiment_mode"})
+        return super().model_dump(**kwargs)
 
     # def update_processing_params(self, **kwargs):
     #     """Updates processing parameters with provided key-value pairs."""
