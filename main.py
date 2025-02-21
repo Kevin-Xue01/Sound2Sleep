@@ -247,6 +247,11 @@ class EEGApp(QWidget):
         self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._session_key))
         self.blue_muse_thread.start()
 
+        self.eeg_processor_thread = QThread()
+        self.eeg_processor = EEGProcessor(self.config)
+        self.eeg_processor.moveToThread(self.eeg_processor_thread)
+        self.eeg_processor_thread.start()
+
     def stop_bluemuse(self):
         if self.blue_muse_thread.isRunning():
             self.blue_muse.stop()
@@ -255,12 +260,6 @@ class EEGApp(QWidget):
             self.blue_muse_thread = None
             self.blue_muse = None
 
-    def start_eeg_processor(self):
-        self.eeg_processor_thread = QThread()
-        self.eeg_processor = EEGProcessor(self.config)
-        self.eeg_processor.moveToThread(self.eeg_processor_thread)
-
-    def stop_eeg_processor(self):
         if self.eeg_processor_thread.isRunning():
             self.eeg_processor_thread.quit()
             self.eeg_processor_thread.wait()
