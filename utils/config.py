@@ -19,36 +19,41 @@ class TruncatedWaveletConfig(BaseModel):
 
 class ProcessingConfig(BaseModel):
     truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
-    window_len: float = 2.0 # [seconds]
-    hl_ratio_buffer: int = 2
-    hl_ratio_threshold: float = -2.0
-    amp_buffer: int = 2
-    amp_threshold: float = 4e-4
+    window_len_s: float = 2.0 # [seconds], duration of processing window
+    hl_ratio_buffer_len: int = 2
+    hl_ratio_buffer_mean_threshold: float = -2.0
+    hl_ratio_latest_threshold: float = -2.0
+    amp_buffer_len: int = 2
+    amp_buffer_mean_threshold: float = 4e-4
+    amp_latest_threshold: float = 4e-4
     target_phase_deg: float = 0.0
     backoff_max_time: float = 5.0
     queue_stim_max_delta_t_: float = 0.1
 
 class AudioConfig(BaseModel):
-    ramp_up_s: float = 1.0
-    ramp_down_s: float = 1.0
+    ramp_s: float = 1.0
     total_s: float = 3.0
 
 class DisplayConfig(BaseModel):
     window_len: float = 5.0
     display_every: int = 5
 
-class BlueMuseConfig(BaseModel):
-    low_pass_cutoff: float = 40.0
-    low_pass_transition_width: float = 0.05 # units of fs
-
 class EEGSessionConfig(BaseModel):
     _key: str = PrivateAttr(default_factory=lambda: generate_random_key())
     _created_at: str = PrivateAttr(default_factory=lambda: datetime.now().isoformat())
-    processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
-    audio: AudioConfig = Field(default_factory=AudioConfig)
-    display: DisplayConfig = Field(default_factory=DisplayConfig)
-    connection: BlueMuseConfig = Field(default_factory=BlueMuseConfig)
-    log_dir: str = "logs/"
+    _audio: AudioConfig = PrivateAttr(default_factory=AudioConfig)
+    _display: DisplayConfig = PrivateAttr(default_factory=DisplayConfig)
+    truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
+    window_len_s: float = 2.0 # [seconds], duration of processing window
+    hl_ratio_buffer_len: int = 2
+    hl_ratio_buffer_mean_threshold: float = -2.0
+    hl_ratio_latest_threshold: float = -2.0
+    amp_buffer_len: int = 2
+    amp_buffer_mean_threshold: float = 4e-4
+    amp_latest_threshold: float = 4e-4
+    target_phase_deg: float = 0.0
+    backoff_max_time: float = 5.0
+    queue_stim_max_delta_t_: float = 0.1
     
     def __eq__(self, other):
         """Compare two EEGSessionConfig objects, ignoring private attributes."""

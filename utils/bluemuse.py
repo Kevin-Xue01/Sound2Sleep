@@ -400,7 +400,7 @@ class BlueMuse(QObject):
                 self.stream_inlet[stream].close_stream()
             except Exception as ex:
                 self.logger.critical(str(ex))
-
+        
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         subprocess.call('start bluemuse://shutdown', shell=True)
         for p in psutil.process_iter(['name']):
@@ -408,6 +408,8 @@ class BlueMuse(QObject):
                 self.logger.info('Killing BlueMuse')
                 p.kill()
         self.disconnected.emit()
+        self.stream_info: dict[MuseDataType, StreamInfo] = dict()
+        self.stream_inlet: dict[MuseDataType, StreamInlet] = dict()
 
 
 # if __name__ == "__main__":

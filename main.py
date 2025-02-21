@@ -2,6 +2,7 @@ import ctypes
 import json
 import sys
 import time
+from functools import partial
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,6 +40,9 @@ from utils import (  # EEGProcessor,
 
 
 class EEGApp(QWidget):
+    pool = QThreadPool.globalInstance()
+    config_updated = pyqtSignal()
+
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
         width, height = int(screen.width() * 0.9), int(screen.height() * 0.9)
@@ -51,30 +55,60 @@ class EEGApp(QWidget):
 
         main_layout = QHBoxLayout()
         right_panel = QVBoxLayout()
-        self.config_panel = ConfigPanel(self)
         
-        self.eeg_plot = EEGPlot(self.config_panel.config.display)
-        self.control_panel = ControlPanel(self, self.eeg_plot)
+        config_panel_widget = QWidget()
+        config_panel_layout = QVBoxLayout(config_panel_widget)
+        param_config_label = QLabel("Current Parameter Config:")
+        config_panel_layout.addWidget(param_config_label)
+        self.param_config_editor = QTextEdit()
+        self.param_config_editor.setAcceptRichText(False)
+        self.param_config_editor.setReadOnly(False)  # Allow editing the JSON
+        self.param_config_editor.setText(self.config.model_dump_json(indent=4))
+        config_panel_layout.addWidget(self.param_config_editor)
+
+        save_button = QPushButton("Update Config")
+        save_button.clicked.connect(self.save_config)
+        config_panel_layout.addWidget(save_button)
+
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: red;")
+        self.error_label.hide()
+        config_panel_layout.addWidget(self.error_label)
+
+        self.eeg_plot = EEGPlot(self.config._display)
+        self.control_panel = ControlPanel(self)
         
         right_panel.addWidget(self.control_panel)
-        right_panel.addWidget(self.config_panel)
+        right_panel.addWidget(config_panel_widget)
         
         main_layout.addWidget(self.eeg_plot, stretch=1)
         main_layout.addLayout(right_panel)
         
         self.setLayout(main_layout)
         self.setWindowTitle("Sound2Sleep: CLAS at Home")
-        self.blue_muse.data_ready.connect(self.eeg_plot.update_plot)
 
-    
-    def init_bluemuse(self):
+    def save_config(self):
+        """Parse the JSON from the editor and update the config model."""
+        self.error_label.hide()
+        try:
+            updated_config = EEGSessionConfig(**json.loads(self.param_config_editor.toPlainText()))
+            if updated_config != self.config:
+                print("Config updated successfully:", self.config)
+                self.config = updated_config
+                self.on_config_update()
+        except json.JSONDecodeError as e:
+            self.error_label.setText("Invalid JSON")  # Display the first error message
+            self.error_label.show()
+        except ValidationError as e:
+            self.error_label.setText(str("\n".join([f'{k}: {v}' for k, v in e.errors()[0].items() if k != "url"])))  # Display the first error message
+            self.error_label.show()
+
+    def start_bluemuse(self):
         self.blue_muse_thread = QThread()
-        self.blue_muse = BlueMuse(self.config.connection)
         self.blue_muse.moveToThread(self.blue_muse_thread)
-        # self.blue_muse.connected.connect(self.)
-        self.blue_muse.data_ready.connect(self.eeg_processor.process_data)
-        self.blue_muse_thread.started.connect(self.blue_muse.run)
-        time.sleep(1)
+        self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
+        self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_plot)
+        self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._key))
         self.blue_muse_thread.start()
 
     def stop_bluemuse(self):
@@ -85,21 +119,37 @@ class EEGApp(QWidget):
             self.blue_muse_thread = None
             self.blue_muse = None
 
-    def init_eeg_processor(self):
+    def start_eeg_processor(self):
         self.eeg_processor_thread = QThread()
-        self.eeg_processor = EEGProcessor(self.config.processing)
+        self.eeg_processor = EEGProcessor(self.config)
         self.eeg_processor.moveToThread(self.eeg_processor_thread)
         self.eeg_processor.results_ready.connect(self.file_writer.write_eeg_data)
 
+    def stop_eeg_processor(self):
+        if self.eeg_processor_thread.isRunning():
+            self.eeg_processor_thread.quit()
+            self.eeg_processor_thread.wait()
+            self.eeg_processor_thread = None
+            self.eeg_processor = None
+
+    def play_audio(self):
+        self.pool.start(self.audio.run)
+
     def __init__(self):
         super().__init__()
-        self.pool = QThreadPool.globalInstance()
         self.config = EEGSessionConfig()
-        self.audio = Audio(3.0, 1.0)
-        self.file_writer = FileWriter("")
-        self.init_eeg_processor()
-        self.init_bluemuse()
+        self.blue_muse = BlueMuse()
+        self.audio = Audio(self.config._audio)
+        self.file_writer = FileWriter(self.config._key)
         self.init_ui()
+    
+    def on_config_update(self, config: EEGSessionConfig):
+        self.config = config
+        self.stop_bluemuse()
+        QTimer.singleShot(1000, self.start_bluemuse)
+        self.file_writer.update_session_key(config._key)
+
+
 
 
 class EEGPlot(QWidget):
@@ -107,12 +157,12 @@ class EEGPlot(QWidget):
         super().__init__()
         self.config = config
         self.display_every_counter = 0
-        self.init_ui()
         self.ymin = -2
         self.ymax = 2
         self.window_len_n = int(self.config.window_len * SAMPLING_RATE[MuseDataType.EEG])
         self.timestamps = np.arange(-self.window_len_n, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
         self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
+        self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout()
@@ -130,9 +180,6 @@ class EEGPlot(QWidget):
         self.setMaximumWidth(1100)
 
     def update_plot(self, timestamps, data):
-        # self.data = np.roll(self.data, -1, axis=1)  # Simulate incoming data
-        # self.data[:, -1] = np.random.randn(4)  # Simulated EEG signal
-        # self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
         self.timestamps = np.concatenate([self.timestamps, timestamps])
         self.timestamps = self.timestamps[-self.window_len_n:]
         self.data = np.vstack([self.data, data])
@@ -141,11 +188,11 @@ class EEGPlot(QWidget):
         if self.display_every_counter == self.config.display_every:
             for i, ax in enumerate(self.axes):
                 ax.clear()
-                ax.plot(self.data[i, :])
+                ax.plot(self.data[:, i])
                 ax.set_ylim(self.ymin, self.ymax)
 
                 # Calculate variance for the current signal (data row)
-                variance = np.var(self.data[i, :])
+                variance = np.var(self.data[:, i])
                 
                 # Display the variance on the top right of the plot
                 ax.text(0.95, 0.95, f"Variance: {variance:.4f}", transform=ax.transAxes,
@@ -174,15 +221,12 @@ class EEGPlot(QWidget):
 
 
 class ControlPanel(QWidget):
-    def __init__(self, _parent: EEGApp, eeg_plot: EEGPlot):
+    def __init__(self, _parent: EEGApp):
         super().__init__()
         self._parent = _parent
         self.save_folder = None
-        self.eeg_plot = eeg_plot
         self.state = AppState.DISCONNECTED
         self.elapsed_time = 0  # Elapsed time in seconds
-        self.subjects = ["Kevin", "Vicki", "Jaeyoung", "Sean"]
-        self.selected_subject = self.subjects[0]  # Default to the first subject
         self.selected_experiment_mode = ExperimentMode.DISABLED  # Default mode
 
         self.init_ui()
@@ -219,14 +263,6 @@ class ControlPanel(QWidget):
         self.folder_button = QPushButton("Choose Save Folder")
         self.folder_button.clicked.connect(self.choose_save_folder)
         
-        # Subject Selection Horizontal Layout (QLabel + QComboBox)
-        subject_layout = QHBoxLayout()
-        self.subject_label = QLabel("Select Subject:")
-        self.subject_dropdown = QComboBox()
-        self.subject_dropdown.addItems(self.subjects)
-        self.subject_dropdown.setCurrentIndex(0)  # Default to first subject
-        # self.subject_dropdown.currentIndexChanged.connect(self.update_selected_subject)
-
         # Experiment Mode Selection (Horizontally Aligned)
         experiment_layout = QHBoxLayout()
         self.experiment_label = QLabel("Experiment Mode:")
@@ -238,13 +274,9 @@ class ControlPanel(QWidget):
         experiment_layout.addWidget(self.experiment_label)
         experiment_layout.addWidget(self.experiment_dropdown)
 
-        subject_layout.addWidget(self.subject_label)
-        subject_layout.addWidget(self.subject_dropdown)
-
         layout.addLayout(connection_layout)
         layout.addWidget(self.folder_button)
         layout.addLayout(recording_layout)
-        layout.addLayout(subject_layout)
         layout.addLayout(experiment_layout)
         
         self.setLayout(layout)
@@ -257,7 +289,7 @@ class ControlPanel(QWidget):
             self.connection_button.setEnabled(False)
             self.connection_label.setText("Connecting")
             self.state = AppState.CONNECTING
-            self._parent.init_bluemuse()
+            self._parent.start_bluemuse()
         elif self.state == AppState.CONNECTED:
             self._parent.stop_bluemuse()
         elif self.state == AppState.RECORDING:
@@ -297,15 +329,14 @@ class ControlPanel(QWidget):
             self.recording_button.setText("Stop Recording")
             self.elapsed_time = 0  # Reset elapsed time on start
             self.elapsed_time_timer.start(1000)  # Update every second
-            self._parent.blue_muse.data_ready.connect(self._parent.file_writer.write_eeg_data)
+            self._parent.blue_muse.eeg_data_ready.connect(self._parent.file_writer.write_eeg_data)
 
         elif self.state == AppState.RECORDING:
+            self._parent.blue_muse.eeg_data_ready.disconnect(self._parent.file_writer.write_eeg_data)
             self.state = AppState.CONNECTED
             self.recording_button.setText("Start Recording")
-            self.eeg_plot.clear_plots()
             self.elapsed_time_timer.stop()  # Stop the timer
             self.elapsed_time_label.setText(f"Elapsed Time: {self.elapsed_time}s")
-            self._parent.blue_muse.data_ready.disconnect(self._parent.file_writer.write_eeg_data)
 
     def update_elapsed_time(self):
         self.elapsed_time += 1
@@ -328,16 +359,11 @@ class ConfigPanel(QWidget):
         super().__init__()
         self._parent = _parent
         self.init_ui()
-
-        self.config = EEGSessionConfig()
-        config_json = self.config.model_dump_json(indent=4)
-        self.param_config_editor.setText(config_json)
+        self.param_config_editor.setText(self._parent.config.model_dump_json(indent=4))
 
     def init_ui(self):
         layout = QVBoxLayout()
         
-        self.params = {}
-
         self.param_config_label = QLabel("Current Parameter Config:")
         layout.addWidget(self.param_config_label)
         self.param_config_editor = QTextEdit()
@@ -361,7 +387,7 @@ class ConfigPanel(QWidget):
         self.error_label.hide()
         try:
             updated_config = EEGSessionConfig(**json.loads(self.param_config_editor.toPlainText()))
-            if updated_config != self.config:
+            if updated_config != self._parent.config:
                 self.config = updated_config
                 # self._parent.
                 print("Config updated successfully:", self.config)

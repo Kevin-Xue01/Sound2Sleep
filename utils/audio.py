@@ -6,19 +6,21 @@ import numpy as np
 import simpleaudio as sa
 from PyQt5.QtCore import QRunnable
 
+from .config import AudioConfig
+
 
 class Audio(QRunnable):
-    def __init__(self, length: float, ramp: float):
+    def __init__(self, config: AudioConfig):
         super().__init__()
         fs = 44100
-        noise_length = math.floor(length * fs)
-        ramp_length = math.floor(ramp * fs)
+        noise_length = math.floor(config.total_s * fs)
+        ramp_length = math.floor(config.ramp_s * fs)
 
         noisedata = colorednoise.powerlaw_psd_gaussian(1, noise_length)
 
         # Generate taper
         if ramp_length > 0:
-            sineramp_x = np.linspace(0, np.pi / 2, np.round(ramp * fs).astype(int))
+            sineramp_x = np.linspace(0, np.pi / 2, np.round(config.ramp_s * fs).astype(int))
             sineramp = np.sin(sineramp_x)
 
             noisedata[:ramp_length] *= sineramp

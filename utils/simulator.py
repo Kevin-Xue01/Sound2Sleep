@@ -1,14 +1,28 @@
-import numpy as np
-import time
-from pylsl import StreamInfo, StreamOutlet
-import threading
 import random
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QSlider, QLabel, QHBoxLayout, QGroupBox, QPushButton, QDoubleSpinBox
-from PyQt5.QtCore import Qt
-import pyqtgraph as pg
-from typing import List
+import threading
+import time
 from enum import Enum
+from typing import List
+
+import numpy as np
+import pyqtgraph as pg
+from audio import Audio
+from pylsl import StreamInfo, StreamOutlet
+from PyQt5.QtCore import Qt, QThreadPool
+from PyQt5.QtWidgets import (
+    QApplication,
+    QDoubleSpinBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QSlider,
+    QVBoxLayout,
+    QWidget,
+)
+
 SRATE = 256  # [Hz]
 
 class Band(Enum):
@@ -133,6 +147,7 @@ class LSLSimulatorDataGenerator:
 class LSLSimulatorGUI(QMainWindow):
     def __init__(self, streams: List[LSLSimulatorDataGenerator]):
         super().__init__()
+        self.pool = QThreadPool.globalInstance()
         self.setWindowTitle("LSL Simulator GUI")
         # Get the screen size
         screen = QApplication.primaryScreen().availableGeometry()
@@ -265,6 +280,8 @@ class LSLSimulatorGUI(QMainWindow):
         main_layout.addLayout(right_layout)
         self.update_plot()
         self.update_config()
+        self.audio = Audio(3.0, 1.0)
+        self.pool.start(self.audio)
 
     def update_views(self):
         self.sum_viewbox.setGeometry(self.p1.vb.sceneBoundingRect())
