@@ -35,13 +35,13 @@ from utils import (  # EEGProcessor,
     EEGSessionConfig,
     ExperimentMode,
     FileWriter,
+    Logger,
     MuseDataType,
 )
 
 
 class EEGApp(QWidget):
     pool = QThreadPool.globalInstance()
-    config_updated = pyqtSignal()
 
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
@@ -70,14 +70,19 @@ class EEGApp(QWidget):
         save_button.clicked.connect(self.save_config)
         config_panel_layout.addWidget(save_button)
 
-        self.error_label = QLabel("")
-        self.error_label.setStyleSheet("color: red;")
-        self.error_label.hide()
-        config_panel_layout.addWidget(self.error_label)
+        self.config_panel_error_label = QLabel("")
+        self.config_panel_error_label.setStyleSheet("color: red;")
+        self.config_panel_error_label.hide()
+        config_panel_layout.addWidget(self.config_panel_error_label)
 
         self.eeg_plot = EEGPlot(self.config._display)
         self.control_panel = ControlPanel(self)
-        
+
+        self.connection_timeout_error_label = QLabel("")
+        self.connection_timeout_error_label.setStyleSheet("color: red;")
+        self.connection_timeout_error_label.hide()
+
+        right_panel.addWidget(self.connection_timeout_error_label)
         right_panel.addWidget(self.control_panel)
         right_panel.addWidget(config_panel_widget)
         
@@ -89,7 +94,7 @@ class EEGApp(QWidget):
 
     def save_config(self):
         """Parse the JSON from the editor and update the config model."""
-        self.error_label.hide()
+        self.config_panel_error_label.hide()
         try:
             updated_config = EEGSessionConfig(**json.loads(self.param_config_editor.toPlainText()))
             if updated_config != self.config:
@@ -97,19 +102,25 @@ class EEGApp(QWidget):
                 self.config = updated_config
                 self.on_config_update()
         except json.JSONDecodeError as e:
-            self.error_label.setText("Invalid JSON")  # Display the first error message
-            self.error_label.show()
+            self.config_panel_error_label.setText("Invalid JSON")  # Display the first error message
+            self.config_panel_error_label.show()
         except ValidationError as e:
-            self.error_label.setText(str("\n".join([f'{k}: {v}' for k, v in e.errors()[0].items() if k != "url"])))  # Display the first error message
-            self.error_label.show()
+            self.config_panel_error_label.setText(str("\n".join([f'{k}: {v}' for k, v in e.errors()[0].items() if k != "url"])))  # Display the first error message
+            self.config_panel_error_label.show()
 
     def start_bluemuse(self):
         self.blue_muse_thread = QThread()
         self.blue_muse.moveToThread(self.blue_muse_thread)
+        self.blue_muse.connected.connect(lambda: self.connection_timeout_error_label.hide())
+        self.blue_muse.connection_timeout.connect(self.on_connection_timeout)
         self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
         self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_plot)
         self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._key))
         self.blue_muse_thread.start()
+
+    def on_connection_timeout(self):
+        self.connection_timeout_error_label.setText("Connection Timeout")
+        self.connection_timeout_error_label.show()
 
     def stop_bluemuse(self):
         if self.blue_muse_thread.isRunning():
@@ -138,6 +149,7 @@ class EEGApp(QWidget):
     def __init__(self):
         super().__init__()
         self.config = EEGSessionConfig()
+        self.logger = Logger(self.config._key, "EEGApp")
         self.blue_muse = BlueMuse()
         self.audio = Audio(self.config._audio)
         self.file_writer = FileWriter(self.config._key)
@@ -145,11 +157,10 @@ class EEGApp(QWidget):
     
     def on_config_update(self, config: EEGSessionConfig):
         self.config = config
+        self.logger = Logger(self.config._key, "EEGApp")
         self.stop_bluemuse()
         QTimer.singleShot(1000, self.start_bluemuse)
         self.file_writer.update_session_key(config._key)
-
-
 
 
 class EEGPlot(QWidget):

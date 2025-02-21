@@ -1,4 +1,3 @@
-import json
 import random
 import string
 from datetime import datetime
@@ -39,7 +38,7 @@ class DisplayConfig(BaseModel):
     display_every: int = 5
 
 class EEGSessionConfig(BaseModel):
-    _key: str = PrivateAttr(default_factory=lambda: generate_random_key())
+    _key: str = PrivateAttr(default_factory=lambda: datetime.now().strftime("%m-%d_%H-%M-%S"))
     _created_at: str = PrivateAttr(default_factory=lambda: datetime.now().isoformat())
     _audio: AudioConfig = PrivateAttr(default_factory=AudioConfig)
     _display: DisplayConfig = PrivateAttr(default_factory=DisplayConfig)

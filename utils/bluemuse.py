@@ -116,7 +116,7 @@ class BlueMuse(QObject):
             else:
                 self.logger.warning(f'{stream.name} not found.')
                 allok = False
-
+        if allok: self.connected.emit()
         return allok
 
 
@@ -311,6 +311,7 @@ class BlueMuse(QObject):
         self.logger.info('PPG thread stopped')
 
     def lsl_reset_stream_step1(self):
+        self.connection_timeout.emit()
         self.logger.info('Resetting stream step 1')
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         time.sleep(3)
