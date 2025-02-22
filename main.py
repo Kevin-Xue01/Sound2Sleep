@@ -355,9 +355,7 @@ if __name__ == "__main__":
         exit_code = app.exec()
     finally:
         if sys.platform.startswith("win"):
-            print('Finally block reached')
             ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
             for p in psutil.process_iter(['name']):
-                print(p.info)
                 if p.info['name'] == 'BlueMuse.exe': p.kill()
     sys.exit(exit_code)
