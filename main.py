@@ -50,7 +50,7 @@ class EEGApp(QWidget):
         self.elapsed_time = 0  # Elapsed time in seconds
 
         self.config = SessionConfig()
-        self.logger = Logger(self.config._session_key, "EEGApp")
+        self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
 
         self.init_ui()
@@ -359,5 +359,5 @@ if __name__ == "__main__":
             ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
             for p in psutil.process_iter(['name']):
                 print(p.info)
-                if p.info['name'] == 'BlueMuse': p.kill()
+                if p.info['name'] == 'BlueMuse.exe': p.kill()
     sys.exit(exit_code)

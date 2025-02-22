@@ -91,7 +91,7 @@ class BlueMuse(QObject):
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter > 20:
+                    if no_data_counter > int(3 * (256 / 12)):
                         QTimer.singleShot(2000, self.lsl_reset_stream_step1)
                         break
 
@@ -113,7 +113,7 @@ class BlueMuse(QObject):
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter > 20:
+                    if no_data_counter > int(3 * (256 / 12)):
                         QTimer.singleShot(2000, self.lsl_reset_stream_step1)
                         break
 
@@ -135,7 +135,7 @@ class BlueMuse(QObject):
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter > 20:
+                    if no_data_counter > int(3 * (256 / 12)):
                         QTimer.singleShot(2000, self.lsl_reset_stream_step1)
                         break
 
@@ -225,10 +225,6 @@ class BlueMuse(QObject):
         self.start_threads()
 
     def stop(self):
-        self.run_eeg_thread = False
-        self.run_acc_thread = False
-        self.run_ppg_thread = False
-
         for stream in MuseDataType:
             try:
                 self.stream_inlet[stream].close_stream()
@@ -237,6 +233,11 @@ class BlueMuse(QObject):
 
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         subprocess.call('start bluemuse://shutdown', shell=True)
+
+        self.run_eeg_thread = False
+        self.run_acc_thread = False
+        self.run_ppg_thread = False
+
         for p in psutil.process_iter(['name']):
             if p.info['name'] == 'BlueMuse.exe':
                 self.logger.info('Killing BlueMuse')
