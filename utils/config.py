@@ -17,28 +17,15 @@ class TruncatedWaveletConfig(BaseModel):
     low: float = 0.5
     high: float = 2.0
 
-class ProcessingConfig(BaseModel):
-    truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
-    window_len_s: float = 2.0 # [seconds], duration of processing window
-    hl_ratio_buffer_len: int = 2
-    hl_ratio_buffer_mean_threshold: float = -2.0
-    hl_ratio_latest_threshold: float = -2.0
-    amp_buffer_len: int = 2
-    amp_buffer_mean_threshold: float = 4e-4
-    amp_latest_threshold: float = 4e-4
-    target_phase_deg: float = 0.0
-    backoff_max_time: float = 5.0
-    queue_stim_max_delta_t_: float = 0.1
-
 class AudioConfig(BaseModel):
     ramp_s: float = 1.0
     total_s: float = 3.0
 
 class DisplayConfig(BaseModel):
     window_len: float = 5.0
-    display_every: int = 5
+    display_every: int = 4
 
-class EEGSessionConfig(BaseModel):
+class SessionConfig(BaseModel):
     _session_key: str = PrivateAttr(default_factory=lambda: datetime.now().strftime("%m-%d_%H-%M-%S"))
     _created_at: str = PrivateAttr(default_factory=lambda: datetime.now().isoformat())
     _audio: AudioConfig = PrivateAttr(default_factory=AudioConfig)
@@ -53,12 +40,16 @@ class EEGSessionConfig(BaseModel):
     amp_buffer_mean_threshold: float = 4e-4
     amp_latest_threshold: float = 4e-4
     target_phase_deg: float = 0.0
-    backoff_max_time: float = 5.0
-    queue_stim_max_delta_t_: float = 0.1
+    backoff_time: float = 3.0
+    stim2_start_delay: float = 2.0
+    stim2_end_delay: float = 2.0
+    low_bpf_cutoff: tuple[float] = (1.0, 4.0)
+    high_bpf_cutoff: tuple[float] = (12.0, 80.0)
+    bpf_order: int = 4
     
     def __eq__(self, other):
-        """Compare two EEGSessionConfig objects, ignoring private attributes."""
-        if not isinstance(other, EEGSessionConfig):
+        """Compare two SessionConfig objects, ignoring private attributes."""
+        if not isinstance(other, SessionConfig):
             return NotImplemented
         return self.model_dump() == other.model_dump()
     
@@ -94,4 +85,4 @@ class EEGSessionConfig(BaseModel):
     #     return cls(**data)
     
     # def __repr__(self):
-    #     return f"EEGSessionConfig({self.dict()})"
+    #     return f"SessionConfig({self.dict()})"

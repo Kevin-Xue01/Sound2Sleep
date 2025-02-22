@@ -19,7 +19,7 @@ from pylsl import StreamInfo, StreamInlet, resolve_byprop
 from PyQt5.QtCore import QObject, pyqtSignal
 from scipy.signal import firwin, lfilter, lfilter_zi
 
-from .config import EEGSessionConfig
+from .config import SessionConfig
 from .constants import (
     CHANNEL_NAMES,
     CHUNK_SIZE,

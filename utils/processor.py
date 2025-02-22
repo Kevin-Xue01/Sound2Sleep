@@ -5,9 +5,16 @@ from typing import Tuple, Union
 import numpy as np
 import scipy
 import scipy.signal
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QMutex, QObject, QTimer, pyqtSignal
 
-from utils import ExperimentMode, Logger, ProcessingConfig
+from utils import (
+    CHANNEL_NAMES,
+    SAMPLING_RATE,
+    ExperimentMode,
+    Logger,
+    MuseDataType,
+    SessionConfig,
+)
 
 # class CLASResult(IntEnum):
 #     NOT_RUNNING = 700
@@ -39,168 +46,110 @@ from utils import ExperimentMode, Logger, ProcessingConfig
 #     fftwin = EnumAuto()
 #     wavelet = EnumAuto()
 
+class Processor(QObject):
+    results_ready = pyqtSignal(object)  # Signal that will emit results once processing is done
 
-class EEGProcessor(QObject):
-    results_ready = pyqtSignal()
+    def __init__(self, muse_data_type: MuseDataType):
+        super().__init__()
+        self.muse_data_type = muse_data_type
+        self.running = False
+
+    def run(self):
+        """Starts the process in a separate thread."""
+        self.running = True
+
+    def stop(self):
+        """Stops the process."""
+        self.running = False
+
+    def process(self):
+        """To be overridden by subclasses."""
+        raise NotImplementedError("Subclasses should implement the 'process' method.")
+
+
+class EEGProcessor(Processor):
+    stim = pyqtSignal()
     _last_stim = 0.0  # float: units of time elapsed
     _time_elapsed = 0.0  # float: in seconds, relative to end of last block/start of current block
     
-    def __init__(self, config: ProcessingConfig):
-        super().__init__()
+    def __init__(self, config: SessionConfig):
+        super().__init__(MuseDataType.EEG)
         self.config = config
-        self.logger = Logger("", "EEGProcessor")
-        # # self.ampbuffer = np.zeros(params['amp_lookback_nblocks'])
-        # self.fs = fs
+        self.logger = Logger(self.config._session_key, self.__class__.__name__)
+        self.amp_buffer = np.zeros(self.config.amp_buffer_len)
+        self.hl_ratio_buffer = np.zeros(self.config.hl_ratio_buffer_len)
 
-        # # # internal parameters
-        # # self.last_stim = 0.0  # float: units of time elapsed
-        # # self.time_elapsed = 0.0  # float: in seconds, relative to end of last block/start of current block
+        self.window_len_n = SAMPLING_RATE[self.muse_data_type] * self.config.window_len_s
+        self.target_phase_deg = self.config.target_phase_deg
+        self.times = np.zeros(self.window_len_n)
+        self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[self.muse_data_type])))
 
-        # # store CLAS parameters
-        # self.amp_threshold = params['amp_threshold']
-        # # self.amp_limit = params['amp_limit']
-        # self.prediction_limit_sec = params['prediction_limit_sec']
-        # self.backoff_time = params['backoff_time']
-        # # self.quadrature_thresh = params['quadrature_thresh'] or nan
-        # # self.quadrature_len = params['quadrature_len']
-        # self.sham_mindelay = params['sham_mindelay']
-        # self.sham_maxdelay = params['sham_maxdelay']
-        # self.freq_limits = params['freq_limits']
+        self.second_stim_start = nan
+        self.second_stim_end = nan
 
-        # self.stim2_start_delay = params['stim2_start_delay']
-        # self.stim2_end_delay = params['stim2_end_delay']
-        # self.stim2_prediction_limit_sec = params['stim2_prediction_limit_sec']
+        self.sos_low = scipy.signal.butter(self.config.bpf_order, self.config.low_bpf_cutoff, btype = 'bandpass', output = 'sos', fs = SAMPLING_RATE[self.muse_data_type])
+        self.sos_high = scipy.signal.butter(self.config.bpf_order, self.config.high_bpf_cutoff, btype = 'bandpass', output = 'sos', fs = SAMPLING_RATE[self.muse_data_type])
 
-        # if 'high_freq_vals' in params:
-        #     self.high_low_analysis = True
-        #     self.high_freq_vals = params['high_freq_vals']
-        #     self.high_low_freq_ratio = params['high_low_freq_ratio']
-        #     self.high_low_freq_lookback_ratio = params['high_low_freq_lookback_ratio']
-        #     self.high_low_lookback_nblocks = params['high_low_lookback_nblocks']
-        # else:
-        #     self.high_low_analysis = False
+        self.zi_low = scipy.signal.sosfilt_zi(self.sos_low)
+        self.zi_high = scipy.signal.sosfilt_zi(self.sos_high)
 
-        # # phase target parameters
-        # self.target_phase = 0
-        # self.target_phase_trig = 0
-        # self.default_target_phase = params['target_phase'] % (2 * pi)
+        self.wavelet_freqs = np.linspace(self.config.truncated_wavelet.low, self.config.truncated_wavelet.high, self.config.truncated_wavelet.n)
 
-        # # second stim parameters in msec
-        # self.second_stim_start = nan
-        # self.second_stim_end = nan
+        trunc_wavelet_len = self.window_len_n * 2 # double the length of the signal
+        self.trunc_wavelets = [scipy.signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[self.muse_data_type] / (2 * f * np.pi), w = self.config.truncated_wavelet.w)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
 
-        # # buffer
-        # self.analysis_len = params['analysis_len']
+        self.selected_channel_ind = 0  # Default to channel 0
+        self.selected_channel_ind_mutex = QMutex()
+        self.channel_switch_timer = QTimer()
+        self.channel_switch_timer.timeout.connect(self.switch_channel)
+        self.channel_switch_timer.start(3000)  # 3 seconds
 
-        # # overrides
-        # for k in kwargs:
-        #     if kwargs[k] is not None:
-        #         print('PhaseTracker: Overriding {:s}:{:s} with {:s}.'.format(k, self.__dict__[k], kwargs[k]))
-        #         self.__dict__[k] = kwargs[k]
+    def get_hl_ratio(self, selected_channel_data):
+        lp_signal, self.zi_low = scipy.signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
+        hp_signal, self.zi_high = scipy.signal.sosfilt(self.sos_high, selected_channel_data, zi = self.zi_high)
 
-        # ############################################################
-        # # initialize phase tracker
-        # self.data_len = int(fs * 2 * self.analysis_len)
-        # self.data = np.zeros(self.data_len)
-        # self.mode = PhaseTrackerMode[params['mode']]
-        # self.analysis_sp = int(fs * self.analysis_len)
-        # self.quadrature_sp = int(fs * self.quadrature_len)  # sp is short for sample
+        # compute the lp envelope of the signal
+        envelope_lp = np.abs(scipy.signal.hilbert(lp_signal[SAMPLING_RATE:]))
+        power_lf = envelope_lp**2
 
-        # if self.mode == PhaseTrackerMode.wavelet:
-        #     # construct the wavelet
-        #     M = int(self.analysis_sp * 2)
-        #     w = 5
-        #     s = lambda f: w * fs / (2 * pi * f)
+        # compute the hf envelope of the signal
+        envelope_hf = np.abs(scipy.signal.hilbert(hp_signal[SAMPLING_RATE:]))
+        power_hf = envelope_hf**2
+        # compute ratio and store
+        hl_ratio = np.mean(power_hf) / np.mean(power_lf)
+        hl_ratio = np.log10(hl_ratio)
+        return hl_ratio
+    
+    def estimate_phase(self, selected_channel): 
+        conv_vals = [np.dot(selected_channel, w) for w in self.trunc_wavelets]
+        max_idx = np.argmax(np.abs(conv_vals))
+        freq = self.wavelet_freqs[max_idx]
+        phase = np.angle(conv_vals[max_idx]) % (2 * pi)
+        
+        return phase, freq, conv_vals
 
-        #     # set of frequencies, to identify primary freq
-        #     self.wavelet_freqs = np.linspace(self.freq_limits[0], self.freq_limits[1], 20)
+    def process_data(self, times: np.ndarray, data: np.ndarray):
+        self.times = np.concatenate([self.times, times])
+        self.times = self.times[-self.window_len_n:]
+        self.data = np.vstack([self.data, data])
+        self.data = self.data[-self.window_len_n:]
+        self.selected_channel_ind_mutex.lock()
+        try:
+            curr_selected_channel = self.selected_channel_ind
+        finally:
+            self.selected_channel_ind_mutex.unlock()
 
-        #     # create wavelet for each frequency, truncated at the middle
-        #     self.wavelet = [scipy.signal.morlet2(M, s(f), w)[:self.analysis_sp] for f in self.wavelet_freqs]
+        phase, freq, _ = self.estimate_phase(self.data[:, curr_selected_channel])
+        hl_ratio = self.get_hl_ratio(self.data[:, curr_selected_channel])
+        print(phase, freq, hl_ratio)
 
-        #     # if requested, initialize the high-low frequency ratio
-        #     if self.high_low_analysis:
-        #         self.high_low_data = np.zeros(self.high_low_lookback_nblocks)
-        #         self.high_low_wavelets = [
-        #             scipy.signal.morlet2(M, s(f), w)[:self.analysis_sp] for f in self.high_freq_vals
-        #         ]
-
-        # self.set_experiment_mode(ExperimentMode.CLAS)  # default is disabled
-
-    # def replace_data(self, time_elapsed: float, data: np.ndarray):
-    #     '''
-    #     Replace the internal buffer with the provided array.
-    #     Parameters
-    #     ----------
-    #     data : np.ndarray
-    #         1D array with new data buffer
-    #     '''
-    #     self.data = data
-    #     self.data_len = data.shape[0]
-    #     self.time_elapsed = time_elapsed
-
-    # def new_data(self, block: np.ndarray):
-    #     '''
-    #     Roll the internal buffer and append new data block.
-    #     Parameters
-    #     ----------
-    #     block : np.ndarray
-    #         1D array with data to append
-    #         Must be smaller than self.data_len
-    #     '''
-
-    #     blocksize = block.shape[0]
-    #     blocksize_sec = blocksize / self.fs  # length in seconds
-
-    #     ### adjust time_elapsed accumulator ###
-    #     block_start_time = self.time_elapsed
-    #     block_end_time = block_start_time + blocksize_sec
-    #     self.time_elapsed = block_end_time
-
-    #     # append latest block to internal buffer
-    #     n_new_samp = block.size
-    #     self.data[:-1 * n_new_samp] = self.data[n_new_samp:]  # rotate buffer
-    #     self.data[-1 * n_new_samp:] = block
-
-    # @staticmethod
-    # def phase_to_trigger(phase: float) -> int:
-    #     return int((phase % (2 * pi)) / (2 * pi) * 64) << 2
-
-    # @staticmethod
-    # def trigger_to_phase(trig: int) -> float:
-    #     return (trig >> 2) / 64 * 2 * pi
-
-    # def set_experiment_mode(self, mode: ExperimentMode) -> None:
-    #     self.experiment_mode = mode
-
-    #     if (mode == ExperimentMode.CLAS) or (mode == ExperimentMode.SHAM_MUTED):
-    #         self.target_phase = self.default_target_phase
-    #         self.target_phase_trig = self.phase_to_trigger(self.target_phase)
-
-    #     elif mode == ExperimentMode.SHAM_PHASE:
-    #         self.vary_regen()
-
-    #     elif mode == ExperimentMode.SHAM_DELAY:
-    #         self.target_phase = self.default_target_phase
-    #         self.target_phase_trig = 0
-
-    # def vary_regen(self):
-    #     phase_idx = np.random.randint(0, 63) << 2  # encode target phase into the 6 MSB
-    #     self.target_phase = self.trigger_to_phase(phase_idx)  # scale idx to 2pi
-    #     self.target_phase_trig = phase_idx
-
-    # def set(self, **kwargs):
-    #     for k in kwargs:
-    #         if k in [
-    #                 'amp_threshold', 'amp_limit', 'prediction_limit', 'target_phase', 'backoff_time', 'quadrature_thresh',
-    #                 'sham_mindelay', 'sham_maxdelay'
-    #         ]:
-    #             self.__dict__[k] = kwargs[k]
-    #         elif k == 'experiment_mode':
-    #             self.set_experiment_mode(mode=kwargs[k])
-    #         else:
-    #             raise (ValueError('Invalid key'))
-
+    def switch_channel(self):
+        self.selected_channel_ind_mutex.lock()
+        try:
+            self.selected_channel_ind = np.argmin(np.sqrt(np.mean(self.data**2, axis=0)))
+        finally:
+            self.selected_channel_ind_mutex.unlock()  # Release lock after computing RMS
+    
     # def process_block(self, currsig: Union[np.ndarray, None] = None) -> Tuple[CLASResult, float, dict]:
     #     ''' 
     #     Process a block of data through phase tracker and return stimulation status.
@@ -309,9 +258,7 @@ class EEGProcessor(QObject):
 
     #         return CLASResult.STIM2, delta_t, internals
 
-    # def estimate(self,
-    #              block: Union[np.ndarray, None] = None,
-    #              nfft: int = 4096) -> Tuple[float, float, float, float, float]:
+    # def estimate(self, block: Union[np.ndarray, None] = None) -> Tuple[float, float, float, float, float]:
     #     '''
     #     Return estimated phase / amplitude / frequency / quadrature at most recent point of the internal buffer using the wavelet transform.
 
@@ -344,63 +291,31 @@ class EEGProcessor(QObject):
     #     # the data that we're analyzing
     #     cdata = self.data[-1 * self.analysis_sp:]
 
-    #     # apply window if requested
-    #     if self.mode == PhaseTrackerMode.fftwin:
-    #         cdata = cdata * self.fft_window
 
-    #     if (self.mode == PhaseTrackerMode.fft) or (self.mode == PhaseTrackerMode.fftwin):
-    #         # run FFT on analysis segment
-    #         freqdat = scipy.fft.fft(cdata, n=nfft, workers=-2)
+    #     # convolve the list of wavelets
+    #     conv_vals = [np.dot(cdata, w) for w in self.wavelet]
 
-    #         # identify frequency peak
-    #         freq_limit_idx = np.array(self.freq_limits) / self.fs * nfft
-    #         freq_limit_idx[0] = floor(freq_limit_idx[0])
-    #         freq_limit_idx[1] = ceil(freq_limit_idx[1])
+    #     # choose the one with highest amp/phase
+    #     amp_conv_vals = np.abs(conv_vals)
+    #     amp_max = np.argmax(amp_conv_vals)
 
-    #         spectralamp = np.abs(freqdat[freq_limit_idx[0]:freq_limit_idx[1]])  # only data within limits
-    #         max_idx = np.argmax(spectralamp) + freq_limit_idx[0]
+    #     # create outputs
+    #     amp = amp_conv_vals[amp_max] / 2
+    #     freq = self.wavelet_freqs[amp_max]
+    #     phase = np.angle(conv_vals[amp_max])
 
-    #         # get phase
-    #         phase_start = np.angle(freqdat[max_idx])
-    #         amp = spectralamp[max_idx] / nfft * 2 * 10
-
-    #         # get freq
-    #         freq = max_idx / nfft * self.fs
-
-    #         # estimate sine
-    #         time = np.arange(int(self.analysis_sp / 2)) / self.fs
-    #         phase = ((phase_start + (time * freq * 2 * pi)) % (2 * pi))[-1]
-
-    #         # compute a forward looking function
-    #         # pred = lambda t: phase[-1] + (t * freq * 2 * np.pi) % (2 * np.pi)
-
-    #     elif self.mode == PhaseTrackerMode.wavelet:
+    #     ### high low ratio ###
+    #     # if high-low analysis is enabled, estimate high-low frequency ratio
+    #     if self.high_low_analysis:
     #         # convolve the list of wavelets
-    #         conv_vals = [np.dot(cdata, w) for w in self.wavelet]
+    #         conv_vals_hl = [np.dot(cdata, w) for w in self.high_low_wavelets]
 
-    #         # choose the one with highest amp/phase
-    #         amp_conv_vals = np.abs(conv_vals)
-    #         amp_max = np.argmax(amp_conv_vals)
+    #         # get average amplitude
+    #         hf_amp = np.mean(np.abs(conv_vals_hl))
 
-    #         # create outputs
-    #         amp = amp_conv_vals[amp_max] / 2
-    #         freq = self.wavelet_freqs[amp_max]
-    #         phase = np.angle(conv_vals[amp_max])
+    #         # compute ratio and store
+    #         hl_ratio = hf_amp / np.mean(np.abs(conv_vals))
 
-    #         ### high low ratio ###
-    #         # if high-low analysis is enabled, estimate high-low frequency ratio
-    #         if self.high_low_analysis:
-    #             # convolve the list of wavelets
-    #             conv_vals_hl = [np.dot(cdata, w) for w in self.high_low_wavelets]
-
-    #             # get average amplitude
-    #             hf_amp = np.mean(np.abs(conv_vals_hl))
-
-    #             # compute ratio and store
-    #             hl_ratio = hf_amp / np.mean(np.abs(conv_vals))
-
-    #     else:
-    #         raise (NotImplementedError('Unknown mode'))
 
     #     ### determine if we're locked on ###
     #     est_phase = (np.arange(self.quadrature_sp) / self.fs) * freq * 2 * pi
@@ -414,6 +329,45 @@ class EEGProcessor(QObject):
     #     quadrature = np.trapz(normsig * est_sig) / cdata.size
 
     #     return phase, freq, amp, quadrature, hl_ratio
-    def process_data(self, timestamps, data):
-        self.logger.debug(timestamps)
-        self.logger.debug(data)
+    
+    # def new_data(self, block: np.ndarray):
+    #     '''
+    #     Roll the internal buffer and append new data block.
+    #     Parameters
+    #     ----------
+    #     block : np.ndarray
+    #         1D array with data to append
+    #         Must be smaller than self.data_len
+    #     '''
+
+    #     blocksize = block.shape[0]
+    #     blocksize_sec = blocksize / self.fs  # length in seconds
+
+    #     ### adjust time_elapsed accumulator ###
+    #     block_start_time = self.time_elapsed
+    #     block_end_time = block_start_time + blocksize_sec
+    #     self.time_elapsed = block_end_time
+
+    #     # append latest block to internal buffer
+    #     n_new_samp = block.size
+    #     self.data[:-1 * n_new_samp] = self.data[n_new_samp:]  # rotate buffer
+    #     self.data[-1 * n_new_samp:] = block
+
+    # def set_experiment_mode(self, mode: ExperimentMode) -> None:
+    #     self.experiment_mode = mode
+
+    #     if (mode == ExperimentMode.CLAS) or (mode == ExperimentMode.SHAM_MUTED):
+    #         self.target_phase = self.default_target_phase
+    #         self.target_phase_trig = self.phase_to_trigger(self.target_phase)
+
+    #     elif mode == ExperimentMode.SHAM_PHASE:
+    #         self.vary_regen()
+
+    #     elif mode == ExperimentMode.SHAM_DELAY:
+    #         self.target_phase = self.default_target_phase
+    #         self.target_phase_trig = 0
+
+    # def vary_regen(self):
+    #     phase_idx = np.random.randint(0, 63) << 2  # encode target phase into the 6 MSB
+    #     self.target_phase = self.trigger_to_phase(phase_idx)  # scale idx to 2pi
+    #     self.target_phase_trig = phase_idx

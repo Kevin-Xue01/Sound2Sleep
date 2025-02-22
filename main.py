@@ -32,11 +32,11 @@ from utils import (  # EEGProcessor,
     BlueMuse,
     DisplayConfig,
     EEGProcessor,
-    EEGSessionConfig,
     ExperimentMode,
     FileWriter,
     Logger,
     MuseDataType,
+    SessionConfig,
 )
 
 
@@ -48,7 +48,7 @@ class EEGApp(QWidget):
         self.app_state = AppState.DISCONNECTED
         self.elapsed_time = 0  # Elapsed time in seconds
 
-        self.config = EEGSessionConfig()
+        self.config = SessionConfig()
         self.logger = Logger(self.config._session_key, "EEGApp")
         
         self.blue_muse = BlueMuse()
@@ -151,7 +151,7 @@ class EEGApp(QWidget):
     def update_experiment_mode(self, index):
         selected_experiment_mode = ExperimentMode(self.experiment_dropdown.itemText(index))
         if self.config.experiment_mode != selected_experiment_mode:
-            self.on_config_update(EEGSessionConfig(**self.config.model_dump(), experiment_mode=selected_experiment_mode))
+            self.on_config_update(SessionConfig(**self.config.model_dump(), experiment_mode=selected_experiment_mode))
     
     def on_toggle_connection_button(self):
         if self.app_state == AppState.DISCONNECTED:
@@ -212,7 +212,7 @@ class EEGApp(QWidget):
         self.connection_timeout_error_label.setText("Connection Timeout")
         self.connection_timeout_error_label.show()
 
-    def on_config_update(self, config: EEGSessionConfig):
+    def on_config_update(self, config: SessionConfig):
         self.config = config
         self.logger.update_session_key(self.config._session_key)
         self.file_writer.update_session_key(config._session_key)
@@ -225,7 +225,7 @@ class EEGApp(QWidget):
         """Parse the JSON from the editor and update the config model."""
         self.config_panel_error_label.hide()
         try:
-            updated_config = EEGSessionConfig(**json.loads(self.param_config_editor.toPlainText()))
+            updated_config = SessionConfig(**json.loads(self.param_config_editor.toPlainText()))
             if updated_config != self.config:
                 print("Config updated successfully:", self.config)
                 self.config = updated_config
@@ -239,17 +239,19 @@ class EEGApp(QWidget):
 
     def start_bluemuse(self):
         self.blue_muse_thread = QThread()
+        self.eeg_processor_thread = QThread()
+        self.eeg_processor = EEGProcessor(self.config)
+
         self.blue_muse.moveToThread(self.blue_muse_thread)
+        self.eeg_processor.moveToThread(self.eeg_processor_thread)
+        self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._session_key))
+
         self.blue_muse.connected.connect(lambda: self.connection_timeout_error_label.hide())
         self.blue_muse.connection_timeout.connect(self.on_connection_timeout)
         self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
         self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_plot)
-        self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._session_key))
-        self.blue_muse_thread.start()
 
-        self.eeg_processor_thread = QThread()
-        self.eeg_processor = EEGProcessor(self.config)
-        self.eeg_processor.moveToThread(self.eeg_processor_thread)
+        self.blue_muse_thread.start()
         self.eeg_processor_thread.start()
 
     def stop_bluemuse(self):
@@ -261,6 +263,7 @@ class EEGApp(QWidget):
             self.blue_muse = None
 
         if self.eeg_processor_thread.isRunning():
+            self.eeg_processor.stop()
             self.eeg_processor_thread.quit()
             self.eeg_processor_thread.wait()
             self.eeg_processor_thread = None
@@ -301,7 +304,7 @@ class EEGPlot(QWidget):
         self.timestamps = np.concatenate([self.timestamps, timestamps])
         self.timestamps = self.timestamps[-self.window_len_n:]
         self.data = np.vstack([self.data, data])
-        self.data_f = self.data_f[-self.window_len_n:]
+        self.data = self.data[-self.window_len_n:]
 
         if self.display_every_counter == self.config.display_every:
             for i, ax in enumerate(self.axes):
