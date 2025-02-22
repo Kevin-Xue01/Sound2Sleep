@@ -42,54 +42,6 @@ class BlueMuse(QObject):
 
     no_data_count = 0
     reset_attempt_count = 0
-    
-    def init_EEG_UI(self):
-        pass
-        # matplotlib.use('TkAgg')
-        # sns.set_theme(style="whitegrid")
-        # sns.despine(left=True)
-
-        # self.ui_window_s = 5
-
-        # self.fig, self.axes = plt.subplots(1, 1, figsize=[15, 6], sharex=True)
-        # self.fig.canvas.mpl_connect('close_event', self.stop_streaming)
-        # help_str = """
-        #             toggle filter : d
-        #             toogle full screen : f
-        #             zoom out : /
-        #             zoom in : *
-        #             increase time scale : -
-        #             decrease time scale : +
-        #         """
-        # print(help_str)
-        # self.eeg_nchan = NB_CHANNELS[MuseDataType.EEG]
-        # self.eeg_ui_samples = int(self.ui_window_s * SAMPLING_RATE[MuseDataType.EEG])
-        # self.data = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
-        # self.times = np.arange(-self.ui_window_s, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
-        # self.impedances = np.std(self.data, axis=0)
-        # self.lines = []
-
-        # for ii in range(self.eeg_nchan):
-        #     line, = self.axes.plot(self.times[::VIEW_SUBSAMPLE], self.data[::VIEW_SUBSAMPLE, ii] - ii, lw=1)
-        #     self.lines.append(line)
-
-        # self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
-        # ticks = np.arange(0, -self.eeg_nchan, -1)
-
-        # self.axes.set_xlabel('Time (s)')
-        # self.axes.xaxis.grid(False)
-        # self.axes.set_yticks(ticks)
-
-        # self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-
-        # self.display_every = 5
-
-        # self.bf = firwin(32, np.array([1, 40]) / (SAMPLING_RATE[MuseDataType.EEG] / 2.), width=0.05, pass_zero=False)
-        # self.af = [1.0]
-
-        # zi = lfilter_zi(self.bf, self.af)
-        # self.filt_state = np.tile(zi, (self.eeg_nchan, 1)).transpose()
-        # self.data_f = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
 
     def __init__(self):
         super().__init__()
@@ -127,59 +79,6 @@ class BlueMuse(QObject):
         if eeg_ok: self.connected.emit()
         return eeg_ok
 
-
-    # def eeg_callback(self):
-    #     with open(f'data/kevin/eeg_data_{datetime.now().strftime("%Y-%m-%d_%H-%M")}.csv', mode='a', newline='') as file:
-    #         writer = csv.writer(file)
-    #         if file.tell() == 0:
-    #             writer.writerow(['Timestamp'] + CHANNEL_NAMES[MuseDataType.EEG])
-            
-    #         display_every_counter = 0
-    #         no_data_counter = 0
-    #         while self.run_eeg_thread:
-    #             time.sleep(CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG])
-    #             try:
-    #                 data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.EEG])
-    #                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
-    #                     timestamps = TIMESTAMPS[MuseDataType.EEG] + time.time() + 1. / SAMPLING_RATE[MuseDataType.EEG]
-
-    #                     for t, s in zip(timestamps, data):
-    #                         writer.writerow([t] + list(s))
-
-    #                     self.times = np.concatenate([self.times, timestamps])
-    #                     self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
-    #                     self.times = self.times[-self.n_samples:]
-    #                     self.data = np.vstack([self.data, data])
-    #                     self.data = self.data[-self.n_samples:]
-    #                     filt_samples, self.filt_state = lfilter(self.bf, self.af, data, axis=0, zi=self.filt_state)
-    #                     self.data_f = np.vstack([self.data_f, filt_samples])
-    #                     self.data_f = self.data_f[-self.n_samples:]
-
-    #                     display_every_counter += 1
-    #                     if display_every_counter == self.display_every:
-    #                         print('Displaying data')
-    #                         for ii in range(NB_CHANNELS[MuseDataType.EEG]):
-    #                             self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
-    #                             self.lines[ii].set_ydata(self.data_f[::VIEW_SUBSAMPLE, ii] - ii)
-    #                             self.impedances = np.std(self.data_f, axis=0)
-
-    #                         self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-    #                         self.axes.set_xlim(-self.ui_window_s, 0)
-    #                         self.fig.canvas.draw()
-    #                         display_every_counter = 0
-    #                 else:
-    #                     no_data_counter += 1
-
-    #                     if no_data_counter > 20:
-    #                         self.run_eeg_thread = False
-    #                         self.run_acc_thread = False
-    #                         self.run_ppg_thread = False
-    #                         Timer(1, self.lsl_reset_stream_step1).start()
-
-    #             except Exception as ex:
-    #                 self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
-
-    #         self.logger.info('EEG thread stopped')
     def eeg_callback(self):
         no_data_counter = 0
         while self.run_eeg_thread:
@@ -189,29 +88,7 @@ class BlueMuse(QObject):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
                     timestamps = TIMESTAMPS[MuseDataType.EEG] + time.time() + 1. / SAMPLING_RATE[MuseDataType.EEG]
 
-                    # self.times = np.concatenate([self.times, timestamps])
-                    # self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
-                    # self.times = self.times[-self.n_samples:]
-                    # self.data = np.vstack([self.data, data])
-                    # self.data = self.data[-self.n_samples:]
-                    # filt_samples, self.filt_state = lfilter(self.bf, self.af, data, axis=0, zi=self.filt_state)
-                    # self.data_f = np.vstack([self.data_f, filt_samples])
-                    # self.data_f = self.data_f[-self.n_samples:]
-
-
                     self.eeg_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
-                    # display_every_counter += 1
-                    # if display_every_counter == self.display_every:
-                    #     print('Displaying data')
-                    #     for ii in range(NB_CHANNELS[MuseDataType.EEG]):
-                    #         self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
-                    #         self.lines[ii].set_ydata(self.data_f[::VIEW_SUBSAMPLE, ii] - ii)
-                    #         self.impedances = np.std(self.data_f, axis=0)
-
-                    #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-                    #     self.axes.set_xlim(-self.ui_window_s, 0)
-                    #     self.fig.canvas.draw()
-                    #     display_every_counter = 0
                 else:
                     no_data_counter += 1
 
@@ -235,29 +112,7 @@ class BlueMuse(QObject):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACCELEROMETER]:
                     timestamps = TIMESTAMPS[MuseDataType.ACCELEROMETER] + time.time() + 1. / SAMPLING_RATE[MuseDataType.ACCELEROMETER]
 
-                    # self.times = np.concatenate([self.times, timestamps])
-                    # self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
-                    # self.times = self.times[-self.n_samples:]
-                    # self.data = np.vstack([self.data, data])
-                    # self.data = self.data[-self.n_samples:]
-                    # filt_samples, self.filt_state = lfilter(self.bf, self.af, data, axis=0, zi=self.filt_state)
-                    # self.data_f = np.vstack([self.data_f, filt_samples])
-                    # self.data_f = self.data_f[-self.n_samples:]
-
-
                     self.acc_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
-                    # display_every_counter += 1
-                    # if display_every_counter == self.display_every:
-                    #     print('Displaying data')
-                    #     for ii in range(NB_CHANNELS[MuseDataType.EEG]):
-                    #         self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
-                    #         self.lines[ii].set_ydata(self.data_f[::VIEW_SUBSAMPLE, ii] - ii)
-                    #         self.impedances = np.std(self.data_f, axis=0)
-
-                    #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-                    #     self.axes.set_xlim(-self.ui_window_s, 0)
-                    #     self.fig.canvas.draw()
-                    #     display_every_counter = 0
                 else:
                     no_data_counter += 1
 
@@ -281,29 +136,7 @@ class BlueMuse(QObject):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
                     timestamps = TIMESTAMPS[MuseDataType.PPG] + time.time() + 1. / SAMPLING_RATE[MuseDataType.PPG]
 
-                    # self.times = np.concatenate([self.times, timestamps])
-                    # self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
-                    # self.times = self.times[-self.n_samples:]
-                    # self.data = np.vstack([self.data, data])
-                    # self.data = self.data[-self.n_samples:]
-                    # filt_samples, self.filt_state = lfilter(self.bf, self.af, data, axis=0, zi=self.filt_state)
-                    # self.data_f = np.vstack([self.data_f, filt_samples])
-                    # self.data_f = self.data_f[-self.n_samples:]
-
-
                     self.ppg_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
-                    # display_every_counter += 1
-                    # if display_every_counter == self.display_every:
-                    #     print('Displaying data')
-                    #     for ii in range(NB_CHANNELS[MuseDataType.EEG]):
-                    #         self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
-                    #         self.lines[ii].set_ydata(self.data_f[::VIEW_SUBSAMPLE, ii] - ii)
-                    #         self.impedances = np.std(self.data_f, axis=0)
-
-                    #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-                    #     self.axes.set_xlim(-self.ui_window_s, 0)
-                    #     self.fig.canvas.draw()
-                    #     display_every_counter = 0
                 else:
                     no_data_counter += 1
 
@@ -399,6 +232,7 @@ class BlueMuse(QObject):
         self.start_threads()
 
     def stop(self):
+        # TODO: stop background threads
         for stream in MuseDataType:
             try:
                 if (stream == MuseDataType.EEG and self.run_eeg_thread) or (stream == MuseDataType.ACCELEROMETER and self.run_acc_thread) or (stream == MuseDataType.PPG and self.run_ppg_thread):
