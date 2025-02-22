@@ -40,7 +40,7 @@ from utils import (  # EEGProcessor,
     SessionConfig,
 )
 
-print(type(SAMPLING_RATE[MuseDataType.EEG]))
+
 class EEGApp(QWidget):
     pool = QThreadPool.globalInstance()
 
@@ -51,10 +51,6 @@ class EEGApp(QWidget):
 
         self.config = SessionConfig()
         self.logger = Logger(self.config._session_key, "EEGApp")
-        
-        self.blue_muse = BlueMuse()
-        self.eeg_processor = EEGProcessor(self.config)
-
         self.audio = Audio(self.config._audio)
 
         self.init_ui()
@@ -238,9 +234,11 @@ class EEGApp(QWidget):
             self.config_panel_error_label.show()
 
     def start_bluemuse(self):
+        self.blue_muse = BlueMuse()
+        self.eeg_processor = EEGProcessor(self.config)
+
         self.blue_muse_thread = QThread()
         self.eeg_processor_thread = QThread()
-        self.eeg_processor.config = self.config
 
         self.blue_muse.moveToThread(self.blue_muse_thread)
         self.eeg_processor.moveToThread(self.eeg_processor_thread)
@@ -260,13 +258,11 @@ class EEGApp(QWidget):
             self.blue_muse.stop()
             self.blue_muse_thread.quit()
             self.blue_muse_thread.wait()
-            self.blue_muse_thread = None
 
         if self.eeg_processor_thread.isRunning():
             self.eeg_processor.stop()
             self.eeg_processor_thread.quit()
             self.eeg_processor_thread.wait()
-            self.eeg_processor_thread = None
 
     def play_audio(self):
         self.pool.start(self.audio.run)
@@ -342,6 +338,7 @@ class EEGPlot(QWidget):
 
 if __name__ == "__main__":
     if sys.platform.startswith("win"):
+        print('Platform: Windows')
         ES_CONTINUOUS = 0x80000000
         ES_SYSTEM_REQUIRED = 0x00000001
         ES_AWAYMODE_REQUIRED = 0x0000040
