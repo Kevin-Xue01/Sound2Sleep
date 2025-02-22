@@ -96,6 +96,10 @@ class BlueMuse(QObject):
         self.stream_info: dict[MuseDataType, StreamInfo] = dict()
         self.stream_inlet: dict[MuseDataType, StreamInlet] = dict()
 
+        self.run_eeg_thread = False
+        self.run_acc_thread = False
+        self.run_ppg_thread = False
+
     def screenoff(self):
         ''' Darken the screen by starting the blank screensaver '''
         try:
