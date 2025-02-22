@@ -6,6 +6,7 @@ from functools import partial
 
 import matplotlib.pyplot as plt
 import numpy as np
+import psutil
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from pydantic import ValidationError
 from PyQt5.QtCore import Qt, QThread, QThreadPool, QTimer, pyqtSignal
@@ -356,4 +357,6 @@ if __name__ == "__main__":
     finally:
         if sys.platform.startswith("win"):
             ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
+            for p in psutil.process_iter(['name']):
+                if p.info['name'] == 'BlueMuse.exe': p.kill()
     sys.exit(exit_code)
