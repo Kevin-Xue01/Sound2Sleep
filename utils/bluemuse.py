@@ -357,7 +357,8 @@ class BlueMuse(QObject):
 
             # start the selected steram
             for stream in MuseDataType:
-                self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
+                if (stream == MuseDataType.EEG and self.run_eeg_thread) or (stream == MuseDataType.ACCELEROMETER and self.run_acc_thread) or (stream == MuseDataType.PPG and self.run_ppg_thread):
+                    self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
             
             self.start_threads()
 
@@ -388,21 +389,23 @@ class BlueMuse(QObject):
             time.sleep(3)
         self.connected.emit()
         for stream in MuseDataType:
-            self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
+            if (stream == MuseDataType.EEG and self.run_eeg_thread) or (stream == MuseDataType.ACCELEROMETER and self.run_acc_thread) or (stream == MuseDataType.PPG and self.run_ppg_thread):
+                self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
         
         self.start_threads()
 
     def stop(self):
+        for stream in MuseDataType:
+            try:
+                if (stream == MuseDataType.EEG and self.run_eeg_thread) or (stream == MuseDataType.ACCELEROMETER and self.run_acc_thread) or (stream == MuseDataType.PPG and self.run_ppg_thread):
+                    self.stream_inlet[stream].close_stream()
+            except Exception as ex:
+                self.logger.critical(str(ex))
+
         self.run_eeg_thread = False
         self.run_acc_thread = False
         self.run_ppg_thread = False
 
-        for stream in MuseDataType:
-            try:
-                self.stream_inlet[stream].close_stream()
-            except Exception as ex:
-                self.logger.critical(str(ex))
-        
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         subprocess.call('start bluemuse://shutdown', shell=True)
         for p in psutil.process_iter(['name']):
