@@ -104,7 +104,7 @@ class BlueMuse(QObject):
             self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
 
     def lsl_reload(self):
-        allok = True
+        eeg_ok = False
         self.stream_info = dict()
         self.stream_inlet = dict()
         for stream in MuseDataType:
@@ -113,11 +113,15 @@ class BlueMuse(QObject):
             if self.stream_info[stream]:
                 self.stream_info[stream] = self.stream_info[stream][0]
                 self.logger.info(f'{stream.name} OK.')
+                if stream == MuseDataType.EEG:
+                    eeg_ok = True
+                    self.run_eeg_thread = True
+                elif stream == MuseDataType.ACCELEROMETER: self.run_acc_thread = True
+                elif stream == MuseDataType.PPG: self.run_ppg_thread = True
             else:
                 self.logger.warning(f'{stream.name} not found.')
-                allok = False
-        if allok: self.connected.emit()
-        return allok
+        if eeg_ok: self.connected.emit()
+        return eeg_ok
 
 
     # def eeg_callback(self):
@@ -359,10 +363,6 @@ class BlueMuse(QObject):
 
 
     def start_threads(self):
-        self.run_eeg_thread = True
-        self.run_acc_thread = True
-        self.run_ppg_thread = True
-
         self.eeg_thread = Thread(target=self.eeg_callback, daemon=True)
         self.acc_thread = Thread(target=self.acc_callback, daemon=True)
         self.ppg_thread = Thread(target=self.ppg_callback, daemon=True)
