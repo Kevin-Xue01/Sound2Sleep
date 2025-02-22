@@ -79,7 +79,7 @@ class EEGProcessor(Processor):
         self.amp_buffer = np.zeros(self.config.amp_buffer_len)
         self.hl_ratio_buffer = np.zeros(self.config.hl_ratio_buffer_len)
 
-        self.window_len_n = SAMPLING_RATE[self.muse_data_type] * self.config.window_len_s
+        self.window_len_n = int(SAMPLING_RATE[self.muse_data_type] * self.config.window_len_s)
         self.target_phase_deg = self.config.target_phase_deg
         self.times = np.zeros(self.window_len_n)
         self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[self.muse_data_type])))

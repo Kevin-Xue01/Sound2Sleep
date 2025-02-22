@@ -43,8 +43,8 @@ class SessionConfig(BaseModel):
     backoff_time: float = 3.0
     stim2_start_delay: float = 2.0
     stim2_end_delay: float = 2.0
-    low_bpf_cutoff: tuple[float] = (1.0, 4.0)
-    high_bpf_cutoff: tuple[float] = (12.0, 80.0)
+    low_bpf_cutoff: tuple = (1.0, 4.0)
+    high_bpf_cutoff: tuple = (12.0, 80.0)
     bpf_order: int = 4
     
     def __eq__(self, other):
