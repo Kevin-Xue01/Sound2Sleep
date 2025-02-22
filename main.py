@@ -53,7 +53,7 @@ class EEGApp(QWidget):
         self.logger = Logger(self.config._session_key, "EEGApp")
         
         self.blue_muse = BlueMuse()
-        
+        self.eeg_processor = EEGProcessor(self.config)
 
         self.audio = Audio(self.config._audio)
 
@@ -240,7 +240,7 @@ class EEGApp(QWidget):
     def start_bluemuse(self):
         self.blue_muse_thread = QThread()
         self.eeg_processor_thread = QThread()
-        self.eeg_processor = EEGProcessor(self.config)
+        self.eeg_processor.config = self.config
 
         self.blue_muse.moveToThread(self.blue_muse_thread)
         self.eeg_processor.moveToThread(self.eeg_processor_thread)
@@ -261,14 +261,12 @@ class EEGApp(QWidget):
             self.blue_muse_thread.quit()
             self.blue_muse_thread.wait()
             self.blue_muse_thread = None
-            self.blue_muse = None
 
         if self.eeg_processor_thread.isRunning():
             self.eeg_processor.stop()
             self.eeg_processor_thread.quit()
             self.eeg_processor_thread.wait()
             self.eeg_processor_thread = None
-            self.eeg_processor = None
 
     def play_audio(self):
         self.pool.start(self.audio.run)
