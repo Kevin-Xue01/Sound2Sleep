@@ -258,12 +258,16 @@ class EEGApp(QWidget):
             self.blue_muse.stop()
             self.blue_muse_thread.quit()
             self.blue_muse_thread.wait()
+            self.blue_muse = None
+            self.blue_muse_thread = None
 
         if self.eeg_processor_thread.isRunning():
             self.eeg_processor.stop()
             self.eeg_processor_thread.quit()
             self.eeg_processor_thread.wait()
-
+            self.eeg_processor = None
+            self.eeg_processor_thread = None
+            
     def play_audio(self):
         self.pool.start(self.audio.run)
 
