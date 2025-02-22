@@ -16,7 +16,7 @@ import psutil
 import seaborn as sns
 from muselsl.constants import LSL_SCAN_TIMEOUT, VIEW_SUBSAMPLE
 from pylsl import StreamInfo, StreamInlet, resolve_byprop
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, QTimer, pyqtSignal
 from scipy.signal import firwin, lfilter, lfilter_zi
 
 from .config import SessionConfig
@@ -43,8 +43,9 @@ class BlueMuse(QObject):
     no_data_count = 0
     reset_attempt_count = 0
 
-    def __init__(self):
+    def __init__(self, config: SessionConfig):
         super().__init__()
+        self.logger = Logger(config._session_key, self.__class__.__name__)
         self.stream_info: dict[MuseDataType, StreamInfo] = dict()
         self.stream_inlet: dict[MuseDataType, StreamInlet] = dict()
 
@@ -61,8 +62,6 @@ class BlueMuse(QObject):
 
     def lsl_reload(self):
         eeg_ok = False
-        self.stream_info = dict()
-        self.stream_inlet = dict()
         for stream in MuseDataType:
             self.stream_info[stream] = resolve_byprop('type', stream.value, timeout=LSL_SCAN_TIMEOUT)
 
@@ -93,10 +92,8 @@ class BlueMuse(QObject):
                     no_data_counter += 1
 
                     if no_data_counter > 20:
-                        self.run_eeg_thread = False
-                        self.run_acc_thread = False
-                        self.run_ppg_thread = False
-                        Timer(2, self.lsl_reset_stream_step1).start()
+                        QTimer.singleShot(2000, self.lsl_reset_stream_step1)
+                        break
 
             except Exception as ex:
                 self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
@@ -117,10 +114,8 @@ class BlueMuse(QObject):
                     no_data_counter += 1
 
                     if no_data_counter > 20:
-                        self.run_eeg_thread = False
-                        self.run_acc_thread = False
-                        self.run_ppg_thread = False
-                        Timer(2, self.lsl_reset_stream_step1).start()
+                        QTimer.singleShot(2000, self.lsl_reset_stream_step1)
+                        break
 
             except Exception as ex:
                 self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
@@ -141,10 +136,8 @@ class BlueMuse(QObject):
                     no_data_counter += 1
 
                     if no_data_counter > 20:
-                        self.run_eeg_thread = False
-                        self.run_acc_thread = False
-                        self.run_ppg_thread = False
-                        Timer(2, self.lsl_reset_stream_step1).start()
+                        QTimer.singleShot(2000, self.lsl_reset_stream_step1)
+                        break
 
             except Exception as ex:
                 self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
@@ -218,25 +211,26 @@ class BlueMuse(QObject):
         subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=true', shell=True)
         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-        self.session_key = session_key
-        self.logger = Logger(self.session_key, self.__class__.__name__)
+        self.logger.update_session_key(session_key)
         time.sleep(3)
         while not self.lsl_reload():
             self.logger.error(f"LSL streams not found, retrying in 3 seconds") 
             time.sleep(3)
         self.connected.emit()
-        for stream in MuseDataType:
-            if (stream == MuseDataType.EEG and self.run_eeg_thread) or (stream == MuseDataType.ACCELEROMETER and self.run_acc_thread) or (stream == MuseDataType.PPG and self.run_ppg_thread):
-                self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
-        
+        if self.run_eeg_thread: self.stream_inlet[MuseDataType.EEG] = StreamInlet(self.stream_info[MuseDataType.EEG])
+        if self.run_acc_thread: self.stream_inlet[MuseDataType.ACCELEROMETER] = StreamInlet(self.stream_info[MuseDataType.ACCELEROMETER])
+        if self.run_ppg_thread: self.stream_inlet[MuseDataType.PPG] = StreamInlet(self.stream_info[MuseDataType.PPG])
+
         self.start_threads()
 
     def stop(self):
-        # TODO: stop background threads
+        self.run_eeg_thread = False
+        self.run_acc_thread = False
+        self.run_ppg_thread = False
+
         for stream in MuseDataType:
             try:
-                if (stream == MuseDataType.EEG and self.run_eeg_thread) or (stream == MuseDataType.ACCELEROMETER and self.run_acc_thread) or (stream == MuseDataType.PPG and self.run_ppg_thread):
-                    self.stream_inlet[stream].close_stream()
+                self.stream_inlet[stream].close_stream()
             except Exception as ex:
                 self.logger.critical(str(ex))
 
