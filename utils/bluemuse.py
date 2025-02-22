@@ -172,6 +172,7 @@ class BlueMuse(QObject):
                 self.reset_attempt_count = 0
 
                 for p in psutil.process_iter(['name']):
+                    print(p.info)
                     if p.info['name'] == 'BlueMuse.exe':
                         self.logger.info('Killing BlueMuse')
                         p.kill()
