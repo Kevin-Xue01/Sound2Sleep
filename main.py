@@ -234,7 +234,7 @@ class EEGApp(QWidget):
             self.config_panel_error_label.show()
 
     def start_bluemuse(self):
-        self.blue_muse = BlueMuse()
+        self.blue_muse = BlueMuse(self.config)
         self.eeg_processor = EEGProcessor(self.config)
 
         self.blue_muse_thread = QThread()
@@ -267,7 +267,7 @@ class EEGApp(QWidget):
             self.eeg_processor_thread.wait()
             self.eeg_processor = None
             self.eeg_processor_thread = None
-            
+
     def play_audio(self):
         self.pool.start(self.audio.run)
 
