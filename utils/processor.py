@@ -109,11 +109,11 @@ class EEGProcessor(Processor):
         hp_signal, self.zi_high = scipy.signal.sosfilt(self.sos_high, selected_channel_data, zi = self.zi_high)
 
         # compute the lp envelope of the signal
-        envelope_lp = np.abs(scipy.signal.hilbert(lp_signal[SAMPLING_RATE:]))
+        envelope_lp = np.abs(scipy.signal.hilbert(lp_signal[SAMPLING_RATE[self.muse_data_type]:]))
         power_lf = envelope_lp**2
 
         # compute the hf envelope of the signal
-        envelope_hf = np.abs(scipy.signal.hilbert(hp_signal[SAMPLING_RATE:]))
+        envelope_hf = np.abs(scipy.signal.hilbert(hp_signal[SAMPLING_RATE[self.muse_data_type]:]))
         power_hf = envelope_hf**2
         # compute ratio and store
         hl_ratio = np.mean(power_hf) / np.mean(power_lf)
