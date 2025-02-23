@@ -373,16 +373,20 @@ class EEGPlot(pg.GraphicsLayoutWidget):
 
     def update_data(self, timestamps, data):
         """Append new data efficiently"""
-        self.timestamps = np.roll(self.timestamps, -len(timestamps))
-        self.timestamps[-len(timestamps):] = timestamps
+        # self.timestamps = np.roll(self.timestamps, -len(timestamps))
+        # self.timestamps[-len(timestamps):] = timestamps
 
-        self.data = np.roll(self.data, -len(timestamps), axis=0)
-        self.data[-len(timestamps):, :] = data
+        # self.data = np.roll(self.data, -len(timestamps), axis=0)
+        # self.data[-len(timestamps):, :] = data
+        self.timestamps = np.concatenate([self.timestamps, timestamps])
+        self.timestamps = self.timestamps[-self.window_len_n:]
+        self.data = np.vstack([self.data, data])
+        self.data = self.data[-self.window_len_n:]
 
     def update_plot(self):
         """Efficiently update plots"""
         for i, curve in enumerate(self.curves):
-            curve.setData(self.timestamps, self.data[:, i])
+            curve.setData(self.timestamps, self.data[::2, i])
 
 
 if __name__ == "__main__":
