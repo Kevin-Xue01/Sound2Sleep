@@ -91,9 +91,9 @@ class EEGApp(QWidget):
         self.window_len_n = int(self.config._display.window_len * SAMPLING_RATE[MuseDataType.EEG])
         self.eeg_timestamps = np.zeros(self.window_len_n)
         self.eeg_data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
-        self.eeg_plot_widget = pg.GraphicsLayoutWidget()
-        self.eeg_plot_widget.addPlot(title="EEG Data")
-        self.eeg_plot_widget.setYRange(-1500, 1500)
+        self.eeg_plot_layout_widget = pg.GraphicsLayoutWidget()
+        self.eeg_plot_widget = self.eeg_plot_layout_widget.addPlot(title="EEG Data")
+        # self.eeg_plot_layout_widget.setYRange(-1500, 1500)
         self.eeg_plot_widget_curves = [self.eeg_plot_widget.plot(pen=pg.mkPen(color)) for color in ['r', 'g', 'b', 'y']]
         
         self.timer = QTimer()
@@ -152,7 +152,7 @@ class EEGApp(QWidget):
         right_panel.addWidget(config_panel_widget)
         
         # main_layout.addWidget(self.eeg_plot, stretch=1)
-        main_layout.addWidget(self.eeg_plot_widget)
+        main_layout.addWidget(self.eeg_plot_layout_widget)
         main_layout.addLayout(right_panel)
         
         self.setLayout(main_layout)
@@ -160,7 +160,7 @@ class EEGApp(QWidget):
 
     def update_eeg_plot(self):
         for i, curve in enumerate(self.eeg_plot_widget_curves):
-            curve.setData(self.eeg_timestamps, self.eeg_data[::2, i])
+            curve.setData(self.eeg_timestamps[::2], self.eeg_data[::2, i])
 
     def update_experiment_mode(self, index):
         selected_experiment_mode = ExperimentMode(self.experiment_dropdown.itemText(index))
