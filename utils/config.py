@@ -23,7 +23,7 @@ class AudioConfig(BaseModel):
 
 class DisplayConfig(BaseModel):
     window_len: float = 5.0
-    display_every: int = 4
+    display_every: int = 2
 
 class SessionConfig(BaseModel):
     _session_key: str = PrivateAttr(default_factory=lambda: datetime.now().strftime("%m-%d_%H-%M-%S"))

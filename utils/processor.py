@@ -69,7 +69,7 @@ class Processor(QObject):
 
 
 class EEGProcessor(Processor):
-    stim = pyqtSignal()
+    stim = pyqtSignal(np.float64)
     _last_stim = 0.0  # float: units of time elapsed
     _time_elapsed = 0.0  # float: in seconds, relative to end of last block/start of current block
     
@@ -104,6 +104,7 @@ class EEGProcessor(Processor):
         self.channel_switch_timer = QTimer()
         self.channel_switch_timer.timeout.connect(self.switch_channel)
         self.channel_switch_timer.start(3000)  # 3 seconds
+        self.counter = 0
 
     def get_hl_ratio(self, selected_channel_data):
         lp_signal, self.zi_low = scipy.signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
@@ -148,8 +149,11 @@ class EEGProcessor(Processor):
         hl_ratio_buffer_mean = self.hl_ratio_buffer.mean()
 
         print(phase, freq, amp, hl_ratio)
-        if np.random.choice([0, 1]) < 0.1:
+        if self.counter == 64:
             self.stim.emit(times[-8])
+            self.counter = 0
+        else:
+            self.counter += 1
         # if self.experiment_mode == ExperimentMode.DISABLED:
         #     return CLASResult.NOT_RUNNING, 0, internals
 

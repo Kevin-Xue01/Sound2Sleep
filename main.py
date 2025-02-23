@@ -252,7 +252,7 @@ class EEGApp(QWidget):
         self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
         self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_plot)
 
-        self.eeg_processor.stim.connect(self.eeg_plot.plot_stim)
+        # self.eeg_processor.stim.connect(self.eeg_plot.plot_stim)
 
         self.blue_muse_thread.start()
         self.eeg_processor_thread.start()
@@ -281,10 +281,10 @@ class EEGPlot(QWidget):
         super().__init__()
         self.config = config
         self.display_every_counter = 0
-        self.ymin = -1000
-        self.ymax = 1000
+        self.ymin = -3000
+        self.ymax = 3000
         self.window_len_n = int(self.config.window_len * SAMPLING_RATE[MuseDataType.EEG])
-        self.timestamps = np.arange(-self.window_len_n, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
+        self.timestamps = np.array([])
         self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
         self.init_ui()
 
@@ -304,9 +304,10 @@ class EEGPlot(QWidget):
         self.setMaximumWidth(1100)
 
     def update_plot(self, timestamps, data):
-        self.timestamps = np.concatenate([self.timestamps, timestamps])[-self.window_len_n::2]
-        self.data = np.vstack([self.data, data])[-self.window_len_n::2]
-
+        self.timestamps = np.concatenate([self.timestamps, timestamps])[-self.window_len_n:]
+        self.data = np.vstack([self.data, data])[-self.window_len_n:]
+        self.timestamps = self.timestamps[::2]
+        self.data = self.data[::2]
         if self.display_every_counter == self.config.display_every:
             for i, ax in enumerate(self.axes):
                 ax.clear()
@@ -338,12 +339,12 @@ class EEGPlot(QWidget):
         self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
         for ax in self.axes:
             ax.clear()
-            ax.set_ylim(-2, 2)  # Keep the y-axis limits consistent
+            ax.set_ylim(-3000, 3000)  # Keep the y-axis limits consistent
         self.canvas.draw()
 
     def plot_stim(self, time):
         for ax in self.axes:
-            ax.axvline(x=time, color='red', linestyle='--', linewidth=3, label="Stim")
+            ax.axvline(x=time, color='red', linestyle='--', linewidth=2, label="Stim")
         
         self.canvas.draw()
 
