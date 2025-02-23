@@ -136,14 +136,9 @@ class EEGProcessor(Processor):
         self._time_elapsed = times[-1]
         self.data = np.vstack([self.data, data])
         self.data = self.data[-self.window_len_n:]
-        self.selected_channel_ind_mutex.lock()
-        try:
-            curr_selected_channel = self.selected_channel_ind
-        finally:
-            self.selected_channel_ind_mutex.unlock()
 
-        phase, freq, amp = self.estimate_phase(self.data[:, curr_selected_channel])
-        hl_ratio = self.get_hl_ratio(self.data[:, curr_selected_channel])
+        phase, freq, amp = self.estimate_phase(self.data[:, self.selected_channel_ind])
+        hl_ratio = self.get_hl_ratio(self.data[:, self.selected_channel_ind])
         self.amp_buffer[:-1] = self.amp_buffer[1:]
         self.amp_buffer[-1] = amp
         amp_buffer_mean = self.amp_buffer.mean()
@@ -209,11 +204,7 @@ class EEGProcessor(Processor):
 
 
     def switch_channel(self):
-        self.selected_channel_ind_mutex.lock()
-        try:
-            self.selected_channel_ind = np.argmin(np.sqrt(np.mean(self.data**2, axis=0)))
-        finally:
-            self.selected_channel_ind_mutex.unlock()  # Release lock after computing RMS
+        self.selected_channel_ind = np.argmin(np.sqrt(np.mean(self.data**2, axis=0)))
 
     @staticmethod
     def generate_random_phase():
