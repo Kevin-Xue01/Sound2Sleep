@@ -152,6 +152,7 @@ class EEGApp(QWidget):
         right_panel.addWidget(config_panel_widget)
         
         # main_layout.addWidget(self.eeg_plot, stretch=1)
+        main_layout.addWidget(self.eeg_plot_widget)
         main_layout.addLayout(right_panel)
         
         self.setLayout(main_layout)
@@ -267,11 +268,7 @@ class EEGApp(QWidget):
         self.blue_muse.disconnected.connect(self.on_disconnected)
         self.blue_muse.connection_timeout.connect(self.on_connection_timeout)
         self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
-        # self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_plot)
-        # self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_data)
         self.blue_muse.eeg_data_ready.connect(self.update_eeg_data)
-
-        # self.eeg_processor.stim.connect(self.eeg_plot.plot_stim)
 
         self.blue_muse_thread.start()
         self.eeg_processor_thread.start()
