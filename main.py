@@ -304,10 +304,8 @@ class EEGPlot(QWidget):
         self.setMaximumWidth(1100)
 
     def update_plot(self, timestamps, data):
-        self.timestamps = np.concatenate([self.timestamps, timestamps])
-        self.timestamps = self.timestamps[-self.window_len_n:]
-        self.data = np.vstack([self.data, data])
-        self.data = self.data[-self.window_len_n:]
+        self.timestamps = np.concatenate([self.timestamps, timestamps])[-self.window_len_n::2]
+        self.data = np.vstack([self.data, data])[-self.window_len_n::2]
 
         if self.display_every_counter == self.config.display_every:
             for i, ax in enumerate(self.axes):
