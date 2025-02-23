@@ -277,8 +277,8 @@ class EEGPlot(QWidget):
         super().__init__()
         self.config = config
         self.display_every_counter = 0
-        self.ymin = -2
-        self.ymax = 2
+        self.ymin = -1000
+        self.ymax = 1000
         self.window_len_n = int(self.config.window_len * SAMPLING_RATE[MuseDataType.EEG])
         self.timestamps = np.arange(-self.window_len_n, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
         self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))

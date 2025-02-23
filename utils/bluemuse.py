@@ -1,33 +1,17 @@
-import csv
-import ctypes
 import subprocess
 import time
 import traceback
-from datetime import datetime
-from functools import partial
-from multiprocessing import Process
-from threading import Thread, Timer
+from threading import Thread
 
-import matplotlib
-import matplotlib.figure
-import matplotlib.pyplot as plt
 import numpy as np
 import psutil
-import seaborn as sns
-from muselsl.constants import LSL_SCAN_TIMEOUT, VIEW_SUBSAMPLE
+from muselsl.constants import LSL_SCAN_TIMEOUT
 from pylsl import StreamInfo, StreamInlet, resolve_byprop
 from PyQt5.QtCore import QObject, QTimer, pyqtSignal
 from scipy.signal import firwin, lfilter, lfilter_zi
 
 from .config import SessionConfig
-from .constants import (
-    CHANNEL_NAMES,
-    CHUNK_SIZE,
-    NB_CHANNELS,
-    SAMPLING_RATE,
-    TIMESTAMPS,
-    MuseDataType,
-)
+from .constants import CHUNK_SIZE, DELAYS, TIMESTAMPS, MuseDataType
 from .logger import Logger
 
 
@@ -62,6 +46,10 @@ class BlueMuse(QObject):
 
     def lsl_reload(self):
         eeg_ok = False
+        self.run_eeg_thread = False
+        self.run_acc_thread = False
+        self.run_ppg_thread = False
+        
         for stream in MuseDataType:
             self.stream_info[stream] = resolve_byprop('type', stream.value, timeout=LSL_SCAN_TIMEOUT)
 
@@ -81,11 +69,11 @@ class BlueMuse(QObject):
     def eeg_callback(self):
         no_data_counter = 0
         while self.run_eeg_thread:
-            time.sleep(CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG])
+            time.sleep(DELAYS[MuseDataType.EEG])
             try:
                 data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.EEG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
-                    timestamps = TIMESTAMPS[MuseDataType.EEG] + time.time() + 1. / SAMPLING_RATE[MuseDataType.EEG]
+                    timestamps = TIMESTAMPS[MuseDataType.EEG] + time.time()
 
                     self.eeg_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
                 else:
@@ -103,11 +91,11 @@ class BlueMuse(QObject):
     def acc_callback(self):
         no_data_counter = 0
         while self.run_acc_thread:
-            time.sleep(CHUNK_SIZE[MuseDataType.ACCELEROMETER] / SAMPLING_RATE[MuseDataType.ACCELEROMETER])
+            time.sleep(DELAYS[MuseDataType.ACCELEROMETER])
             try:
                 data, timestamps = self.stream_inlet[MuseDataType.ACCELEROMETER].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.ACCELEROMETER])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACCELEROMETER]:
-                    timestamps = TIMESTAMPS[MuseDataType.ACCELEROMETER] + time.time() + 1. / SAMPLING_RATE[MuseDataType.ACCELEROMETER]
+                    timestamps = TIMESTAMPS[MuseDataType.ACCELEROMETER] + time.time()
 
                     self.acc_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
                 else:
@@ -125,11 +113,11 @@ class BlueMuse(QObject):
     def ppg_callback(self):
         no_data_counter = 0
         while self.run_ppg_thread:
-            time.sleep(CHUNK_SIZE[MuseDataType.PPG] / SAMPLING_RATE[MuseDataType.PPG])
+            time.sleep(DELAYS[MuseDataType.PPG])
             try:
                 data, timestamps = self.stream_inlet[MuseDataType.PPG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.PPG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
-                    timestamps = TIMESTAMPS[MuseDataType.PPG] + time.time() + 1. / SAMPLING_RATE[MuseDataType.PPG]
+                    timestamps = TIMESTAMPS[MuseDataType.PPG] + time.time()
 
                     self.ppg_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
                 else:
@@ -180,19 +168,16 @@ class BlueMuse(QObject):
                 time.sleep(2)
                 self.lsl_reset_stream_step1()
         else:
-            # if all streams have resolved, start polling data again!
             self.reset_attempt_count = 0
             self.logger.info('LSL stream reset successful. Starting threads')
             time.sleep(3)
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
 
-            # start the selected steram
             if self.run_eeg_thread: self.stream_inlet[MuseDataType.EEG] = StreamInlet(self.stream_info[MuseDataType.EEG])
             if self.run_acc_thread: self.stream_inlet[MuseDataType.ACCELEROMETER] = StreamInlet(self.stream_info[MuseDataType.ACCELEROMETER])
             if self.run_ppg_thread: self.stream_inlet[MuseDataType.PPG] = StreamInlet(self.stream_info[MuseDataType.PPG])
             
             self.start_threads()
-
 
     def start_threads(self):
         self.eeg_thread = Thread(target=self.eeg_callback, daemon=True)
@@ -244,19 +229,3 @@ class BlueMuse(QObject):
                 self.logger.info('Killing BlueMuse')
                 p.kill()
         self.disconnected.emit()
-
-
-# if __name__ == "__main__":
-#     ES_CONTINUOUS = 0x80000000
-#     ES_SYSTEM_REQUIRED = 0x00000001
-#     ES_AWAYMODE_REQUIRED = 0x0000040
-    
-#     ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
-
-#     try:
-#         clas = BlueMuse()
-#         clas.init_EEG_UI()
-#         # clas.start_streaming()
-#         plt.show()
-#     finally:
-#         ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
