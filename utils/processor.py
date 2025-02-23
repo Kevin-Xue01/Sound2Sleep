@@ -151,8 +151,10 @@ class EEGProcessor(Processor):
         self.hl_ratio_buffer[:-1] = self.hl_ratio_buffer[1:]
         self.hl_ratio_buffer[-1] = hl_ratio
         hl_ratio_buffer_mean = self.hl_ratio_buffer.mean()
-        print(phase, freq, amp, hl_ratio)
 
+        print(phase, freq, amp, hl_ratio)
+        if np.random.choice([0, 1]) < 0.1:
+            self.stim.emit(times[-8])
         # if self.experiment_mode == ExperimentMode.DISABLED:
         #     return CLASResult.NOT_RUNNING, 0, internals
 
