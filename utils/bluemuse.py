@@ -1,7 +1,7 @@
 import subprocess
 import time
 import traceback
-from threading import Thread
+from threading import Thread, Timer
 
 import numpy as np
 import psutil
@@ -80,7 +80,7 @@ class BlueMuse(QObject):
                     no_data_counter += 1
 
                     if no_data_counter > 64:
-                        QTimer.singleShot(2000, self.lsl_reset_stream_step1)
+                        Timer(2, self.lsl_reset_stream_step1).start()
                         break
 
             except Exception as ex:
@@ -102,7 +102,7 @@ class BlueMuse(QObject):
                     no_data_counter += 1
 
                     if no_data_counter > 64:
-                        QTimer.singleShot(2000, self.lsl_reset_stream_step1)
+                        Timer(2, self.lsl_reset_stream_step1).start()
                         break
 
             except Exception as ex:
@@ -124,7 +124,7 @@ class BlueMuse(QObject):
                     no_data_counter += 1
 
                     if no_data_counter > 64:
-                        QTimer.singleShot(2000, self.lsl_reset_stream_step1)
+                        Timer(2, self.lsl_reset_stream_step1).start()
                         break
 
             except Exception as ex:
