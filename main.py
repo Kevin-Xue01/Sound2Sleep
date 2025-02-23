@@ -87,8 +87,20 @@ class EEGApp(QWidget):
         self.config_panel_error_label.setStyleSheet("color: red;")
         self.config_panel_error_label.hide()
         config_panel_layout.addWidget(self.config_panel_error_label)
+        #
+        self.window_len_n = int(self.config._display.window_len * SAMPLING_RATE[MuseDataType.EEG])
+        self.eeg_timestamps = np.zeros(self.window_len_n)
+        self.eeg_data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
+        self.eeg_plot_widget = pg.GraphicsLayoutWidget()
+        self.eeg_plot_widget.addPlot(title="EEG Data")
+        self.eeg_plot_widget.setYRange(-1500, 1500)
+        self.eeg_plot_widget_curves = [self.eeg_plot_widget.plot(pen=pg.mkPen(color)) for color in ['r', 'g', 'b', 'y']]
+        
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_eeg_plot)
+        self.timer.start(33)  # ~30 FPS
 
-        self.eeg_plot = EEGPlot(self.config._display)
+        # self.eeg_plot = EEGPlot(self.config._display)
         control_panel_widget = QWidget()
         control_panel_layout = QVBoxLayout(control_panel_widget)
         
@@ -139,11 +151,15 @@ class EEGApp(QWidget):
         right_panel.addWidget(control_panel_widget)
         right_panel.addWidget(config_panel_widget)
         
-        main_layout.addWidget(self.eeg_plot, stretch=1)
+        # main_layout.addWidget(self.eeg_plot, stretch=1)
         main_layout.addLayout(right_panel)
         
         self.setLayout(main_layout)
         self.setWindowTitle("Sound2Sleep: CLAS at Home")
+
+    def update_eeg_plot(self):
+        for i, curve in enumerate(self.eeg_plot_widget_curves):
+            curve.setData(self.eeg_timestamps, self.eeg_data[::2, i])
 
     def update_experiment_mode(self, index):
         selected_experiment_mode = ExperimentMode(self.experiment_dropdown.itemText(index))
@@ -252,13 +268,19 @@ class EEGApp(QWidget):
         self.blue_muse.connection_timeout.connect(self.on_connection_timeout)
         self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
         # self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_plot)
-        self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_data)
-        
+        # self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_data)
+        self.blue_muse.eeg_data_ready.connect(self.update_eeg_data)
 
         # self.eeg_processor.stim.connect(self.eeg_plot.plot_stim)
 
         self.blue_muse_thread.start()
         self.eeg_processor_thread.start()
+
+    def update_eeg_data(self, timestamps, data):
+        self.eeg_timestamps = np.concatenate([self.eeg_timestamps, timestamps])
+        self.eeg_timestamps = self.eeg_timestamps[-self.window_len_n:]
+        self.eeg_data = np.vstack([self.eeg_data, data])
+        self.eeg_data = self.eeg_data[-self.window_len_n:]
 
     def stop_bluemuse(self):
         if self.blue_muse_thread.isRunning():
@@ -279,77 +301,6 @@ class EEGApp(QWidget):
         self.pool.start(self.audio.run)
 
 
-# class EEGPlot(QWidget):
-#     def __init__(self, config: DisplayConfig):
-#         super().__init__()
-#         self.config = config
-#         self.display_every_counter = 0
-#         self.ymin = -3000
-#         self.ymax = 3000
-#         self.window_len_n = int(self.config.window_len * SAMPLING_RATE[MuseDataType.EEG])
-#         self.timestamps = np.array([])
-#         self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
-#         self.init_ui()
-
-#     def init_ui(self):
-#         layout = QVBoxLayout()
-        
-#         self.figure, self.axes = plt.subplots(4, 1, figsize=(8, 6), sharex=True)
-#         self.figure.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=0.95) 
-#         self.canvas = FigureCanvas(self.figure)
-#         layout.addWidget(self.canvas)
-        
-#         self.setLayout(layout)
-        
-#         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-#         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-#         self.setMinimumSize(800, 600)
-#         self.setMaximumWidth(1100)
-
-#     def update_plot(self, timestamps, data):
-#         self.timestamps = np.concatenate([self.timestamps, timestamps])[-self.window_len_n:]
-#         self.data = np.vstack([self.data, data])[-self.window_len_n:]
-#         self.timestamps = self.timestamps[::2]
-#         self.data = self.data[::2]
-#         if self.display_every_counter == self.config.display_every:
-#             for i, ax in enumerate(self.axes):
-#                 ax.clear()
-#                 ax.plot(self.data[:, i])
-#                 ax.set_ylim(self.ymin, self.ymax)
-
-#                 # Calculate variance for the current signal (data row)
-#                 variance = np.var(self.data[:, i])
-                
-#                 # Display the variance on the top right of the plot
-#                 ax.text(0.95, 0.95, f"Variance: {variance:.4f}", transform=ax.transAxes,
-#                         ha="right", va="top", fontsize=10, color="red")
-            
-#             self.canvas.draw()
-#             self.display_every_counter = 0
-#         else: self.display_every_counter += 1
-
-#     def keyPressEvent(self, event):
-#         """Handle key press events to adjust the vertical axis scale."""
-#         if event.key() == Qt.Key.Key_Plus:  # Increase y-axis range
-#             self.ymin *= 1.2
-#             self.ymax *= 1.2
-#         elif event.key() == Qt.Key.Key_Minus:  # Decrease y-axis range
-#             self.ymin /= 1.2
-#             self.ymax /= 1.2
-    
-#     def clear_plots(self):
-#         """Clears all plots and resets EEG data."""
-#         self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
-#         for ax in self.axes:
-#             ax.clear()
-#             ax.set_ylim(-3000, 3000)  # Keep the y-axis limits consistent
-#         self.canvas.draw()
-
-#     def plot_stim(self, time):
-#         for ax in self.axes:
-#             ax.axvline(x=time, color='red', linestyle='--', linewidth=2, label="Stim")
-        
-#         self.canvas.draw()
 class EEGPlot(pg.GraphicsLayoutWidget):
     def __init__(self, config: DisplayConfig):
         super().__init__()
