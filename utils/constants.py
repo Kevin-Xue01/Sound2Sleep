@@ -44,9 +44,9 @@ CHANNEL_NAMES = {
 }
 
 TIMESTAMPS = {
-    MuseDataType.EEG: np.float64(np.arange(CHUNK_SIZE[MuseDataType.EEG])) / SAMPLING_RATE[MuseDataType.EEG],
-    MuseDataType.ACCELEROMETER: np.float64(np.arange(CHUNK_SIZE[MuseDataType.ACCELEROMETER])) / SAMPLING_RATE[MuseDataType.ACCELEROMETER],
-    MuseDataType.PPG: np.float64(np.arange(CHUNK_SIZE[MuseDataType.PPG])) / SAMPLING_RATE[MuseDataType.PPG]
+    MuseDataType.EEG: np.arange(CHUNK_SIZE[MuseDataType.EEG], dtype=np.float64) / np.float64(SAMPLING_RATE[MuseDataType.EEG]),
+    MuseDataType.ACCELEROMETER: np.arange(CHUNK_SIZE[MuseDataType.ACCELEROMETER], dtype=np.float64) / np.float64(SAMPLING_RATE[MuseDataType.ACCELEROMETER]),
+    MuseDataType.PPG: np.arange(CHUNK_SIZE[MuseDataType.PPG], dtype=np.float64) / np.float64(SAMPLING_RATE[MuseDataType.PPG])
 }
 
 DELAYS = {

@@ -73,7 +73,7 @@ class BlueMuse(QObject):
             try:
                 data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.EEG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
-                    timestamps = TIMESTAMPS[MuseDataType.EEG] + time.time()
+                    timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
 
                     self.eeg_data_ready.emit(timestamps, np.array(data))
                 else:
@@ -95,7 +95,7 @@ class BlueMuse(QObject):
             try:
                 data, timestamps = self.stream_inlet[MuseDataType.ACCELEROMETER].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.ACCELEROMETER])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACCELEROMETER]:
-                    timestamps = TIMESTAMPS[MuseDataType.ACCELEROMETER] + time.time()
+                    timestamps = TIMESTAMPS[MuseDataType.ACCELEROMETER] + np.float64(time.time())
 
                     self.acc_data_ready.emit(timestamps, np.array(data))
                 else:
@@ -117,7 +117,7 @@ class BlueMuse(QObject):
             try:
                 data, timestamps = self.stream_inlet[MuseDataType.PPG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.PPG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
-                    timestamps = TIMESTAMPS[MuseDataType.PPG] + time.time()
+                    timestamps = TIMESTAMPS[MuseDataType.PPG] + np.float64(time.time())
 
                     self.acc_data_ready.emit(timestamps, np.array(data))
                 else:
