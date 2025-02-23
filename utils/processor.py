@@ -1,3 +1,4 @@
+import random
 from math import ceil, floor, isnan, nan, pi
 from typing import Tuple, Union
 
@@ -123,14 +124,16 @@ class EEGProcessor(Processor):
     def estimate_phase(self, selected_channel): 
         conv_vals = [np.dot(selected_channel, w) for w in self.trunc_wavelets]
         max_idx = np.argmax(np.abs(conv_vals))
+        amp = conv_vals[max_idx] / 2
         freq = self.wavelet_freqs[max_idx]
         phase = np.angle(conv_vals[max_idx]) % (2 * pi)
         
-        return phase, freq, conv_vals
+        return phase, freq, amp
 
     def process_data(self, times: np.ndarray, data: np.ndarray):
-        self.times = np.concatenate([self.times, times])
-        self.times = self.times[-self.window_len_n:]
+        # self.times = np.concatenate([self.times, times])
+        # self.times = self.times[-self.window_len_n:]
+        self._time_elapsed = times[-1]
         self.data = np.vstack([self.data, data])
         self.data = self.data[-self.window_len_n:]
         self.selected_channel_ind_mutex.lock()
@@ -139,9 +142,69 @@ class EEGProcessor(Processor):
         finally:
             self.selected_channel_ind_mutex.unlock()
 
-        phase, freq, _ = self.estimate_phase(self.data[:, curr_selected_channel])
+        phase, freq, amp = self.estimate_phase(self.data[:, curr_selected_channel])
         hl_ratio = self.get_hl_ratio(self.data[:, curr_selected_channel])
-        print(phase, freq, hl_ratio)
+        self.amp_buffer[:-1] = self.amp_buffer[1:]
+        self.amp_buffer[-1] = amp
+        amp_buffer_mean = self.amp_buffer.mean()
+
+        self.hl_ratio_buffer[:-1] = self.hl_ratio_buffer[1:]
+        self.hl_ratio_buffer[-1] = hl_ratio
+        hl_ratio_buffer_mean = self.hl_ratio_buffer.mean()
+        print(phase, freq, amp, hl_ratio)
+
+        # if self.experiment_mode == ExperimentMode.DISABLED:
+        #     return CLASResult.NOT_RUNNING, 0, internals
+
+        # # check if we're waiting for the 2nd stim
+        # # if NOT, run normal checks
+        # if isnan(self.second_stim_start):
+        #     ### check backoff criteria ###
+        #     if ((self.last_stim + self.backoff_time) > (self.time_elapsed + self.prediction_limit_sec)):
+        #         return CLASResult.BACKOFF, 0, internals
+
+        #     ### check amplitude criteria ###
+        #     if (meanamp < self.amp_threshold) or (meanamp > self.amp_limit):
+        #         return CLASResult.AMPLITUDE, 0, internals
+
+        #     ### check quadrature ###
+        #     if (quadrature is not None) and (quadrature < self.quadrature_thresh):
+        #         return CLASResult.QUADRATURE, 0, internals
+
+        #     if self.high_low_analysis and ((mean_hl_ratio > self.high_low_freq_lookback_ratio) or
+        #                                    (hl_ratio > self.high_low_freq_ratio)):
+        #         return CLASResult.HL_RATIO, 0, internals
+
+        # # if we are waiting for 2nd stim, but before the backoff window, only use phase targeting
+        # if self.time_elapsed < self.second_stim_start:
+        #     return CLASResult.BACKOFF2, 0, internals
+
+        # ### perform forward prediction ###
+        # delta_t = ((self.target_phase - phase) % (2 * pi)) / (cfreq * 2 * pi)
+
+        # # cue a stim for the next target phase
+        # if isnan(self.second_stim_start):
+        #     if delta_t > self.prediction_limit_sec:
+        #         return CLASResult.FUTURE, delta_t, internals
+
+        #     self.last_stim = self.time_elapsed + delta_t  # update stim time to compute backoff
+        #     self.second_stim_start = self.last_stim + self.stim2_start_delay  # update
+        #     self.second_stim_end = self.last_stim + self.stim2_end_delay
+
+        #     return CLASResult.STIM, delta_t, internals
+
+        # else:
+        #     if delta_t > self.stim2_prediction_limit_sec:
+        #         return CLASResult.FUTURE2, delta_t, internals
+
+        #     self.second_stim_start = nan
+        #     self.second_stim_end = nan
+
+        #     if self.experiment_mode == ExperimentMode.SHAM_PHASE:
+        #         self.vary_regen()
+
+        #     return CLASResult.STIM2, delta_t, internals
+
 
     def switch_channel(self):
         self.selected_channel_ind_mutex.lock()
@@ -149,6 +212,10 @@ class EEGProcessor(Processor):
             self.selected_channel_ind = np.argmin(np.sqrt(np.mean(self.data**2, axis=0)))
         finally:
             self.selected_channel_ind_mutex.unlock()  # Release lock after computing RMS
+
+    @staticmethod
+    def generate_random_phase():
+        return random.uniform(0.0, 360.0)
     
     # def process_block(self, currsig: Union[np.ndarray, None] = None) -> Tuple[CLASResult, float, dict]:
     #     ''' 
@@ -206,7 +273,7 @@ class EEGProcessor(Processor):
     #         'hl_ratio': hl_ratio
     #     }
 
-    #     if self.experiment_mode == ExperimentMode.DISABLED:
+    #     if self.config.experiment_mode == ExperimentMode.DISABLED:
     #         return CLASResult.NOT_RUNNING, 0, internals
 
     #     # check if we're waiting for the 2nd stim

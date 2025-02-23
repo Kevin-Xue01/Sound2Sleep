@@ -75,11 +75,11 @@ class BlueMuse(QObject):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
                     timestamps = TIMESTAMPS[MuseDataType.EEG] + time.time()
 
-                    self.eeg_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
+                    self.eeg_data_ready.emit(timestamps, np.array(data))
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter > int(3 * (256 / 12)):
+                    if no_data_counter > 64:
                         QTimer.singleShot(2000, self.lsl_reset_stream_step1)
                         break
 
@@ -97,11 +97,11 @@ class BlueMuse(QObject):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACCELEROMETER]:
                     timestamps = TIMESTAMPS[MuseDataType.ACCELEROMETER] + time.time()
 
-                    self.acc_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
+                    self.acc_data_ready.emit(timestamps, np.array(data))
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter > int(3 * (256 / 12)):
+                    if no_data_counter > 64:
                         QTimer.singleShot(2000, self.lsl_reset_stream_step1)
                         break
 
@@ -119,11 +119,11 @@ class BlueMuse(QObject):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
                     timestamps = TIMESTAMPS[MuseDataType.PPG] + time.time()
 
-                    self.ppg_data_ready.emit(np.random.rand(12).astype(np.float64), np.random.rand(12, 4).astype(np.float32))
+                    self.acc_data_ready.emit(timestamps, np.array(data))
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter > int(3 * (256 / 12)):
+                    if no_data_counter > 64:
                         QTimer.singleShot(2000, self.lsl_reset_stream_step1)
                         break
 
