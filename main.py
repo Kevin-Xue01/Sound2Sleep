@@ -93,7 +93,7 @@ class EEGApp(QWidget):
         self.eeg_data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
         self.eeg_plot_layout_widget = pg.GraphicsLayoutWidget()
         self.eeg_plot_widget = self.eeg_plot_layout_widget.addPlot(title="EEG Data")
-        # self.eeg_plot_layout_widget.setYRange(-1500, 1500)
+        self.eeg_plot_layout_widget.setYRange(-1500, 1500)
         self.eeg_plot_widget_curves = [self.eeg_plot_widget.plot(pen=pg.mkPen(color)) for color in ['r', 'g', 'b', 'y']]
         
         self.timer = QTimer()
@@ -270,8 +270,14 @@ class EEGApp(QWidget):
         self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
         self.blue_muse.eeg_data_ready.connect(self.update_eeg_data)
 
+        self.eeg_processor.stim.connect(self.draw_stim)
+
         self.blue_muse_thread.start()
         self.eeg_processor_thread.start()
+
+    def draw_stim(self, timestamp):
+        vline = pg.InfiniteLine(pos=timestamp, angle=90, pen='r')
+        self.eeg_plot_widget.addItem(vline)
 
     def update_eeg_data(self, timestamps, data):
         self.eeg_timestamps = np.concatenate([self.eeg_timestamps, timestamps])
