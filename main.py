@@ -242,13 +242,17 @@ class EEGApp(QWidget):
 
         self.blue_muse.moveToThread(self.blue_muse_thread)
         self.eeg_processor.moveToThread(self.eeg_processor_thread)
+
         self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._session_key))
+
         self.blue_muse.connected.connect(self.on_connected)
         self.blue_muse.connected.connect(lambda: self.connection_timeout_error_label.hide())
         self.blue_muse.disconnected.connect(self.on_disconnected)
         self.blue_muse.connection_timeout.connect(self.on_connection_timeout)
         self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
         self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_plot)
+
+        self.eeg_processor.stim.connect(self.eeg_plot.plot_stim)
 
         self.blue_muse_thread.start()
         self.eeg_processor_thread.start()
@@ -337,6 +341,12 @@ class EEGPlot(QWidget):
         for ax in self.axes:
             ax.clear()
             ax.set_ylim(-2, 2)  # Keep the y-axis limits consistent
+        self.canvas.draw()
+
+    def plot_stim(self, time):
+        for ax in self.axes:
+            ax.axvline(x=time, color='red', linestyle='--', linewidth=3, label="Stim")
+        
         self.canvas.draw()
 
 
