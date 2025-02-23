@@ -49,11 +49,12 @@ class EEGApp(QWidget):
         super().__init__()
         self.app_state = AppState.DISCONNECTED
         self.elapsed_time = 0  # Elapsed time in seconds
+        self.last_stim_line = None
 
         self.config = SessionConfig()
         self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
-
+        
         self.init_ui()
 
     def init_ui(self):
@@ -93,7 +94,7 @@ class EEGApp(QWidget):
         self.eeg_data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
         self.eeg_plot_layout_widget = pg.GraphicsLayoutWidget()
         self.eeg_plot_widget = self.eeg_plot_layout_widget.addPlot(title="EEG Data")
-        self.eeg_plot_layout_widget.setYRange(-1500, 1500)
+        self.eeg_plot_widget.setYRange(-1500, 1500)
         self.eeg_plot_widget_curves = [self.eeg_plot_widget.plot(pen=pg.mkPen(color)) for color in ['r', 'g', 'b', 'y']]
         
         self.timer = QTimer()
@@ -276,8 +277,11 @@ class EEGApp(QWidget):
         self.eeg_processor_thread.start()
 
     def draw_stim(self, timestamp):
-        vline = pg.InfiniteLine(pos=timestamp, angle=90, pen='r')
-        self.eeg_plot_widget.addItem(vline)
+        if self.last_stim_line:
+            self.eeg_plot_widget.removeItem(self.last_stim_line)  # Remove old stim marker
+
+        self.last_stim_line = pg.InfiniteLine(pos=timestamp, angle=90, pen='r')
+        self.eeg_plot_widget.addItem(self.last_stim_line)
 
     def update_eeg_data(self, timestamps, data):
         self.eeg_timestamps = np.concatenate([self.eeg_timestamps, timestamps])
