@@ -185,8 +185,8 @@ class BlueMuse(QObject):
         self.ppg_thread = Thread(target=self.ppg_callback, daemon=True)
 
         self.eeg_thread.start()
-        self.acc_thread.start()
-        self.ppg_thread.start()
+        # self.acc_thread.start()
+        # self.ppg_thread.start()
 
     def run(self, session_key: str):
         subprocess.call('start bluemuse:', shell=True)
