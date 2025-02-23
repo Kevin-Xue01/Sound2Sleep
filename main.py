@@ -351,10 +351,10 @@ class EEGApp(QWidget):
         
 #         self.canvas.draw()
 class EEGPlot(pg.GraphicsLayoutWidget):
-    def __init__(self, config: SessionConfig):
+    def __init__(self, config: DisplayConfig):
         super().__init__()
         self.config = config
-        self.window_len_n = int(self.config.window_len_s * SAMPLING_RATE[MuseDataType.EEG])
+        self.window_len_n = int(self.config.window_len * SAMPLING_RATE[MuseDataType.EEG])
         self.ymin, self.ymax = -3000, 3000
 
         self.init_ui()
