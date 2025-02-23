@@ -7,6 +7,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
 import psutil
+import pyqtgraph as pg
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from pydantic import ValidationError
 from PyQt5.QtCore import Qt, QThread, QThreadPool, QTimer, pyqtSignal
@@ -250,7 +251,9 @@ class EEGApp(QWidget):
         self.blue_muse.disconnected.connect(self.on_disconnected)
         self.blue_muse.connection_timeout.connect(self.on_connection_timeout)
         self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
-        self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_plot)
+        # self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_plot)
+        self.blue_muse.eeg_data_ready.connect(self.eeg_plot.update_data)
+        
 
         # self.eeg_processor.stim.connect(self.eeg_plot.plot_stim)
 
@@ -276,77 +279,110 @@ class EEGApp(QWidget):
         self.pool.start(self.audio.run)
 
 
-class EEGPlot(QWidget):
-    def __init__(self, config: DisplayConfig):
+# class EEGPlot(QWidget):
+#     def __init__(self, config: DisplayConfig):
+#         super().__init__()
+#         self.config = config
+#         self.display_every_counter = 0
+#         self.ymin = -3000
+#         self.ymax = 3000
+#         self.window_len_n = int(self.config.window_len * SAMPLING_RATE[MuseDataType.EEG])
+#         self.timestamps = np.array([])
+#         self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
+#         self.init_ui()
+
+#     def init_ui(self):
+#         layout = QVBoxLayout()
+        
+#         self.figure, self.axes = plt.subplots(4, 1, figsize=(8, 6), sharex=True)
+#         self.figure.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=0.95) 
+#         self.canvas = FigureCanvas(self.figure)
+#         layout.addWidget(self.canvas)
+        
+#         self.setLayout(layout)
+        
+#         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+#         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+#         self.setMinimumSize(800, 600)
+#         self.setMaximumWidth(1100)
+
+#     def update_plot(self, timestamps, data):
+#         self.timestamps = np.concatenate([self.timestamps, timestamps])[-self.window_len_n:]
+#         self.data = np.vstack([self.data, data])[-self.window_len_n:]
+#         self.timestamps = self.timestamps[::2]
+#         self.data = self.data[::2]
+#         if self.display_every_counter == self.config.display_every:
+#             for i, ax in enumerate(self.axes):
+#                 ax.clear()
+#                 ax.plot(self.data[:, i])
+#                 ax.set_ylim(self.ymin, self.ymax)
+
+#                 # Calculate variance for the current signal (data row)
+#                 variance = np.var(self.data[:, i])
+                
+#                 # Display the variance on the top right of the plot
+#                 ax.text(0.95, 0.95, f"Variance: {variance:.4f}", transform=ax.transAxes,
+#                         ha="right", va="top", fontsize=10, color="red")
+            
+#             self.canvas.draw()
+#             self.display_every_counter = 0
+#         else: self.display_every_counter += 1
+
+#     def keyPressEvent(self, event):
+#         """Handle key press events to adjust the vertical axis scale."""
+#         if event.key() == Qt.Key.Key_Plus:  # Increase y-axis range
+#             self.ymin *= 1.2
+#             self.ymax *= 1.2
+#         elif event.key() == Qt.Key.Key_Minus:  # Decrease y-axis range
+#             self.ymin /= 1.2
+#             self.ymax /= 1.2
+    
+#     def clear_plots(self):
+#         """Clears all plots and resets EEG data."""
+#         self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
+#         for ax in self.axes:
+#             ax.clear()
+#             ax.set_ylim(-3000, 3000)  # Keep the y-axis limits consistent
+#         self.canvas.draw()
+
+#     def plot_stim(self, time):
+#         for ax in self.axes:
+#             ax.axvline(x=time, color='red', linestyle='--', linewidth=2, label="Stim")
+        
+#         self.canvas.draw()
+class EEGPlot(pg.GraphicsLayoutWidget):
+    def __init__(self, config: SessionConfig):
         super().__init__()
         self.config = config
-        self.display_every_counter = 0
-        self.ymin = -3000
-        self.ymax = 3000
-        self.window_len_n = int(self.config.window_len * SAMPLING_RATE[MuseDataType.EEG])
-        self.timestamps = np.array([])
-        self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
+        self.window_len_n = int(self.config.window_len_s * SAMPLING_RATE[MuseDataType.EEG])
+        self.ymin, self.ymax = -3000, 3000
+
         self.init_ui()
 
     def init_ui(self):
-        layout = QVBoxLayout()
+        self.plot_widget = self.addPlot(title="EEG Data")
+        self.plot_widget.setYRange(self.ymin, self.ymax)
+        self.curves = [self.plot_widget.plot(pen=pg.mkPen(color)) for color in ['r', 'g', 'b', 'y']]
         
-        self.figure, self.axes = plt.subplots(4, 1, figsize=(8, 6), sharex=True)
-        self.figure.subplots_adjust(top=0.95, bottom=0.05, left=0.05, right=0.95) 
-        self.canvas = FigureCanvas(self.figure)
-        layout.addWidget(self.canvas)
-        
-        self.setLayout(layout)
-        
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.setMinimumSize(800, 600)
-        self.setMaximumWidth(1100)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_plot)
+        self.timer.start(33)  # ~30 FPS
 
-    def update_plot(self, timestamps, data):
-        self.timestamps = np.concatenate([self.timestamps, timestamps])[-self.window_len_n:]
-        self.data = np.vstack([self.data, data])[-self.window_len_n:]
-        self.timestamps = self.timestamps[::2]
-        self.data = self.data[::2]
-        if self.display_every_counter == self.config.display_every:
-            for i, ax in enumerate(self.axes):
-                ax.clear()
-                ax.plot(self.data[:, i])
-                ax.set_ylim(self.ymin, self.ymax)
-
-                # Calculate variance for the current signal (data row)
-                variance = np.var(self.data[:, i])
-                
-                # Display the variance on the top right of the plot
-                ax.text(0.95, 0.95, f"Variance: {variance:.4f}", transform=ax.transAxes,
-                        ha="right", va="top", fontsize=10, color="red")
-            
-            self.canvas.draw()
-            self.display_every_counter = 0
-        else: self.display_every_counter += 1
-
-    def keyPressEvent(self, event):
-        """Handle key press events to adjust the vertical axis scale."""
-        if event.key() == Qt.Key.Key_Plus:  # Increase y-axis range
-            self.ymin *= 1.2
-            self.ymax *= 1.2
-        elif event.key() == Qt.Key.Key_Minus:  # Decrease y-axis range
-            self.ymin /= 1.2
-            self.ymax /= 1.2
-    
-    def clear_plots(self):
-        """Clears all plots and resets EEG data."""
+        self.timestamps = np.zeros(self.window_len_n)
         self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
-        for ax in self.axes:
-            ax.clear()
-            ax.set_ylim(-3000, 3000)  # Keep the y-axis limits consistent
-        self.canvas.draw()
 
-    def plot_stim(self, time):
-        for ax in self.axes:
-            ax.axvline(x=time, color='red', linestyle='--', linewidth=2, label="Stim")
-        
-        self.canvas.draw()
+    def update_data(self, timestamps, data):
+        """Append new data efficiently"""
+        self.timestamps = np.roll(self.timestamps, -len(timestamps))
+        self.timestamps[-len(timestamps):] = timestamps
+
+        self.data = np.roll(self.data, -len(timestamps), axis=0)
+        self.data[-len(timestamps):, :] = data
+
+    def update_plot(self):
+        """Efficiently update plots"""
+        for i, curve in enumerate(self.curves):
+            curve.setData(self.timestamps, self.data[:, i])
 
 
 if __name__ == "__main__":
