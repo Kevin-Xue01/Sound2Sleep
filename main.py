@@ -346,7 +346,7 @@ class EEGApp(QWidget):
                     self.times = self.times[-self.eeg_window_len_n:]
                     self.eeg_data = np.vstack([self.eeg_data, data])
                     self.eeg_data = self.eeg_data[-self.eeg_window_len_n:]
-                    self.process_eeg(timestamps, np.array(data))
+                    # self.process_eeg(timestamps, np.array(data))
 
                     if display_every_counter == self.config._display.display_every:
                         plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
@@ -356,7 +356,7 @@ class EEGApp(QWidget):
                             self.impedances = np.std(plot_data, axis=0)
 
                         self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-                        self.axes.set_xlim(-self.eeg_window_len_n, 0)
+                        self.axes.set_xlim(-self.config._display.window_len_s, 0)
                         self.eeg_plot_widget.draw()
                         display_every_counter = 0
                     else:
@@ -382,7 +382,7 @@ class EEGApp(QWidget):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACC]:
                     timestamps = TIMESTAMPS[MuseDataType.ACC] + np.float64(time.time())
 
-                    self.process_acc(timestamps, np.array(data))
+                    # self.process_acc(timestamps, np.array(data))
                 else:
                     no_data_counter += 1
 
@@ -404,7 +404,7 @@ class EEGApp(QWidget):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
                     timestamps = TIMESTAMPS[MuseDataType.PPG] + np.float64(time.time())
 
-                    self.process_ppg(timestamps, np.array(data))
+                    # self.process_ppg(timestamps, np.array(data))
                 else:
                     no_data_counter += 1
 
@@ -515,7 +515,6 @@ class EEGApp(QWidget):
 
 if __name__ == "__main__":
     if sys.platform.startswith("win"):
-        print('Platform: Windows')
         ES_CONTINUOUS = 0x80000000
         ES_SYSTEM_REQUIRED = 0x00000001
         ES_AWAYMODE_REQUIRED = 0x0000040
