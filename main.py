@@ -287,58 +287,6 @@ class EEGApp(QWidget):
             self.config_panel_error_label.setText(str("\n".join([f'{k}: {v}' for k, v in e.errors()[0].items() if k != "url"])))  # Display the first error message
             self.config_panel_error_label.show()
 
-    # def start_bluemuse(self):
-    #     self.blue_muse = BlueMuse(self.config)
-    #     self.eeg_processor = EEGProcessor(self.config)
-
-    #     self.blue_muse_thread = QThread()
-    #     self.eeg_processor_thread = QThread()
-
-    #     self.blue_muse.moveToThread(self.blue_muse_thread)
-    #     self.eeg_processor.moveToThread(self.eeg_processor_thread)
-
-    #     self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._session_key))
-
-    #     self.blue_muse.connected.connect(self.on_connected)
-    #     self.blue_muse.connected.connect(lambda: self.connection_timeout_error_label.hide())
-    #     self.blue_muse.disconnected.connect(self.on_disconnected)
-    #     self.blue_muse.connection_timeout.connect(self.on_connection_timeout)
-    #     self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
-    #     self.blue_muse.eeg_data_ready.connect(self.update_eeg_data)
-
-    #     self.eeg_processor.stim.connect(self.draw_stim)
-
-    #     self.blue_muse_thread.start()
-    #     self.eeg_processor_thread.start()
-
-    # def draw_stim(self, timestamp):
-    #     if self.last_stim_line:
-    #         self.eeg_plot_widget.removeItem(self.last_stim_line)  # Remove old stim marker
-
-    #     self.last_stim_line = pg.InfiniteLine(pos=timestamp, angle=90, pen='r')
-    #     self.eeg_plot_widget.addItem(self.last_stim_line)
-
-    # def update_eeg_data(self, timestamps, data):
-    #     self.eeg_timestamps = np.concatenate([self.eeg_timestamps, timestamps])
-    #     self.eeg_timestamps = self.eeg_timestamps[-self.window_len_n:]
-    #     self.eeg_data = np.vstack([self.eeg_data, data])
-    #     self.eeg_data = self.eeg_data[-self.window_len_n:]
-
-    # def stop_bluemuse(self):
-    #     if self.blue_muse_thread.isRunning():
-    #         self.blue_muse.stop()
-    #         self.blue_muse_thread.quit()
-    #         self.blue_muse_thread.wait()
-    #         self.blue_muse = None
-    #         self.blue_muse_thread = None
-
-    #     if self.eeg_processor_thread.isRunning():
-    #         self.eeg_processor.stop()
-    #         self.eeg_processor_thread.quit()
-    #         self.eeg_processor_thread.wait()
-    #         self.eeg_processor = None
-    #         self.eeg_processor_thread = None
-
     def play_audio(self):
         self.threadpool.start(self.audio.run)
 
@@ -483,6 +431,7 @@ class EEGApp(QWidget):
                 self.lsl_reset_stream_step1()
         else:
             self.reset_attempt_count = 0
+            self.running_stream = True
             self.logger.info('LSL stream reset successful. Starting threads')
             time.sleep(3)
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
