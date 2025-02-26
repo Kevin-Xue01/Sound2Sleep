@@ -373,6 +373,10 @@ class EEGApp(QWidget):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
                     timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
 
+                    self.eeg_timestamps = np.concatenate([self.eeg_timestamps, timestamps])
+                    self.eeg_timestamps = self.eeg_timestamps[-self.window_len_n:]
+                    self.eeg_data = np.vstack([self.eeg_data, data])
+                    self.eeg_data = self.eeg_data[-self.window_len_n:]
                     self.process_eeg(timestamps, np.array(data))
                 else:
                     no_data_counter += 1
