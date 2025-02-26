@@ -361,6 +361,9 @@ class EEGApp(QWidget):
                         self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
                         self.axes.set_xlim(-self.eeg_window_len_n, 0)
                         self.eeg_plot_widget.draw()
+                        self.display_every_counter = 0
+                    else:
+                        self.display_every_counter += 1
                 else:
                     no_data_counter += 1
 
