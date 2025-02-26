@@ -59,7 +59,7 @@ class BlueMuse(QObject):
                 if stream == MuseDataType.EEG:
                     eeg_ok = True
                     self.run_eeg_thread = True
-                elif stream == MuseDataType.ACCELEROMETER: self.run_acc_thread = True
+                elif stream == MuseDataType.ACC: self.run_acc_thread = True
                 elif stream == MuseDataType.PPG: self.run_ppg_thread = True
             else:
                 self.logger.warning(f'{stream.name} not found.')
@@ -91,11 +91,11 @@ class BlueMuse(QObject):
     def acc_callback(self):
         no_data_counter = 0
         while self.run_acc_thread:
-            time.sleep(DELAYS[MuseDataType.ACCELEROMETER])
+            time.sleep(DELAYS[MuseDataType.ACC])
             try:
-                data, timestamps = self.stream_inlet[MuseDataType.ACCELEROMETER].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.ACCELEROMETER])
-                if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACCELEROMETER]:
-                    timestamps = TIMESTAMPS[MuseDataType.ACCELEROMETER] + np.float64(time.time())
+                data, timestamps = self.stream_inlet[MuseDataType.ACC].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.ACC])
+                if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACC]:
+                    timestamps = TIMESTAMPS[MuseDataType.ACC] + np.float64(time.time())
 
                     self.acc_data_ready.emit(timestamps, np.array(data))
                 else:
@@ -174,7 +174,7 @@ class BlueMuse(QObject):
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
 
             if self.run_eeg_thread: self.stream_inlet[MuseDataType.EEG] = StreamInlet(self.stream_info[MuseDataType.EEG])
-            if self.run_acc_thread: self.stream_inlet[MuseDataType.ACCELEROMETER] = StreamInlet(self.stream_info[MuseDataType.ACCELEROMETER])
+            if self.run_acc_thread: self.stream_inlet[MuseDataType.ACC] = StreamInlet(self.stream_info[MuseDataType.ACC])
             if self.run_ppg_thread: self.stream_inlet[MuseDataType.PPG] = StreamInlet(self.stream_info[MuseDataType.PPG])
             
             self.start_threads()
@@ -204,7 +204,7 @@ class BlueMuse(QObject):
             time.sleep(3)
         self.connected.emit()
         if self.run_eeg_thread: self.stream_inlet[MuseDataType.EEG] = StreamInlet(self.stream_info[MuseDataType.EEG])
-        if self.run_acc_thread: self.stream_inlet[MuseDataType.ACCELEROMETER] = StreamInlet(self.stream_info[MuseDataType.ACCELEROMETER])
+        if self.run_acc_thread: self.stream_inlet[MuseDataType.ACC] = StreamInlet(self.stream_info[MuseDataType.ACC])
         if self.run_ppg_thread: self.stream_inlet[MuseDataType.PPG] = StreamInlet(self.stream_info[MuseDataType.PPG])
 
         self.start_threads()
@@ -212,7 +212,7 @@ class BlueMuse(QObject):
     def stop(self):
         try:
             if self.run_eeg_thread: self.stream_inlet[MuseDataType.EEG].close_stream()
-            if self.run_acc_thread: self.stream_inlet[MuseDataType.ACCELEROMETER].close_stream()
+            if self.run_acc_thread: self.stream_inlet[MuseDataType.ACC].close_stream()
             if self.run_ppg_thread: self.stream_inlet[MuseDataType.PPG].close_stream()
         except Exception as ex:
             self.logger.critical(str(ex))

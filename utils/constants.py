@@ -16,42 +16,42 @@ from muselsl.constants import (
 
 class MuseDataType(Enum):
     EEG = "EEG"
-    ACCELEROMETER = "Accelerometer"
+    ACC = "Accelerometer"
     PPG = "PPG"
 
 SAMPLING_RATE = {
     MuseDataType.EEG: MUSE_SAMPLING_EEG_RATE,
-    MuseDataType.ACCELEROMETER: MUSE_SAMPLING_ACC_RATE,
+    MuseDataType.ACC: MUSE_SAMPLING_ACC_RATE,
     MuseDataType.PPG: MUSE_SAMPLING_PPG_RATE,
 }
 
 NB_CHANNELS = {
     MuseDataType.EEG: MUSE_NB_EEG_CHANNELS - 1,
-    MuseDataType.ACCELEROMETER: MUSE_NB_ACC_CHANNELS,
+    MuseDataType.ACC: MUSE_NB_ACC_CHANNELS,
     MuseDataType.PPG: MUSE_NB_PPG_CHANNELS,
 }
 
 CHUNK_SIZE = {
     MuseDataType.EEG: LSL_EEG_CHUNK,
-    MuseDataType.ACCELEROMETER: LSL_ACC_CHUNK,
+    MuseDataType.ACC: LSL_ACC_CHUNK,
     MuseDataType.PPG: LSL_PPG_CHUNK,
 }
 
 CHANNEL_NAMES = {
     MuseDataType.EEG: ['TP9', 'TP10', 'AF1', 'AF2'],
-    MuseDataType.ACCELEROMETER: ['Acc_X', 'Acc_Y', 'Acc_Z'],
+    MuseDataType.ACC: ['Acc_X', 'Acc_Y', 'Acc_Z'],
     MuseDataType.PPG: ['PPG'],
 }
 
 TIMESTAMPS = {
     MuseDataType.EEG: np.arange(CHUNK_SIZE[MuseDataType.EEG], dtype=np.float64) / np.float64(SAMPLING_RATE[MuseDataType.EEG]),
-    MuseDataType.ACCELEROMETER: np.arange(CHUNK_SIZE[MuseDataType.ACCELEROMETER], dtype=np.float64) / np.float64(SAMPLING_RATE[MuseDataType.ACCELEROMETER]),
+    MuseDataType.ACC: np.arange(CHUNK_SIZE[MuseDataType.ACC], dtype=np.float64) / np.float64(SAMPLING_RATE[MuseDataType.ACC]),
     MuseDataType.PPG: np.arange(CHUNK_SIZE[MuseDataType.PPG], dtype=np.float64) / np.float64(SAMPLING_RATE[MuseDataType.PPG])
 }
 
 DELAYS = {
     MuseDataType.EEG: CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG],
-    MuseDataType.ACCELEROMETER: CHUNK_SIZE[MuseDataType.ACCELEROMETER] / SAMPLING_RATE[MuseDataType.ACCELEROMETER],
+    MuseDataType.ACC: CHUNK_SIZE[MuseDataType.ACC] / SAMPLING_RATE[MuseDataType.ACC],
     MuseDataType.PPG: CHUNK_SIZE[MuseDataType.PPG] / SAMPLING_RATE[MuseDataType.PPG]
 }
 

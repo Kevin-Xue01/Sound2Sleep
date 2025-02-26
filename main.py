@@ -85,12 +85,12 @@ class EEGApp(QWidget):
 
         self.stream_info: dict[MuseDataType, Union[StreamInfo, None]] = {
             MuseDataType.EEG: None,
-            MuseDataType.ACCELEROMETER: None,
+            MuseDataType.ACC: None,
             MuseDataType.PPG: None
         }
         self.stream_inlet: dict[MuseDataType, Union[StreamInlet, None]] = {
             MuseDataType.EEG: None,
-            MuseDataType.ACCELEROMETER: None,
+            MuseDataType.ACC: None,
             MuseDataType.PPG: None
         }
 
@@ -341,11 +341,11 @@ class EEGApp(QWidget):
     def acc_callback(self):
         no_data_counter = 0
         while self.running_stream:
-            time.sleep(DELAYS[MuseDataType.ACCELEROMETER])
+            time.sleep(DELAYS[MuseDataType.ACC])
             try:
-                data, timestamps = self.stream_inlet[MuseDataType.ACCELEROMETER].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.ACCELEROMETER])
-                if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACCELEROMETER]:
-                    timestamps = TIMESTAMPS[MuseDataType.ACCELEROMETER] + np.float64(time.time())
+                data, timestamps = self.stream_inlet[MuseDataType.ACC].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.ACC])
+                if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACC]:
+                    timestamps = TIMESTAMPS[MuseDataType.ACC] + np.float64(time.time())
 
                     self.process_acc(timestamps, np.array(data))
                 else:
@@ -437,7 +437,7 @@ class EEGApp(QWidget):
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
 
             if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
-            if self.stream_inlet[MuseDataType.ACCELEROMETER] is not None: self.threadpool.start(DataWorker(self.acc_callback))
+            if self.stream_inlet[MuseDataType.ACC] is not None: self.threadpool.start(DataWorker(self.acc_callback))
             if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
         
     def start_bluemuse(self):
@@ -457,7 +457,7 @@ class EEGApp(QWidget):
         self.on_connected()
         self.running_stream = True
         if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
-        if self.stream_inlet[MuseDataType.ACCELEROMETER] is not None: self.threadpool.start(DataWorker(self.acc_callback))
+        if self.stream_inlet[MuseDataType.ACC] is not None: self.threadpool.start(DataWorker(self.acc_callback))
         if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
         
     def stop_bluemuse(self):
@@ -477,45 +477,6 @@ class EEGApp(QWidget):
                 self.logger.info('Killing BlueMuse')
                 p.kill()
         self.on_disconnected()
-
-class EEGPlot(pg.GraphicsLayoutWidget):
-    def __init__(self, config: DisplayConfig):
-        super().__init__()
-        self.config = config
-        self.window_len_n = int(self.config.window_len * SAMPLING_RATE[MuseDataType.EEG])
-        self.ymin, self.ymax = -3000, 3000
-
-        self.init_ui()
-
-    def init_ui(self):
-        self.plot_widget = self.addPlot(title="EEG Data")
-        self.plot_widget.setYRange(self.ymin, self.ymax)
-        self.curves = [self.plot_widget.plot(pen=pg.mkPen(color)) for color in ['r', 'g', 'b', 'y']]
-        
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_plot)
-        self.timer.start(33)  # ~30 FPS
-
-        self.timestamps = np.zeros(self.window_len_n)
-        self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
-
-    def update_data(self, timestamps, data):
-        """Append new data efficiently"""
-        # self.timestamps = np.roll(self.timestamps, -len(timestamps))
-        # self.timestamps[-len(timestamps):] = timestamps
-
-        # self.data = np.roll(self.data, -len(timestamps), axis=0)
-        # self.data[-len(timestamps):, :] = data
-        self.timestamps = np.concatenate([self.timestamps, timestamps])
-        self.timestamps = self.timestamps[-self.window_len_n:]
-        self.data = np.vstack([self.data, data])
-        self.data = self.data[-self.window_len_n:]
-
-    def update_plot(self):
-        """Efficiently update plots"""
-        for i, curve in enumerate(self.curves):
-            curve.setData(self.timestamps, self.data[::2, i])
-
 
 if __name__ == "__main__":
     if sys.platform.startswith("win"):
