@@ -38,7 +38,7 @@ CHUNK_SIZE = {
 }
 
 CHANNEL_NAMES = {
-    MuseDataType.EEG: ['TP9', 'TP10', 'AF1', 'AF2'],
+    MuseDataType.EEG: ['TP9', 'AF1', 'AF2', 'TP10'],
     MuseDataType.ACC: ['Acc_X', 'Acc_Y', 'Acc_Z'],
     MuseDataType.PPG: ['PPG'],
 }

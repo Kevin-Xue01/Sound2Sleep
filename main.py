@@ -7,10 +7,12 @@ import traceback
 from threading import Timer
 from typing import Union
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import psutil
 import pyqtgraph as pg
+import seaborn as sns
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from muselsl.constants import LSL_SCAN_TIMEOUT
 from pydantic import ValidationError
@@ -126,18 +128,44 @@ class EEGApp(QWidget):
         self.config_panel_error_label.setStyleSheet("color: red;")
         self.config_panel_error_label.hide()
         config_panel_layout.addWidget(self.config_panel_error_label)
-        #
-        self.window_len_n = int(self.config._display.window_len * SAMPLING_RATE[MuseDataType.EEG])
-        self.eeg_timestamps = np.zeros(self.window_len_n)
-        self.eeg_data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
-        self.eeg_plot_layout_widget = pg.GraphicsLayoutWidget()
-        self.eeg_plot_widget = self.eeg_plot_layout_widget.addPlot(title="EEG Data")
-        self.eeg_plot_widget.setYRange(-1500, 1500)
-        self.eeg_plot_widget_curves = [self.eeg_plot_widget.plot(pen=pg.mkPen(color)) for color in ['r', 'g', 'b', 'y']]
         
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_eeg_plot)
-        self.timer.start(33)  # ~30 FPS
+        # self.window_len_n = int(self.config._display.window_len * SAMPLING_RATE[MuseDataType.EEG])
+        # self.eeg_timestamps = np.zeros(self.window_len_n)
+        # self.eeg_data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
+        # self.eeg_plot_layout_widget = pg.GraphicsLayoutWidget()
+        # self.eeg_plot_widget = self.eeg_plot_layout_widget.addPlot(title="EEG Data")
+        # self.eeg_plot_widget.setYRange(-1500, 1500)
+        # self.eeg_plot_widget_curves = [self.eeg_plot_widget.plot(pen=pg.mkPen(color)) for color in ['r', 'g', 'b', 'y']]
+        
+        # self.timer = QTimer()
+        # self.timer.timeout.connect(self.update_eeg_plot)
+        # self.timer.start(33)  # ~30 FPS
+        matplotlib.use('TkAgg')
+        sns.set_theme(style="whitegrid")
+        sns.despine(left=True)
+
+        self.fig, self.axes = plt.subplots(1, 1, figsize=[15, 6], sharex=True)
+        self.eeg_nchan = len(CHANNEL_NAMES[MuseDataType.EEG])
+        self.eeg_ui_samples = int(self.config._display.window_len * SAMPLING_RATE[MuseDataType.EEG])
+        self.eeg_data = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
+        self.times = np.arange(-self.config._display.window_len, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
+        self.impedances = np.std(self.eeg_data, axis=0)
+        self.lines = []
+
+        for ii in range(self.eeg_nchan):
+            line, = self.axes.plot(self.times[::2], self.eeg_data[::2, ii] - ii, lw=1)
+            self.lines.append(line)
+
+        self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
+        ticks = np.arange(0, -self.eeg_nchan, -1)
+
+        self.axes.set_xlabel('Time (s)')
+        self.axes.xaxis.grid(False)
+        self.axes.set_yticks(ticks)
+
+        self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
+
+        self.display_every = 5
 
         # self.eeg_plot = EEGPlot(self.config._display)
         control_panel_widget = QWidget()
