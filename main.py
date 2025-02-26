@@ -129,7 +129,6 @@ class EEGApp(QWidget):
         self.config_panel_error_label.hide()
         config_panel_layout.addWidget(self.config_panel_error_label)
         
-        # TODO: implement EEG plotting 
         matplotlib.use('QtAgg')
         sns.set_theme(style="whitegrid")
         sns.despine(left=True)
@@ -138,13 +137,14 @@ class EEGApp(QWidget):
         self.eeg_nchan = len(CHANNEL_NAMES[MuseDataType.EEG])
         self.eeg_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config._display.window_len_s)
         # self.eeg_ui_samples = int(self.eeg_window_len_n * SAMPLING_RATE[MuseDataType.EEG])
+        self.times = np.arange(-self.config._display.window_len_s, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
         self.eeg_data = np.zeros((self.eeg_window_len_n, self.eeg_nchan))
         self.eeg_timestamps = np.linspace(-self.config._display.window_len_s, 0, self.eeg_window_len_n)
         self.impedances = np.std(self.eeg_data, axis=0)
         self.lines = []
 
         for ii in range(self.eeg_nchan):
-            line, = self.axes.plot(self.eeg_timestamps[::2], self.eeg_data[::2, ii] - ii, lw=1)
+            line, = self.axes.plot(self.times[::2], self.eeg_data[::2, ii] - ii, lw=1)
             self.lines.append(line)
 
         self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
@@ -342,8 +342,8 @@ class EEGApp(QWidget):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
                     timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
                     data = np.array(data)
-                    self.eeg_timestamps = np.concatenate([self.eeg_timestamps, timestamps])
-                    self.eeg_timestamps = self.eeg_timestamps[-self.eeg_window_len_n:]
+                    self.times = np.concatenate([self.times, timestamps])
+                    self.times = self.times[-self.eeg_window_len_n:]
                     self.eeg_data = np.vstack([self.eeg_data, data])
                     self.eeg_data = self.eeg_data[-self.eeg_window_len_n:]
                     self.process_eeg(timestamps, np.array(data))
@@ -351,7 +351,7 @@ class EEGApp(QWidget):
                     if display_every_counter == self.config._display.display_every:
                         plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
                         for ii in range(4):
-                            self.lines[ii].set_xdata(self.eeg_timestamps[::2] - self.eeg_timestamps[-1])
+                            self.lines[ii].set_xdata(self.times[::2] - self.times[-1])
                             self.lines[ii].set_ydata(plot_data[::2, ii] / 100 - ii)
                             self.impedances = np.std(plot_data, axis=0)
 
