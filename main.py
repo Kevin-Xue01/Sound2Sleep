@@ -129,17 +129,7 @@ class EEGApp(QWidget):
         self.config_panel_error_label.hide()
         config_panel_layout.addWidget(self.config_panel_error_label)
         
-        # self.window_len_n = int(self.config._display.window_len * SAMPLING_RATE[MuseDataType.EEG])
-        # self.eeg_timestamps = np.zeros(self.window_len_n)
-        # self.eeg_data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
-        # self.eeg_plot_layout_widget = pg.GraphicsLayoutWidget()
-        # self.eeg_plot_widget = self.eeg_plot_layout_widget.addPlot(title="EEG Data")
-        # self.eeg_plot_widget.setYRange(-1500, 1500)
-        # self.eeg_plot_widget_curves = [self.eeg_plot_widget.plot(pen=pg.mkPen(color)) for color in ['r', 'g', 'b', 'y']]
-        
-        # self.timer = QTimer()
-        # self.timer.timeout.connect(self.update_eeg_plot)
-        # self.timer.start(33)  # ~30 FPS
+        # TODO: implement EEG plotting 
         matplotlib.use('TkAgg')
         sns.set_theme(style="whitegrid")
         sns.despine(left=True)
@@ -166,7 +156,7 @@ class EEGApp(QWidget):
         self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
 
         self.display_every = 5
-
+        self.eeg_plot_widget = FigureCanvas(self.fig)
         # self.eeg_plot = EEGPlot(self.config._display)
         control_panel_widget = QWidget()
         control_panel_layout = QVBoxLayout(control_panel_widget)
@@ -219,15 +209,16 @@ class EEGApp(QWidget):
         right_panel.addWidget(config_panel_widget)
         
         # main_layout.addWidget(self.eeg_plot, stretch=1)
-        main_layout.addWidget(self.eeg_plot_layout_widget)
+        # main_layout.addWidget(self.eeg_plot_layout_widget)
+        main_layout.addWidget(self.eeg_plot_widget)
         main_layout.addLayout(right_panel)
         
         self.setLayout(main_layout)
         self.setWindowTitle("Sound2Sleep: CLAS at Home")
 
-    def update_eeg_plot(self):
-        for i, curve in enumerate(self.eeg_plot_widget_curves):
-            curve.setData(self.eeg_timestamps[::2], self.eeg_data[::2, i])
+    # def update_eeg_plot(self):
+    #     for i, curve in enumerate(self.eeg_plot_widget_curves):
+    #         curve.setData(self.eeg_timestamps[::2], self.eeg_data[::2, i])
 
     def update_experiment_mode(self, index):
         selected_experiment_mode = ExperimentMode(self.experiment_dropdown.itemText(index))
@@ -342,18 +333,33 @@ class EEGApp(QWidget):
 
     def eeg_callback(self):
         no_data_counter = 0
+        display_every_counter = 0
         while self.running_stream:
             time.sleep(DELAYS[MuseDataType.EEG])
             try:
                 data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=DELAYS[MuseDataType.EEG], max_samples=CHUNK_SIZE[MuseDataType.EEG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
                     timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
-
+                    data = np.array(data)
                     self.eeg_timestamps = np.concatenate([self.eeg_timestamps, timestamps])
-                    self.eeg_timestamps = self.eeg_timestamps[-self.window_len_n:]
+                    self.eeg_timestamps = self.eeg_timestamps[-self.config.window_len_s:]
                     self.eeg_data = np.vstack([self.eeg_data, data])
-                    self.eeg_data = self.eeg_data[-self.window_len_n:]
+                    self.eeg_data = self.eeg_data[-self.config.window_len_s:]
                     self.process_eeg(timestamps, np.array(data))
+
+                    if display_every_counter == self.config._display.display_every:
+                        # if self.filt:
+                        #     plot_data = self.data_f
+                        # elif not self.filt:
+                        plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
+                        for ii in range(4):
+                            self.lines[ii].set_xdata(self.eeg_timestamps[::2] - self.eeg_timestamps[-1])
+                            self.lines[ii].set_ydata(plot_data[::2, ii] - ii)
+                            self.impedances = np.std(plot_data, axis=0)
+
+                        self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
+                        self.axes.set_xlim(-self.config._display.window_len, 0)
+                        self.eeg_plot_widget.draw()
                 else:
                     no_data_counter += 1
 
