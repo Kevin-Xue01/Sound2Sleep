@@ -130,7 +130,7 @@ class EEGApp(QWidget):
         config_panel_layout.addWidget(self.config_panel_error_label)
         
         # TODO: implement EEG plotting 
-        matplotlib.use('TkAgg')
+        matplotlib.use('QtAgg')
         sns.set_theme(style="whitegrid")
         sns.despine(left=True)
 
@@ -138,7 +138,7 @@ class EEGApp(QWidget):
         self.eeg_nchan = len(CHANNEL_NAMES[MuseDataType.EEG])
         self.eeg_ui_samples = int(self.config._display.window_len * SAMPLING_RATE[MuseDataType.EEG])
         self.eeg_data = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
-        self.times = np.arange(-self.config._display.window_len, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
+        self.eeg_timestamps = np.arange(-self.config._display.window_len, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
         self.impedances = np.std(self.eeg_data, axis=0)
         self.lines = []
 
