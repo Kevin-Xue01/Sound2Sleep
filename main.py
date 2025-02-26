@@ -136,10 +136,10 @@ class EEGApp(QWidget):
 
         self.fig, self.axes = plt.subplots(1, 1, figsize=[15, 6], sharex=True)
         self.eeg_nchan = len(CHANNEL_NAMES[MuseDataType.EEG])
-        self.eeg_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config._display.window_len)
-        self.eeg_ui_samples = int(self.eeg_window_len_n * SAMPLING_RATE[MuseDataType.EEG])
-        self.eeg_data = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
-        self.eeg_timestamps = np.arange(-self.eeg_window_len_n, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
+        self.eeg_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config._display.window_len_s)
+        # self.eeg_ui_samples = int(self.eeg_window_len_n * SAMPLING_RATE[MuseDataType.EEG])
+        self.eeg_data = np.zeros((self.eeg_window_len_n, self.eeg_nchan))
+        self.eeg_timestamps = np.linspace(-self.config._display.window_len_s, 0, self.eeg_window_len_n)
         self.impedances = np.std(self.eeg_data, axis=0)
         self.lines = []
 
@@ -349,13 +349,10 @@ class EEGApp(QWidget):
                     self.process_eeg(timestamps, np.array(data))
 
                     if display_every_counter == self.config._display.display_every:
-                        # if self.filt:
-                        #     plot_data = self.data_f
-                        # elif not self.filt:
                         plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
                         for ii in range(4):
                             self.lines[ii].set_xdata(self.eeg_timestamps[::2] - self.eeg_timestamps[-1])
-                            self.lines[ii].set_ydata(plot_data[::2, ii] - ii)
+                            self.lines[ii].set_ydata(plot_data[::2, ii] / 100 - ii)
                             self.impedances = np.std(plot_data, axis=0)
 
                         self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])

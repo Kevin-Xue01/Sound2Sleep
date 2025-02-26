@@ -22,7 +22,7 @@ class AudioConfig(BaseModel):
     total_s: float = 3.0
 
 class DisplayConfig(BaseModel):
-    window_len: float = 5.0
+    window_len_s: float = 5.0
     display_every: int = 2
 
 class SessionConfig(BaseModel):
