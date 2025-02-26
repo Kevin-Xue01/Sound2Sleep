@@ -60,15 +60,6 @@ from utils import (  # EEGProcessor,
 )
 
 
-class DataWorker(QRunnable):
-    def __init__(self, task_func):
-        super().__init__()
-        self.task_func = task_func
-
-    def run(self):
-        self.task_func()
-
-
 class EEGApp(QWidget):
     def __init__(self):
         super().__init__()
@@ -471,9 +462,9 @@ class EEGApp(QWidget):
             time.sleep(3)
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
             self.on_connected()
-            if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
-            if self.stream_inlet[MuseDataType.ACC] is not None: self.threadpool.start(DataWorker(self.acc_callback))
-            if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
+            if self.stream_inlet[MuseDataType.EEG] is not None: QTimer.singleShot(1000, self.eeg_callback)
+            if self.stream_inlet[MuseDataType.ACC] is not None: QTimer.singleShot(1000, self.acc_callback)
+            if self.stream_inlet[MuseDataType.PPG] is not None: QTimer.singleShot(1000, self.ppg_callback)
         
     def start_bluemuse(self):
         subprocess.call('start bluemuse:', shell=True)
@@ -491,9 +482,10 @@ class EEGApp(QWidget):
             time.sleep(3)
         self.on_connected()
         self.running_stream = True
-        if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
-        if self.stream_inlet[MuseDataType.ACC] is not None: self.threadpool.start(DataWorker(self.acc_callback))
-        if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
+        
+        if self.stream_inlet[MuseDataType.EEG] is not None: QTimer.singleShot(1000, self.eeg_callback)
+        if self.stream_inlet[MuseDataType.ACC] is not None: QTimer.singleShot(1000, self.acc_callback)
+        if self.stream_inlet[MuseDataType.PPG] is not None: QTimer.singleShot(1000, self.ppg_callback)
         
     def stop_bluemuse(self):
         self.running_stream = False
