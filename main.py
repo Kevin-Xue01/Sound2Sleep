@@ -1,16 +1,30 @@
 import ctypes
 import json
+import subprocess
 import sys
 import time
+import traceback
 from functools import partial
+from threading import Thread, Timer
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import psutil
 import pyqtgraph as pg
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from muselsl.constants import LSL_SCAN_TIMEOUT
 from pydantic import ValidationError
-from PyQt5.QtCore import Qt, QThread, QThreadPool, QTimer, pyqtSignal
+from pylsl import StreamInfo, StreamInlet, resolve_byprop
+from PyQt5.QtCore import (
+    QObject,
+    QRunnable,
+    Qt,
+    QThread,
+    QThreadPool,
+    QTimer,
+    pyqtSignal,
+)
 from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
@@ -24,11 +38,14 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from scipy.signal import firwin, lfilter, lfilter_zi
 
 from utils import (  # EEGProcessor,
     CHANNEL_NAMES,
     CHUNK_SIZE,
+    DELAYS,
     SAMPLING_RATE,
+    TIMESTAMPS,
     AppState,
     Audio,
     BlueMuse,
@@ -42,20 +59,42 @@ from utils import (  # EEGProcessor,
 )
 
 
-class EEGApp(QWidget):
-    pool = QThreadPool.globalInstance()
+class DataWorker(QRunnable):
+    def __init__(self, task_func):
+        super().__init__()
+        self.task_func = task_func
 
+    def run(self):
+        self.task_func()
+
+
+class EEGApp(QWidget):
     def __init__(self):
         super().__init__()
+        self.threadpool = QThreadPool.globalInstance()
         self.app_state = AppState.DISCONNECTED
         self.elapsed_time = 0  # Elapsed time in seconds
         self.last_stim_line = None
+        self.reset_attempt_count = 0
 
         self.config = SessionConfig()
         self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
         
         self.init_ui()
+
+        self.stream_info: dict[MuseDataType, Union[StreamInfo, None]] = {
+            MuseDataType.EEG: None,
+            MuseDataType.ACCELEROMETER: None,
+            MuseDataType.PPG: None
+        }
+        self.stream_inlet: dict[MuseDataType, Union[StreamInlet, None]] = {
+            MuseDataType.EEG: None,
+            MuseDataType.ACCELEROMETER: None,
+            MuseDataType.PPG: None
+        }
+
+        self.running_stream = False
 
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
@@ -214,10 +253,10 @@ class EEGApp(QWidget):
             self.elapsed_time = 0  # Reset elapsed time on start
             self.elapsed_time_timer.start(1000)  # Update every second
             self.file_writer = FileWriter(self.config._session_key)
-            self.blue_muse.eeg_data_ready.connect(self.file_writer.write_eeg_data)
+            # self.blue_muse.eeg_data_ready.connect(self.file_writer.write_eeg_data)
 
         elif self.app_state == AppState.RECORDING:
-            self.blue_muse.eeg_data_ready.disconnect(self.file_writer.write_eeg_data)
+            # self.blue_muse.eeg_data_ready.disconnect(self.file_writer.write_eeg_data)
             self.app_state = AppState.CONNECTED
             self.record_button.setText("Start Recording")
             self.elapsed_time_timer.stop()  # Stop the timer
@@ -231,10 +270,6 @@ class EEGApp(QWidget):
         self.config = config
         self.logger.update_session_key(self.config._session_key)
         self.file_writer.update_session_key(config._session_key)
-
-        if self.app_state == AppState.CONNECTED or self.app_state == AppState.RECORDING:
-            self.stop_bluemuse()
-            QTimer.singleShot(3000, self.start_bluemuse)
 
     def save_config(self):
         """Parse the JSON from the editor and update the config model."""
@@ -252,61 +287,243 @@ class EEGApp(QWidget):
             self.config_panel_error_label.setText(str("\n".join([f'{k}: {v}' for k, v in e.errors()[0].items() if k != "url"])))  # Display the first error message
             self.config_panel_error_label.show()
 
-    def start_bluemuse(self):
-        self.blue_muse = BlueMuse(self.config)
-        self.eeg_processor = EEGProcessor(self.config)
+    # def start_bluemuse(self):
+    #     self.blue_muse = BlueMuse(self.config)
+    #     self.eeg_processor = EEGProcessor(self.config)
 
-        self.blue_muse_thread = QThread()
-        self.eeg_processor_thread = QThread()
+    #     self.blue_muse_thread = QThread()
+    #     self.eeg_processor_thread = QThread()
 
-        self.blue_muse.moveToThread(self.blue_muse_thread)
-        self.eeg_processor.moveToThread(self.eeg_processor_thread)
+    #     self.blue_muse.moveToThread(self.blue_muse_thread)
+    #     self.eeg_processor.moveToThread(self.eeg_processor_thread)
 
-        self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._session_key))
+    #     self.blue_muse_thread.started.connect(partial(self.blue_muse.run, self.config._session_key))
 
-        self.blue_muse.connected.connect(self.on_connected)
-        self.blue_muse.connected.connect(lambda: self.connection_timeout_error_label.hide())
-        self.blue_muse.disconnected.connect(self.on_disconnected)
-        self.blue_muse.connection_timeout.connect(self.on_connection_timeout)
-        self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
-        self.blue_muse.eeg_data_ready.connect(self.update_eeg_data)
+    #     self.blue_muse.connected.connect(self.on_connected)
+    #     self.blue_muse.connected.connect(lambda: self.connection_timeout_error_label.hide())
+    #     self.blue_muse.disconnected.connect(self.on_disconnected)
+    #     self.blue_muse.connection_timeout.connect(self.on_connection_timeout)
+    #     self.blue_muse.eeg_data_ready.connect(self.eeg_processor.process_data)
+    #     self.blue_muse.eeg_data_ready.connect(self.update_eeg_data)
 
-        self.eeg_processor.stim.connect(self.draw_stim)
+    #     self.eeg_processor.stim.connect(self.draw_stim)
 
-        self.blue_muse_thread.start()
-        self.eeg_processor_thread.start()
+    #     self.blue_muse_thread.start()
+    #     self.eeg_processor_thread.start()
 
-    def draw_stim(self, timestamp):
-        if self.last_stim_line:
-            self.eeg_plot_widget.removeItem(self.last_stim_line)  # Remove old stim marker
+    # def draw_stim(self, timestamp):
+    #     if self.last_stim_line:
+    #         self.eeg_plot_widget.removeItem(self.last_stim_line)  # Remove old stim marker
 
-        self.last_stim_line = pg.InfiniteLine(pos=timestamp, angle=90, pen='r')
-        self.eeg_plot_widget.addItem(self.last_stim_line)
+    #     self.last_stim_line = pg.InfiniteLine(pos=timestamp, angle=90, pen='r')
+    #     self.eeg_plot_widget.addItem(self.last_stim_line)
 
-    def update_eeg_data(self, timestamps, data):
-        self.eeg_timestamps = np.concatenate([self.eeg_timestamps, timestamps])
-        self.eeg_timestamps = self.eeg_timestamps[-self.window_len_n:]
-        self.eeg_data = np.vstack([self.eeg_data, data])
-        self.eeg_data = self.eeg_data[-self.window_len_n:]
+    # def update_eeg_data(self, timestamps, data):
+    #     self.eeg_timestamps = np.concatenate([self.eeg_timestamps, timestamps])
+    #     self.eeg_timestamps = self.eeg_timestamps[-self.window_len_n:]
+    #     self.eeg_data = np.vstack([self.eeg_data, data])
+    #     self.eeg_data = self.eeg_data[-self.window_len_n:]
 
-    def stop_bluemuse(self):
-        if self.blue_muse_thread.isRunning():
-            self.blue_muse.stop()
-            self.blue_muse_thread.quit()
-            self.blue_muse_thread.wait()
-            self.blue_muse = None
-            self.blue_muse_thread = None
+    # def stop_bluemuse(self):
+    #     if self.blue_muse_thread.isRunning():
+    #         self.blue_muse.stop()
+    #         self.blue_muse_thread.quit()
+    #         self.blue_muse_thread.wait()
+    #         self.blue_muse = None
+    #         self.blue_muse_thread = None
 
-        if self.eeg_processor_thread.isRunning():
-            self.eeg_processor.stop()
-            self.eeg_processor_thread.quit()
-            self.eeg_processor_thread.wait()
-            self.eeg_processor = None
-            self.eeg_processor_thread = None
+    #     if self.eeg_processor_thread.isRunning():
+    #         self.eeg_processor.stop()
+    #         self.eeg_processor_thread.quit()
+    #         self.eeg_processor_thread.wait()
+    #         self.eeg_processor = None
+    #         self.eeg_processor_thread = None
 
     def play_audio(self):
-        self.pool.start(self.audio.run)
+        self.threadpool.start(self.audio.run)
 
+    def screenoff(self):
+        ''' Darken the screen by starting the blank screensaver '''
+        try:
+            subprocess.call(['C:\Windows\System32\scrnsave.scr', '/start'])
+        except Exception as ex:
+            self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+
+    def lsl_reload(self):
+        eeg_ok = False
+        
+        for stream in MuseDataType:
+            self.stream_info[stream] = resolve_byprop('type', stream.value, timeout=LSL_SCAN_TIMEOUT)
+
+            if self.stream_info[stream]:
+                self.stream_info[stream] = self.stream_info[stream][0]
+                self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
+                self.logger.info(f'{stream.name} OK.')
+                if stream == MuseDataType.EEG: eeg_ok = True
+            else:
+                self.logger.warning(f'{stream.name} not found.')
+        return eeg_ok
+
+    def eeg_callback(self):
+        no_data_counter = 0
+        while self.running_stream:
+            time.sleep(DELAYS[MuseDataType.EEG])
+            try:
+                data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.EEG])
+                if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
+                    timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
+
+                    self.process_eeg(timestamps, np.array(data))
+                else:
+                    no_data_counter += 1
+
+                    if no_data_counter > 64:
+                        Timer(2, self.lsl_reset_stream_step1).start()
+                        self.running_stream = False
+
+            except Exception as ex:
+                self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+
+        self.logger.info('EEG thread stopped')
+
+    def acc_callback(self):
+        no_data_counter = 0
+        while self.running_stream:
+            time.sleep(DELAYS[MuseDataType.ACCELEROMETER])
+            try:
+                data, timestamps = self.stream_inlet[MuseDataType.ACCELEROMETER].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.ACCELEROMETER])
+                if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACCELEROMETER]:
+                    timestamps = TIMESTAMPS[MuseDataType.ACCELEROMETER] + np.float64(time.time())
+
+                    self.process_acc(timestamps, np.array(data))
+                else:
+                    no_data_counter += 1
+
+                    if no_data_counter > 64:
+                        Timer(2, self.lsl_reset_stream_step1).start()
+                        self.running_stream = False
+
+            except Exception as ex:
+                self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+
+        self.logger.info('ACC thread stopped')
+
+    def ppg_callback(self):
+        no_data_counter = 0
+        while self.running_stream:
+            time.sleep(DELAYS[MuseDataType.PPG])
+            try:
+                data, timestamps = self.stream_inlet[MuseDataType.PPG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.PPG])
+                if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
+                    timestamps = TIMESTAMPS[MuseDataType.PPG] + np.float64(time.time())
+
+                    self.process_ppg(timestamps, np.array(data))
+                else:
+                    no_data_counter += 1
+
+                    if no_data_counter > 64:
+                        Timer(2, self.lsl_reset_stream_step1).start()
+                        self.running_stream = False
+
+            except Exception as ex:
+                self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+
+        self.logger.info('PPG thread stopped')
+
+    def process_eeg(self, timestamps: np.ndarray, data: np.ndarray):
+        self.logger.info(timestamps)
+        self.logger.info(data)
+
+    def process_acc(self, timestamps: np.ndarray, data: np.ndarray):
+        self.logger.info(timestamps)
+        self.logger.info(data)
+
+    def process_ppg(self, timestamps: np.ndarray, data: np.ndarray):
+        self.logger.info(timestamps)
+        self.logger.info(data)
+
+    def lsl_reset_stream_step1(self):
+        self.on_connection_timeout()
+        self.logger.info('Resetting stream step 1')
+        subprocess.call('start bluemuse://stop?stopall', shell=True)
+        time.sleep(3)
+        self.lsl_reset_stream_step2()
+
+
+    def lsl_reset_stream_step2(self):
+        self.logger.info('Resetting stream step 2')
+        subprocess.call('start bluemuse://start?startall', shell=True)
+        time.sleep(3)
+        self.lsl_reset_stream_step3()
+
+    def lsl_reset_stream_step3(self):
+        self.logger.info('Resetting stream step 3')
+        reset_success = self.lsl_reload()
+
+        if not reset_success:
+            self.logger.info('LSL stream reset successful. Starting threads')
+            self.reset_attempt_count += 1
+            if self.reset_attempt_count <= 3:
+                self.logger.info('Resetting Attempt: ' + str(self.reset_attempt_count))
+                self.lsl_reset_stream_step1() 
+            else:
+                self.reset_attempt_count = 0
+
+                for p in psutil.process_iter(['name']):
+                    print(p.info)
+                    if p.info['name'] == 'BlueMuse.exe':
+                        self.logger.info('Killing BlueMuse')
+                        p.kill()
+
+                time.sleep(2)
+                self.lsl_reset_stream_step1()
+        else:
+            self.reset_attempt_count = 0
+            self.logger.info('LSL stream reset successful. Starting threads')
+            time.sleep(3)
+            subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+
+            if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
+            if self.stream_inlet[MuseDataType.ACCELEROMETER] is not None: self.threadpool.start(DataWorker(self.acc_callback))
+            if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
+        
+    def start_bluemuse(self):
+        subprocess.call('start bluemuse:', shell=True)
+        subprocess.call('start bluemuse://setting?key=primary_timestamp_format!value=BLUEMUSE', shell=True)
+        subprocess.call('start bluemuse://setting?key=channel_data_type!value=float32', shell=True)
+        subprocess.call('start bluemuse://setting?key=eeg_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=accelerometer_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+
+        time.sleep(3)
+        while not self.lsl_reload():
+            self.logger.error(f"LSL streams not found, retrying in 3 seconds") 
+            time.sleep(3)
+        self.on_connected()
+        self.running_stream = True
+        if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
+        if self.stream_inlet[MuseDataType.ACCELEROMETER] is not None: self.threadpool.start(DataWorker(self.acc_callback))
+        if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
+        
+    def stop_bluemuse(self):
+        self.running_stream = False
+        try:
+            for _stream_inlet in self.stream_inlet.values():
+                if _stream_inlet is not None:
+                    _stream_inlet.close_stream()
+        except Exception as ex:
+            self.logger.critical(str(ex))
+
+        subprocess.call('start bluemuse://stop?stopall', shell=True)
+        subprocess.call('start bluemuse://shutdown', shell=True)
+
+        for p in psutil.process_iter(['name']):
+            if p.info['name'] == 'BlueMuse.exe':
+                self.logger.info('Killing BlueMuse')
+                p.kill()
+        self.on_disconnected()
 
 class EEGPlot(pg.GraphicsLayoutWidget):
     def __init__(self, config: DisplayConfig):
