@@ -315,9 +315,9 @@ class EEGApp(QWidget):
     def eeg_callback(self):
         no_data_counter = 0
         while self.running_stream:
-            time.sleep(DELAYS[MuseDataType.EEG])
+            # time.sleep(DELAYS[MuseDataType.EEG])
             try:
-                data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.EEG])
+                data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=DELAYS[MuseDataType.EEG], max_samples=CHUNK_SIZE[MuseDataType.EEG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
                     timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
 
@@ -341,9 +341,9 @@ class EEGApp(QWidget):
     def acc_callback(self):
         no_data_counter = 0
         while self.running_stream:
-            time.sleep(DELAYS[MuseDataType.ACC])
+            # time.sleep(DELAYS[MuseDataType.ACC])
             try:
-                data, timestamps = self.stream_inlet[MuseDataType.ACC].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.ACC])
+                data, timestamps = self.stream_inlet[MuseDataType.ACC].pull_chunk(timeout=DELAYS[MuseDataType.ACC], max_samples=CHUNK_SIZE[MuseDataType.ACC])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACC]:
                     timestamps = TIMESTAMPS[MuseDataType.ACC] + np.float64(time.time())
 
@@ -363,9 +363,9 @@ class EEGApp(QWidget):
     def ppg_callback(self):
         no_data_counter = 0
         while self.running_stream:
-            time.sleep(DELAYS[MuseDataType.PPG])
+            # time.sleep(DELAYS[MuseDataType.PPG])
             try:
-                data, timestamps = self.stream_inlet[MuseDataType.PPG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.PPG])
+                data, timestamps = self.stream_inlet[MuseDataType.PPG].pull_chunk(timeout=DELAYS[MuseDataType.PPG], max_samples=CHUNK_SIZE[MuseDataType.PPG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
                     timestamps = TIMESTAMPS[MuseDataType.PPG] + np.float64(time.time())
 
