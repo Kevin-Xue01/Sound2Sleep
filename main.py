@@ -60,6 +60,15 @@ from utils import (  # EEGProcessor,
 )
 
 
+class DataWorker(QRunnable):
+    def __init__(self, task_func):
+        super().__init__()
+        self.task_func = task_func
+
+    def run(self):
+        self.task_func()
+
+
 class EEGApp(QWidget):
     def __init__(self):
         super().__init__()
@@ -342,8 +351,8 @@ class EEGApp(QWidget):
                     if display_every_counter == self.config._display.display_every:
                         plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
                         for ii in range(4):
-                            self.lines[ii].set_xdata(self.times[::2] - self.times[-1])
-                            self.lines[ii].set_ydata(plot_data[::2, ii] / 100 - ii)
+                            self.lines[ii].set_xdata(self.times[::4] - self.times[-1])
+                            self.lines[ii].set_ydata(plot_data[::4, ii] / 100 - ii)
                             self.impedances = np.std(plot_data, axis=0)
 
                         self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
@@ -462,9 +471,9 @@ class EEGApp(QWidget):
             time.sleep(3)
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
             self.on_connected()
-            if self.stream_inlet[MuseDataType.EEG] is not None: QTimer.singleShot(1000, self.eeg_callback)
-            if self.stream_inlet[MuseDataType.ACC] is not None: QTimer.singleShot(1000, self.acc_callback)
-            if self.stream_inlet[MuseDataType.PPG] is not None: QTimer.singleShot(1000, self.ppg_callback)
+            if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
+            if self.stream_inlet[MuseDataType.ACC] is not None: self.threadpool.start(DataWorker(self.acc_callback))
+            if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
         
     def start_bluemuse(self):
         subprocess.call('start bluemuse:', shell=True)
@@ -482,10 +491,9 @@ class EEGApp(QWidget):
             time.sleep(3)
         self.on_connected()
         self.running_stream = True
-        
-        if self.stream_inlet[MuseDataType.EEG] is not None: QTimer.singleShot(1000, self.eeg_callback)
-        if self.stream_inlet[MuseDataType.ACC] is not None: QTimer.singleShot(1000, self.acc_callback)
-        if self.stream_inlet[MuseDataType.PPG] is not None: QTimer.singleShot(1000, self.ppg_callback)
+        if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
+        if self.stream_inlet[MuseDataType.ACC] is not None: self.threadpool.start(DataWorker(self.acc_callback))
+        if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
         
     def stop_bluemuse(self):
         self.running_stream = False
