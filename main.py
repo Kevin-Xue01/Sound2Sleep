@@ -143,7 +143,7 @@ class EEGApp(QWidget):
         self.lines = []
 
         for ii in range(self.eeg_nchan):
-            line, = self.axes.plot(self.times[::2], self.eeg_data[::2, ii] - ii, lw=1)
+            line, = self.axes.plot(self.eeg_timestamps[::2], self.eeg_data[::2, ii] - ii, lw=1)
             self.lines.append(line)
 
         self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
