@@ -4,8 +4,7 @@ import subprocess
 import sys
 import time
 import traceback
-from functools import partial
-from threading import Thread, Timer
+from threading import Timer
 from typing import Union
 
 import matplotlib.pyplot as plt
@@ -236,6 +235,7 @@ class EEGApp(QWidget):
         self.record_button.setEnabled(True)
         self.experiment_dropdown.setEnabled(True)
         self.param_config_editor.setEnabled(True)
+        self.connection_timeout_error_label.hide()
 
     def on_disconnected(self):
         self.app_state = AppState.DISCONNECTED
@@ -435,7 +435,7 @@ class EEGApp(QWidget):
             self.logger.info('LSL stream reset successful. Starting threads')
             time.sleep(3)
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
-
+            self.on_connected()
             if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
             if self.stream_inlet[MuseDataType.ACC] is not None: self.threadpool.start(DataWorker(self.acc_callback))
             if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
