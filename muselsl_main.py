@@ -62,9 +62,11 @@ if __name__ == "__main__":
     if not muses:
         print('No Muses found')
     else:
-        # Start streaming in a separate thread
-        stream_thread = Thread(target=start_stream, args=(muses[0]['address'],), daemon=True)
-        stream_thread.start()
+        # Start EEG viewer in a separate thread
+        view_thread = Thread(target=view, args=(5, 100, 0.2, "10x5", "TkAgg"), daemon=True)
+        view_thread.start()
 
-        # Start the viewer in the main thread
-        view(5, 100, 0.2, "15x6", 'TkAgg')
+        # Start streaming in the main thread to avoid BleakError
+        stream(muses[0]['address'])
+
+        print('Stream has ended')
