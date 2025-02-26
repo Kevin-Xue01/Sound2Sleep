@@ -343,9 +343,9 @@ class EEGApp(QWidget):
                     timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
                     data = np.array(data)
                     self.eeg_timestamps = np.concatenate([self.eeg_timestamps, timestamps])
-                    self.eeg_timestamps = self.eeg_timestamps[-self.config.window_len_s:]
+                    self.eeg_timestamps = self.eeg_timestamps[-self.eeg_window_len_n:]
                     self.eeg_data = np.vstack([self.eeg_data, data])
-                    self.eeg_data = self.eeg_data[-self.config.window_len_s:]
+                    self.eeg_data = self.eeg_data[-self.eeg_window_len_n:]
                     self.process_eeg(timestamps, np.array(data))
 
                     if display_every_counter == self.config._display.display_every:
