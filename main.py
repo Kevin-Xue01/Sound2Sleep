@@ -5,7 +5,7 @@ import sys
 import time
 import traceback
 from functools import partial
-from threading import Timer
+from threading import Thread, Timer
 from typing import Union
 
 import matplotlib
@@ -212,7 +212,7 @@ class EEGApp(QWidget):
         
         # main_layout.addWidget(self.eeg_plot, stretch=1)
         # main_layout.addWidget(self.eeg_plot_layout_widget)
-        main_layout.addWidget(self.eeg_plot_widget)
+        # main_layout.addWidget(self.eeg_plot_widget)
         main_layout.addLayout(right_panel)
         
         self.setLayout(main_layout)
@@ -274,10 +274,8 @@ class EEGApp(QWidget):
             self.elapsed_time = 0  # Reset elapsed time on start
             self.elapsed_time_timer.start(1000)  # Update every second
             self.file_writer = FileWriter(self.config._session_key)
-            # self.blue_muse.eeg_data_ready.connect(self.file_writer.write_eeg_data)
 
         elif self.app_state == AppState.RECORDING:
-            # self.blue_muse.eeg_data_ready.disconnect(self.file_writer.write_eeg_data)
             self.app_state = AppState.CONNECTED
             self.record_button.setText("Start Recording")
             self.elapsed_time_timer.stop()  # Stop the timer
@@ -349,20 +347,21 @@ class EEGApp(QWidget):
                     self.times = self.times[-self.eeg_window_len_n:]
                     self.eeg_data = np.vstack([self.eeg_data, data])
                     self.eeg_data = self.eeg_data[-self.eeg_window_len_n:]
+                    self.process_eeg(timestamps, data)
+                    self.file_writer.write_eeg_data(timestamps, data)
+                    # if display_every_counter == self.config._display.display_every:
+                    #     plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
+                    #     for ii in range(4):
+                    #         self.lines[ii].set_xdata(self.times[::4] - self.times[-1])
+                    #         self.lines[ii].set_ydata(plot_data[::4, ii] / 100 - ii)
+                    #         self.impedances = np.std(plot_data, axis=0)
 
-                    if display_every_counter == self.config._display.display_every:
-                        plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
-                        for ii in range(4):
-                            self.lines[ii].set_xdata(self.times[::4] - self.times[-1])
-                            self.lines[ii].set_ydata(plot_data[::4, ii] / 100 - ii)
-                            self.impedances = np.std(plot_data, axis=0)
-
-                        self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-                        self.axes.set_xlim(-self.config._display.window_len_s, 0)
-                        self.eeg_plot_widget.draw()
-                        display_every_counter = 0
-                    else:
-                        display_every_counter += 1
+                    #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
+                    #     self.axes.set_xlim(-self.config._display.window_len_s, 0)
+                    #     self.eeg_plot_widget.draw()
+                    #     display_every_counter = 0
+                    # else:
+                    #     display_every_counter += 1
                 else:
                     no_data_counter += 1
 
@@ -383,8 +382,9 @@ class EEGApp(QWidget):
                 data, timestamps = self.stream_inlet[MuseDataType.ACC].pull_chunk(timeout=DELAYS[MuseDataType.ACC], max_samples=CHUNK_SIZE[MuseDataType.ACC])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACC]:
                     timestamps = TIMESTAMPS[MuseDataType.ACC] + np.float64(time.time())
+                    data = np.array(data)
 
-                    self.process_acc(timestamps, np.array(data))
+                    self.process_acc(timestamps, data)
                 else:
                     no_data_counter += 1
 
@@ -405,8 +405,9 @@ class EEGApp(QWidget):
                 data, timestamps = self.stream_inlet[MuseDataType.PPG].pull_chunk(timeout=DELAYS[MuseDataType.PPG], max_samples=CHUNK_SIZE[MuseDataType.PPG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
                     timestamps = TIMESTAMPS[MuseDataType.PPG] + np.float64(time.time())
+                    data = np.array(data)
 
-                    self.process_ppg(timestamps, np.array(data))
+                    self.process_ppg(timestamps, data)
                 else:
                     no_data_counter += 1
 
