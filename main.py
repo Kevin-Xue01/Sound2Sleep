@@ -335,9 +335,7 @@ class EEGApp(QWidget):
         no_data_counter = 0
         display_every_counter = 0
         while self.running_stream:
-            self.logger.info('Before sleeping EEG')
             time.sleep(DELAYS[MuseDataType.EEG])
-            self.logger.info('After sleeping EEG')
             try:
                 data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=DELAYS[MuseDataType.EEG], max_samples=CHUNK_SIZE[MuseDataType.EEG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
@@ -348,7 +346,7 @@ class EEGApp(QWidget):
                     self.eeg_data = np.vstack([self.eeg_data, data])
                     self.eeg_data = self.eeg_data[-self.eeg_window_len_n:]
                     self.process_eeg(timestamps, data)
-                    self.file_writer.write_eeg_data(timestamps, data)
+                    self.file_writer.write_chunk(timestamps, data)
                     # if display_every_counter == self.config._display.display_every:
                     #     plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
                     #     for ii in range(4):
