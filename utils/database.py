@@ -84,16 +84,20 @@ class FileReader:
         self.total_data_frames = data_file_size // self.data_frame_size
         self.total_timestamp_frames = timestamp_file_size // self.timestamp_frame_size
         
+        # Use min of both for consistency
+        self.total_frames = min(self.total_data_frames, self.total_timestamp_frames)
+        
         # Verify consistency
         if self.total_data_frames != self.total_timestamp_frames:
             print(f"Warning: Mismatch between data frames ({self.total_data_frames}) "
                   f"and timestamp frames ({self.total_timestamp_frames}).")
+            print(f"Using {self.total_frames} frames (minimum of both).")
     
     def read_frame(self, frame_index=None):
         # Seek to specific frame if requested
         if frame_index is not None:
-            if frame_index < 0 or frame_index >= self.total_data_frames:
-                raise IndexError(f"Frame index {frame_index} out of range (0-{self.total_data_frames-1})")
+            if frame_index < 0 or frame_index >= self.total_frames:
+                raise IndexError(f"Frame index {frame_index} out of range (0-{self.total_frames-1})")
             
             self.data_file.seek(frame_index * self.data_frame_size)
             self.timestamp_file.seek(frame_index * self.timestamp_frame_size)
@@ -118,7 +122,7 @@ class FileReader:
         self.data_file.seek(0)
         self.timestamp_file.seek(0)
         
-        for _ in range(self.total_data_frames):
+        for _ in range(self.total_frames):
             eeg_data, timestamp = self.read_frame()
             if eeg_data is None or timestamp is None:
                 break
