@@ -82,10 +82,11 @@ class EEGApp(QWidget):
         self.last_stim_line = None
         self.reset_attempt_count = 0
         self.processor_time_elapsed = 0.0
-        self.target_phase = self.config.target_phase
         self.config = SessionConfig()
         self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
+        self.target_phase = self.config.target_phase
+
         
         self.init_ui()
 
