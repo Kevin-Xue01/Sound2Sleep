@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 import traceback
+from functools import partial
 from threading import Timer
 from typing import Union
 
@@ -14,7 +15,6 @@ import psutil
 import pyqtgraph as pg
 import seaborn as sns
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from muselsl.constants import LSL_SCAN_TIMEOUT
 from pydantic import ValidationError
 from pylsl import StreamInfo, StreamInlet, resolve_byprop
 from PyQt5.QtCore import (
@@ -41,6 +41,7 @@ from PyQt5.QtWidgets import (
 )
 from scipy.signal import firwin, lfilter, lfilter_zi
 
+from muselsl.constants import LSL_SCAN_TIMEOUT
 from utils import (  # EEGProcessor,
     CHANNEL_NAMES,
     CHUNK_SIZE,
@@ -336,7 +337,9 @@ class EEGApp(QWidget):
         no_data_counter = 0
         display_every_counter = 0
         while self.running_stream:
+            self.logger.info('Before sleeping EEG')
             time.sleep(DELAYS[MuseDataType.EEG])
+            self.logger.info('After sleeping EEG')
             try:
                 data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=DELAYS[MuseDataType.EEG], max_samples=CHUNK_SIZE[MuseDataType.EEG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
@@ -346,7 +349,6 @@ class EEGApp(QWidget):
                     self.times = self.times[-self.eeg_window_len_n:]
                     self.eeg_data = np.vstack([self.eeg_data, data])
                     self.eeg_data = self.eeg_data[-self.eeg_window_len_n:]
-                    # self.process_eeg(timestamps, np.array(data))
 
                     if display_every_counter == self.config._display.display_every:
                         plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
@@ -382,7 +384,7 @@ class EEGApp(QWidget):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACC]:
                     timestamps = TIMESTAMPS[MuseDataType.ACC] + np.float64(time.time())
 
-                    # self.process_acc(timestamps, np.array(data))
+                    self.process_acc(timestamps, np.array(data))
                 else:
                     no_data_counter += 1
 
@@ -404,7 +406,7 @@ class EEGApp(QWidget):
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
                     timestamps = TIMESTAMPS[MuseDataType.PPG] + np.float64(time.time())
 
-                    # self.process_ppg(timestamps, np.array(data))
+                    self.process_ppg(timestamps, np.array(data))
                 else:
                     no_data_counter += 1
 
@@ -471,9 +473,13 @@ class EEGApp(QWidget):
             time.sleep(3)
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
             self.on_connected()
-            if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
-            if self.stream_inlet[MuseDataType.ACC] is not None: self.threadpool.start(DataWorker(self.acc_callback))
-            if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
+
+            for stream in MuseDataType:
+                if self.stream_inlet[stream] is not None:
+                    curr_thread = QThread(self)
+                    curr_thread.started.connect(self.eeg_callback)
+                    curr_thread.finished.connect(partial(self.logger.info, f"{str(stream)} thread stopped"))
+                    curr_thread.start()
         
     def start_bluemuse(self):
         subprocess.call('start bluemuse:', shell=True)
@@ -491,9 +497,12 @@ class EEGApp(QWidget):
             time.sleep(3)
         self.on_connected()
         self.running_stream = True
-        if self.stream_inlet[MuseDataType.EEG] is not None: self.threadpool.start(DataWorker(self.eeg_callback))
-        if self.stream_inlet[MuseDataType.ACC] is not None: self.threadpool.start(DataWorker(self.acc_callback))
-        if self.stream_inlet[MuseDataType.PPG] is not None: self.threadpool.start(DataWorker(self.ppg_callback))
+        for stream in MuseDataType:
+            if self.stream_inlet[stream] is not None:
+                curr_thread = QThread(self)
+                curr_thread.started.connect(self.eeg_callback)
+                curr_thread.finished.connect(partial(self.logger.info, f"{str(stream)} thread stopped"))
+                curr_thread.start()
         
     def stop_bluemuse(self):
         self.running_stream = False
