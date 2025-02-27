@@ -1,10 +1,13 @@
 import ctypes
 import json
+import random
 import subprocess
 import sys
 import time
 import traceback
+from datetime import datetime, timedelta
 from functools import partial
+from math import ceil, floor, isnan, nan, pi
 from threading import Thread, Timer
 from typing import Union
 
@@ -13,6 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import psutil
 import pyqtgraph as pg
+import scipy.signal as signal
 import seaborn as sns
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from pydantic import ValidationError
@@ -39,10 +43,9 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from scipy.signal import firwin, lfilter, lfilter_zi
 
 from muselsl.constants import LSL_SCAN_TIMEOUT
-from utils import (  # EEGProcessor,
+from utils import (
     CHANNEL_NAMES,
     CHUNK_SIZE,
     DELAYS,
@@ -53,6 +56,7 @@ from utils import (  # EEGProcessor,
     BlueMuse,
     DisplayConfig,
     EEGProcessor,
+    EEGProcessorOutput,
     ExperimentMode,
     FileWriter,
     Logger,
@@ -60,14 +64,13 @@ from utils import (  # EEGProcessor,
     SessionConfig,
 )
 
+# class DataWorker(QRunnable):
+#     def __init__(self, task_func):
+#         super().__init__()
+#         self.task_func = task_func
 
-class DataWorker(QRunnable):
-    def __init__(self, task_func):
-        super().__init__()
-        self.task_func = task_func
-
-    def run(self):
-        self.task_func()
+#     def run(self):
+#         self.task_func()
 
 
 class EEGApp(QWidget):
@@ -78,7 +81,8 @@ class EEGApp(QWidget):
         self.elapsed_time = 0  # Elapsed time in seconds
         self.last_stim_line = None
         self.reset_attempt_count = 0
-
+        self.processor_time_elapsed = 0.0
+        self.target_phase = self.config.target_phase
         self.config = SessionConfig()
         self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
@@ -98,6 +102,33 @@ class EEGApp(QWidget):
 
         self.running_stream = False
         self.file_writer = FileWriter(self.config._session_key)
+
+        self.amp_buffer = np.zeros(self.config.amp_buffer_len)
+        self.hl_ratio_buffer = np.zeros(self.config.hl_ratio_buffer_len)
+
+        self.window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config.window_len_s)
+        self.times = np.zeros(self.window_len_n)
+        self.data = np.zeros((self.window_len_n, len(CHANNEL_NAMES[MuseDataType.EEG])))
+
+        self.second_stim_start = nan
+        self.second_stim_end = nan
+
+        self.sos_low = signal.butter(self.config.bpf_order, self.config.low_bpf_cutoff, btype = 'bandpass', output = 'sos', fs = SAMPLING_RATE[MuseDataType.EEG])
+        self.sos_high = signal.butter(self.config.bpf_order, self.config.high_bpf_cutoff, btype = 'bandpass', output = 'sos', fs = SAMPLING_RATE[MuseDataType.EEG])
+
+        self.zi_low = signal.sosfilt_zi(self.sos_low)
+        self.zi_high = signal.sosfilt_zi(self.sos_high)
+
+        self.wavelet_freqs = np.linspace(self.config.truncated_wavelet.low, self.config.truncated_wavelet.high, self.config.truncated_wavelet.n)
+
+        trunc_wavelet_len = self.window_len_n * 2 # double the length of the signal
+        self.trunc_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = self.config.truncated_wavelet.w)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
+
+        self.selected_channel_ind = 0  # Default to channel 0
+        self.switch_channel_counter = 0
+        self.switch_channel_counter_max = int(self.config.switch_channel_period_s * SAMPLING_RATE[MuseDataType.EEG] / CHUNK_SIZE[MuseDataType.EEG])
+
+    
 
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
@@ -138,7 +169,6 @@ class EEGApp(QWidget):
         self.fig, self.axes = plt.subplots(1, 1, figsize=[15, 6], sharex=True)
         self.eeg_nchan = len(CHANNEL_NAMES[MuseDataType.EEG])
         self.eeg_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config._display.window_len_s)
-        # self.eeg_ui_samples = int(self.eeg_window_len_n * SAMPLING_RATE[MuseDataType.EEG])
         self.times = np.arange(-self.config._display.window_len_s, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
         self.eeg_data = np.zeros((self.eeg_window_len_n, self.eeg_nchan))
         self.eeg_timestamps = np.linspace(-self.config._display.window_len_s, 0, self.eeg_window_len_n)
@@ -307,8 +337,8 @@ class EEGApp(QWidget):
             self.config_panel_error_label.setText(str("\n".join([f'{k}: {v}' for k, v in e.errors()[0].items() if k != "url"])))  # Display the first error message
             self.config_panel_error_label.show()
 
-    def play_audio(self):
-        self.threadpool.start(self.audio.run)
+    def play_audio(self, delay):
+        QTimer.singleShot(delay * 1000, self.audio.run)
 
     def screenoff(self):
         ''' Darken the screen by starting the blank screensaver '''
@@ -340,13 +370,18 @@ class EEGApp(QWidget):
             try:
                 data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=DELAYS[MuseDataType.EEG], max_samples=CHUNK_SIZE[MuseDataType.EEG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
-                    timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
+                    self.processor_time_elapsed = np.float64(time.time())
+                    timestamps = TIMESTAMPS[MuseDataType.EEG] + self.processor_time_elapsed
                     data = np.array(data).astype(np.float32)
                     self.times = np.concatenate([self.times, timestamps])
                     self.times = self.times[-self.eeg_window_len_n:]
                     self.eeg_data = np.vstack([self.eeg_data, data])
                     self.eeg_data = self.eeg_data[-self.eeg_window_len_n:]
-                    self.process_eeg(timestamps, data)
+                    result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
+                    if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
+                        time_to_target = time_to_target - self.config.time_to_target_offset
+                        self.process_eeg_step_2(time_to_target)
+                        self.file_writer.write_stim(self.processor_time_elapsed + time_to_target)
                     self.file_writer.write_chunk(data, timestamps)
                     # if display_every_counter == self.config._display.display_every:
                     #     plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
@@ -365,7 +400,7 @@ class EEGApp(QWidget):
                     no_data_counter += 1
 
                     if no_data_counter > 64:
-                        Timer(2, self.lsl_reset_stream_step1).start()
+                        QTimer.singleShot(2000, self.lsl_reset_stream_step1)
                         self.running_stream = False
 
             except Exception as ex:
@@ -388,7 +423,7 @@ class EEGApp(QWidget):
                     no_data_counter += 1
 
                     if no_data_counter > 64:
-                        Timer(2, self.lsl_reset_stream_step1).start()
+                        QTimer.singleShot(2000, self.lsl_reset_stream_step1)
                         self.running_stream = False
 
             except Exception as ex:
@@ -411,7 +446,7 @@ class EEGApp(QWidget):
                     no_data_counter += 1
 
                     if no_data_counter > 64:
-                        Timer(2, self.lsl_reset_stream_step1).start()
+                        QTimer.singleShot(2000, self.lsl_reset_stream_step1)
                         self.running_stream = False
 
             except Exception as ex:
@@ -419,10 +454,112 @@ class EEGApp(QWidget):
 
         self.logger.info('PPG thread stopped')
 
-    def process_eeg(self, timestamps: np.ndarray, data: np.ndarray):
-        self.logger.info(timestamps)
-        self.logger.info(data)
+    # def process_eeg(self, timestamps: np.ndarray, data: np.ndarray):
+    #     self.logger.info(timestamps)
+    #     self.logger.info(data)
 
+    def switch_channel(self):
+        self.selected_channel_ind = np.argmin(np.sqrt(np.mean(self.eeg_data**2, axis=0)))
+
+    def get_hl_ratio(self, selected_channel_data):
+        lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
+        hp_signal, self.zi_high = signal.sosfilt(self.sos_high, selected_channel_data, zi = self.zi_high)
+
+        # compute the lp envelope of the signal
+        envelope_lp = np.abs(signal.hilbert(lp_signal[SAMPLING_RATE[MuseDataType.EEG]:]))
+        power_lf = envelope_lp**2
+
+        # compute the hf envelope of the signal
+        envelope_hf = np.abs(signal.hilbert(hp_signal[SAMPLING_RATE[MuseDataType.EEG]:]))
+        power_hf = envelope_hf**2
+        # compute ratio and store
+        hl_ratio = np.mean(power_hf) / np.mean(power_lf)
+        hl_ratio = np.log10(hl_ratio)
+        return hl_ratio
+    
+    def estimate_phase(self, selected_channel): 
+        conv_vals = [np.dot(selected_channel, w) for w in self.trunc_wavelets]
+        max_idx = np.argmax(np.abs(conv_vals))
+        amp = conv_vals[max_idx] / 2
+        freq = self.wavelet_freqs[max_idx]
+        phase = np.angle(conv_vals[max_idx]) % (2 * pi)
+        
+        return phase, freq, amp
+    
+    def process_eeg_step_1(self):
+        self.switch_channel_counter += 1
+        if self.switch_channel_counter == self.switch_channel_counter_max:
+            self.switch_channel()
+            self.switch_channel_counter = 0
+        if self.second_stim_end < self.processor_time_elapsed:
+            self.second_stim_start = nan
+            self.second_stim_end = nan
+
+        phase, freq, amp = self.estimate_phase(self.eeg_data[:, self.selected_channel_ind])
+        hl_ratio = self.get_hl_ratio(self.eeg_data[:, self.selected_channel_ind])
+        self.amp_buffer[:-1] = self.amp_buffer[1:]
+        self.amp_buffer[-1] = amp
+        amp_buffer_mean = self.amp_buffer.mean()
+
+        self.hl_ratio_buffer[:-1] = self.hl_ratio_buffer[1:]
+        self.hl_ratio_buffer[-1] = hl_ratio
+        hl_ratio_buffer_mean = self.hl_ratio_buffer.mean()
+
+        # print(phase, freq, amp, hl_ratio)
+
+        if self.config.experiment_mode == ExperimentMode.DISABLED:
+            return EEGProcessorOutput.NOT_RUNNING, 0, phase, freq, amp, amp_buffer_mean
+
+        # check if we're waiting for the 2nd stim
+        # if NOT, run normal checks
+        if isnan(self.second_stim_start):
+            ### check backoff criteria ###
+            if ((self.last_stim + self.config.backoff_time) > (self.processor_time_elapsed + self.config.stim1_prediction_limit_sec)):
+                return EEGProcessorOutput.BACKOFF, 0, phase, freq, amp, amp_buffer_mean
+
+            ### check amplitude criteria ###
+            if (amp_buffer_mean < self.config.amp_buffer_mean_min) or (amp_buffer_mean > self.config.amp_buffer_mean_max):
+                return EEGProcessorOutput.AMPLITUDE, 0, phase, freq, amp, amp_buffer_mean
+
+            if hl_ratio_buffer_mean > self.config.hl_ratio_buffer_mean_max or hl_ratio > self.config.hl_ratio_latest_max:
+                return EEGProcessorOutput.HL_RATIO, 0, phase, freq, amp, amp_buffer_mean
+
+        # if we are waiting for 2nd stim, but before the backoff window, only use phase targeting
+        if self.processor_time_elapsed < self.second_stim_start:
+            return EEGProcessorOutput.BACKOFF2, 0, phase, freq, amp, amp_buffer_mean
+
+        ### perform forward prediction ###
+        delta_t = ((self.target_phase - phase) % (2 * pi)) / (freq * 2 * pi)
+
+        # cue a stim for the next target phase
+        if isnan(self.second_stim_start):
+            if delta_t > self.config.stim1_prediction_limit_sec:
+                return EEGProcessorOutput.FUTURE, delta_t, phase, freq, amp, amp_buffer_mean
+
+            self.last_stim = self.processor_time_elapsed + delta_t
+            self.second_stim_start = self.last_stim + self.config.stim2_start_delay
+            self.second_stim_end = self.last_stim + self.config.stim2_end_delay
+
+            return EEGProcessorOutput.STIM, delta_t, phase, freq, amp, amp_buffer_mean
+
+        else:
+            if delta_t > self.config.stim2_prediction_limit_sec:
+                return EEGProcessorOutput.FUTURE2, delta_t, phase, freq, amp, amp_buffer_mean
+
+            self.second_stim_start = nan
+            self.second_stim_end = nan
+
+            if self.config.experiment_mode == ExperimentMode.RANDOM_PHASE:
+                self.randomize_phase()
+
+            return EEGProcessorOutput.STIM2, delta_t, phase, freq, amp, amp_buffer_mean
+    
+    def process_eeg_step_2(self, time_to_target):
+        if self.config.experiment_mode == ExperimentMode.CLAS: self.play_audio(time_to_target)
+
+    def randomize_phase(self):
+        self.target_phase = random.uniform(0.0, 2*np.pi)
+    
     def process_acc(self, timestamps: np.ndarray, data: np.ndarray):
         self.logger.info(timestamps)
         self.logger.info(data)

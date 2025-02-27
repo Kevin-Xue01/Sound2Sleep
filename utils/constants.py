@@ -1,6 +1,7 @@
 from enum import Enum, auto
 
 import numpy as np
+
 from muselsl.constants import (
     LSL_ACC_CHUNK,
     LSL_EEG_CHUNK,
@@ -44,9 +45,9 @@ CHANNEL_NAMES = {
 }
 
 TIMESTAMPS = {
-    MuseDataType.EEG: np.arange(CHUNK_SIZE[MuseDataType.EEG], dtype=np.float64) / np.float64(SAMPLING_RATE[MuseDataType.EEG]),
-    MuseDataType.ACC: np.arange(CHUNK_SIZE[MuseDataType.ACC], dtype=np.float64) / np.float64(SAMPLING_RATE[MuseDataType.ACC]),
-    MuseDataType.PPG: np.arange(CHUNK_SIZE[MuseDataType.PPG], dtype=np.float64) / np.float64(SAMPLING_RATE[MuseDataType.PPG])
+    MuseDataType.EEG: (np.arange(CHUNK_SIZE[MuseDataType.EEG], dtype=np.float64) - CHUNK_SIZE[MuseDataType.EEG]) / np.float64(SAMPLING_RATE[MuseDataType.EEG]),
+    MuseDataType.ACC: (np.arange(CHUNK_SIZE[MuseDataType.ACC], dtype=np.float64) - CHUNK_SIZE[MuseDataType.ACC]) / np.float64(SAMPLING_RATE[MuseDataType.ACC]),
+    MuseDataType.PPG: (np.arange(CHUNK_SIZE[MuseDataType.PPG], dtype=np.float64) - CHUNK_SIZE[MuseDataType.PPG]) / np.float64(SAMPLING_RATE[MuseDataType.PPG])
 }
 
 DELAYS = {

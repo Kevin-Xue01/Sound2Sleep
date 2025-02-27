@@ -13,6 +13,7 @@ class FileWriter:
         os.makedirs(directory, exist_ok=True)
         self.timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_timestamp.bin")
         self.data_file_path = os.path.join(directory, f"{self.muse_data_type.name}_data.bin")
+        self.stim_timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_stim_timestamp.txt")
         
         self.data_shape = (CHUNK_SIZE[MuseDataType.EEG], len(CHANNEL_NAMES[MuseDataType.EEG]))
         self.data_dtype = np.float32
@@ -24,6 +25,7 @@ class FileWriter:
         
         self.data_file = open(self.data_file_path, 'wb')
         self.timestamp_file = open(self.timestamp_file_path, 'wb')
+        self.stim_timestamp_file = open(self.stim_timestamp_file_path, 'w')
         
     def update_session_key(self, session_key: str):
         if session_key != self.session_key:
@@ -40,13 +42,18 @@ class FileWriter:
     def write_chunk(self, data: np.ndarray, timestamp: np.ndarray):
         self.data_file.write(data.tobytes())
         self.timestamp_file.write(timestamp.tobytes())
-        
+
         self.data_file.flush()
         self.timestamp_file.flush()
+
+    def write_stim(self, stim_timestamp):
+        self.stim_timestamp_file.write(f"{stim_timestamp}\n")
+        self.stim_timestamp_file.flush()
     
     def __del__(self):
         self.data_file.close()
         self.timestamp_file.close()
+        self.stim_timestamp_file.close()
 
 
 class FileReader:

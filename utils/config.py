@@ -33,19 +33,30 @@ class SessionConfig(BaseModel):
     experiment_mode: ExperimentMode = ExperimentMode.DISABLED
     truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
     window_len_s: float = 2.0 # [seconds], duration of processing window
-    hl_ratio_buffer_len: int = 2
-    hl_ratio_buffer_mean_threshold: float = -2.0
-    hl_ratio_latest_threshold: float = -2.0
-    amp_buffer_len: int = 2
-    amp_buffer_mean_threshold: float = 4e-4
-    amp_latest_threshold: float = 4e-4
-    target_phase_deg: float = 0.0
+    
+    hl_ratio_buffer_len: int = 3
+    hl_ratio_buffer_mean_max: float = -2.0
+    hl_ratio_latest_max: float = -2.0
+
+    amp_buffer_len: int = 3
+    amp_buffer_mean_min: float = 25.0
+    amp_buffer_mean_max: float = 200.0
+
+    target_phase: float = 0.0 # radians
+    
     backoff_time: float = 3.0
     stim2_start_delay: float = 2.0
     stim2_end_delay: float = 2.0
+
     low_bpf_cutoff: tuple = (1.0, 4.0)
     high_bpf_cutoff: tuple = (12.0, 80.0)
     bpf_order: int = 4
+
+    switch_channel_period_s: float = 5.0
+    stim1_prediction_limit_sec: float = 1.0
+    stim2_prediction_limit_sec: float = 1.0
+
+    time_to_target_offset: float = 0.005
     
     def __eq__(self, other):
         """Compare two SessionConfig objects, ignoring private attributes."""
