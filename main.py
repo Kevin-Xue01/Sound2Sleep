@@ -97,6 +97,7 @@ class EEGApp(QWidget):
         }
 
         self.running_stream = False
+        self.file_writer = FileWriter(self.config._session_key)
 
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
