@@ -341,13 +341,13 @@ class EEGApp(QWidget):
                 data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=DELAYS[MuseDataType.EEG], max_samples=CHUNK_SIZE[MuseDataType.EEG])
                 if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
                     timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
-                    data = np.array(data)
+                    data = np.array(data).astype(np.float32)
                     self.times = np.concatenate([self.times, timestamps])
                     self.times = self.times[-self.eeg_window_len_n:]
                     self.eeg_data = np.vstack([self.eeg_data, data])
                     self.eeg_data = self.eeg_data[-self.eeg_window_len_n:]
                     self.process_eeg(timestamps, data)
-                    self.file_writer.write_chunk(timestamps, data)
+                    self.file_writer.write_chunk(data, timestamps)
                     # if display_every_counter == self.config._display.display_every:
                     #     plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
                     #     for ii in range(4):
