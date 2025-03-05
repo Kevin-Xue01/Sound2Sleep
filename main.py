@@ -107,7 +107,7 @@ class DatastreamWorker(QObject):
                     timestamps = TIMESTAMPS[self.muse_data_type] + np.float64(time.time())
                     data = np.array(data).astype(np.float32)
 
-                    self.results_ready.emit((data, timestamps))
+                    self.results_ready.emit(data, timestamps)
                 else:
                     no_data_counter += 1
 
