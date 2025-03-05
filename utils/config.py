@@ -21,18 +21,15 @@ class AudioConfig(BaseModel):
     ramp_s: float = 1.0
     total_s: float = 3.0
 
-class DisplayConfig(BaseModel):
-    window_len_s: float = 5.0
-    display_every: int = 2
-
 class SessionConfig(BaseModel):
     _session_key: str = PrivateAttr(default_factory=lambda: datetime.now().strftime("%m-%d_%H-%M-%S"))
     _created_at: str = PrivateAttr(default_factory=lambda: datetime.now().isoformat())
     _audio: AudioConfig = PrivateAttr(default_factory=AudioConfig)
-    _display: DisplayConfig = PrivateAttr(default_factory=DisplayConfig)
     experiment_mode: ExperimentMode = ExperimentMode.DISABLED
     truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
-    window_len_s: float = 2.0 # [seconds], duration of processing window
+    display_window_len_s: float = 5.0 # [seconds], duration of display window
+    processing_window_len_s: float = 2.0 # [seconds], duration of processing window
+    display_every_counter_max: int = 5
     
     hl_ratio_buffer_len: int = 3
     hl_ratio_buffer_mean_max: float = -2.0
