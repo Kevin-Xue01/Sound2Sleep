@@ -192,7 +192,7 @@ class EEGApp(QWidget):
         self.hl_ratio_buffer = np.zeros(self.config.hl_ratio_buffer_len)
 
         self.eeg_timestamp = []
-        self.eeg_data = []
+        self.eeg_data = None
 
         self.sos_low = signal.butter(self.config.bpf_order, self.config.low_bpf_cutoff, btype = 'bandpass', output = 'sos', fs = SAMPLING_RATE[MuseDataType.EEG])
         self.sos_high = signal.butter(self.config.bpf_order, self.config.high_bpf_cutoff, btype = 'bandpass', output = 'sos', fs = SAMPLING_RATE[MuseDataType.EEG])
@@ -436,7 +436,7 @@ class EEGApp(QWidget):
     def handle_eeg_data(self, data: np.ndarray, timestamp: np.ndarray):
         self.eeg_timestamp = np.concatenate([self.eeg_timestamp, timestamp])
         self.eeg_timestamp = self.eeg_timestamp[-self.display_window_len_n:]
-        self.eeg_data = np.vstack([self.eeg_data, data])
+        self.eeg_data = np.vstack([self.eeg_data, data]) if self.eeg_data is not None else data
         self.eeg_data = self.eeg_data[-self.display_window_len_n:]
         if len(self.eeg_timestamp) >= self.processing_window_len_n: 
 
