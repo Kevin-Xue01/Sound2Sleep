@@ -61,13 +61,6 @@ from utils import (
     SessionConfig,
 )
 
-# class DataWorker(QRunnable):
-#     def __init__(self, task_func):
-#         super().__init__()
-#         self.task_func = task_func
-
-#     def run(self):
-#         self.task_func()
 
 class DatastreamWorker(QObject):
     results_ready = pyqtSignal(np.ndarray, np.ndarray)  # Signal that will emit results once processing is done
@@ -265,7 +258,6 @@ class EEGApp(QWidget):
         self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
 
         self.eeg_plot_widget = FigureCanvas(self.fig)
-        # self.eeg_plot = EEGPlot(self.config._display)
         control_panel_widget = QWidget()
         control_panel_layout = QVBoxLayout(control_panel_widget)
         
@@ -316,8 +308,6 @@ class EEGApp(QWidget):
         right_panel.addWidget(control_panel_widget)
         right_panel.addWidget(config_panel_widget)
         
-        # main_layout.addWidget(self.eeg_plot, stretch=1)
-        # main_layout.addWidget(self.eeg_plot_layout_widget)
         main_layout.addWidget(self.eeg_plot_widget)
         main_layout.addLayout(right_panel)
         
@@ -479,98 +469,6 @@ class EEGApp(QWidget):
     def handle_ppg_error(self, error_msg):
         self.logger.error(f"PPG Error: {error_msg}")
 
-    # def eeg_callback(self):
-    #     no_data_counter = 0
-    #     display_every_counter = 0
-    #     while self.running_stream:
-    #         time.sleep(DELAYS[MuseDataType.EEG])
-    #         try:
-    #             data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=DELAYS[MuseDataType.EEG], max_samples=CHUNK_SIZE[MuseDataType.EEG])
-    #             if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
-    #                 self.processor_elapsed_time = np.float64(time.time())
-    #                 timestamps = TIMESTAMPS[MuseDataType.EEG] + self.processor_elapsed_time
-    #                 data = np.array(data).astype(np.float32)
-    #                 self.times = np.concatenate([self.times, timestamps])
-    #                 self.times = self.times[-self.eeg_window_len_n:]
-    #                 self.eeg_data = np.vstack([self.eeg_data, data])
-    #                 self.eeg_data = self.eeg_data[-self.eeg_window_len_n:]
-    #                 result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
-    #                 if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
-    #                     time_to_target = time_to_target - self.config.time_to_target_offset
-    #                     self.process_eeg_step_2(time_to_target)
-    #                     self.file_writer.write_stim(self.processor_elapsed_time + time_to_target)
-    #                 self.file_writer.write_chunk(data, timestamps)
-    #                 # if display_every_counter == self.config._display.display_every:
-    #                 #     plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
-    #                 #     for ii in range(4):
-    #                 #         self.lines[ii].set_xdata(self.times[::4] - self.times[-1])
-    #                 #         self.lines[ii].set_ydata(plot_data[::4, ii] / 100 - ii)
-    #                 #         self.impedances = np.std(plot_data, axis=0)
-
-    #                 #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-    #                 #     self.axes.set_xlim(-self.config._display.window_len_s, 0)
-    #                 #     self.eeg_plot_widget.draw()
-    #                 #     display_every_counter = 0
-    #                 # else:
-    #                 #     display_every_counter += 1
-    #             else:
-    #                 no_data_counter += 1
-
-    #                 if no_data_counter > 64:
-    #                     QTimer.singleShot(2000, self.lsl_reset_stream_step1)
-    #                     self.running_stream = False
-
-    #         except Exception as ex:
-    #             self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
-
-    #     self.logger.info('EEG thread stopped')
-
-    # def acc_callback(self):
-    #     no_data_counter = 0
-    #     while self.running_stream:
-    #         time.sleep(DELAYS[MuseDataType.ACC])
-    #         try:
-    #             data, timestamps = self.stream_inlet[MuseDataType.ACC].pull_chunk(timeout=DELAYS[MuseDataType.ACC], max_samples=CHUNK_SIZE[MuseDataType.ACC])
-    #             if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.ACC]:
-    #                 timestamps = TIMESTAMPS[MuseDataType.ACC] + np.float64(time.time())
-    #                 data = np.array(data)
-
-    #                 self.process_acc(timestamps, data)
-    #             else:
-    #                 no_data_counter += 1
-
-    #                 if no_data_counter > 64:
-    #                     QTimer.singleShot(2000, self.lsl_reset_stream_step1)
-    #                     self.running_stream = False
-
-    #         except Exception as ex:
-    #             self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
-
-    #     self.logger.info('ACC thread stopped')
-
-    # def ppg_callback(self):
-    #     no_data_counter = 0
-    #     while self.running_stream:
-    #         time.sleep(DELAYS[MuseDataType.PPG])
-    #         try:
-    #             data, timestamps = self.stream_inlet[MuseDataType.PPG].pull_chunk(timeout=DELAYS[MuseDataType.PPG], max_samples=CHUNK_SIZE[MuseDataType.PPG])
-    #             if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.PPG]:
-    #                 timestamps = TIMESTAMPS[MuseDataType.PPG] + np.float64(time.time())
-    #                 data = np.array(data)
-
-    #                 self.process_ppg(timestamps, data)
-    #             else:
-    #                 no_data_counter += 1
-
-    #                 if no_data_counter > 64:
-    #                     QTimer.singleShot(2000, self.lsl_reset_stream_step1)
-    #                     self.running_stream = False
-
-    #         except Exception as ex:
-    #             self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
-
-    #     self.logger.info('PPG thread stopped')
-
     def switch_channel(self):
         self.selected_channel_ind = np.argmin(np.sqrt(np.mean(self.eeg_data**2, axis=0)))
 
@@ -578,14 +476,12 @@ class EEGApp(QWidget):
         lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
         hp_signal, self.zi_high = signal.sosfilt(self.sos_high, selected_channel_data, zi = self.zi_high)
 
-        # compute the lp envelope of the signal
         envelope_lp = np.abs(signal.hilbert(lp_signal[SAMPLING_RATE[MuseDataType.EEG]:]))
         power_lf = envelope_lp**2
 
-        # compute the hf envelope of the signal
         envelope_hf = np.abs(signal.hilbert(hp_signal[SAMPLING_RATE[MuseDataType.EEG]:]))
         power_hf = envelope_hf**2
-        # compute ratio and store
+
         hl_ratio = np.mean(power_hf) / np.mean(power_lf)
         hl_ratio = np.log10(hl_ratio)
         return hl_ratio
