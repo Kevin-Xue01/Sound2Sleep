@@ -607,8 +607,8 @@ class EEGApp(QWidget):
             self.second_stim_start = nan
             self.second_stim_end = nan
 
-        phase, freq, amp = self.estimate_phase(self.eeg_data[:, self.selected_channel_ind])
-        hl_ratio = self.get_hl_ratio(self.eeg_data[:, self.selected_channel_ind])
+        phase, freq, amp = self.estimate_phase(self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind])
+        hl_ratio = self.get_hl_ratio(self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind])
         self.amp_buffer[:-1] = self.amp_buffer[1:]
         self.amp_buffer[-1] = amp
         amp_buffer_mean = self.amp_buffer.mean()
