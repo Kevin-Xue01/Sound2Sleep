@@ -8,6 +8,7 @@ import traceback
 from datetime import datetime, timedelta
 from functools import partial
 from math import ceil, floor, isnan, nan, pi
+from multiprocessing import Process, shared_memory
 from threading import Thread, Timer
 from typing import Union
 
@@ -49,6 +50,7 @@ from utils import (
     CHANNEL_NAMES,
     CHUNK_SIZE,
     DELAYS,
+    NUM_CHANNELS,
     SAMPLING_RATE,
     TIMESTAMPS,
     AppState,
@@ -61,6 +63,7 @@ from utils import (
     SessionConfig,
 )
 
+EEG_PLOTTING_SHARED_MEMORY = "eeg_plotting_shared_memory"
 
 class DatastreamWorker(QObject):
     results_ready = pyqtSignal(np.ndarray, np.ndarray)  # Signal that will emit results once processing is done
@@ -195,8 +198,7 @@ class EEGApp(QWidget):
         self.wavelet_freqs = np.linspace(self.config.truncated_wavelet.low, self.config.truncated_wavelet.high, self.config.truncated_wavelet.n)
         trunc_wavelet_len = self.processing_window_len_n * 2 # double the length of the signal
         self.trunc_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = self.config.truncated_wavelet.w)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
-        for i in self.trunc_wavelets:
-            print(i)
+        plot_wavelets(self.wavelet_freqs, self.trunc_wavelets, SAMPLING_RATE[MuseDataType.EEG])
         self.selected_channel_ind = 1 # AF7
         self.switch_channel_counter = 0
         self.switch_channel_counter_max = int(self.config.switch_channel_period_s * SAMPLING_RATE[MuseDataType.EEG] / CHUNK_SIZE[MuseDataType.EEG])
@@ -685,6 +687,58 @@ class EEGApp(QWidget):
                 p.kill()
         self.on_disconnected()
 
+def plot_wavelets(wavelet_freqs, truncated_wavelets, sampling_rate):
+    """Plots the real and imaginary parts of the truncated wavelets."""
+    fig, axes = plt.subplots(len(wavelet_freqs), 1, figsize=(10, 2 * len(wavelet_freqs)))
+    time = np.arange(len(truncated_wavelets[0])) / sampling_rate
+    
+    for i, (freq, wavelet) in enumerate(zip(wavelet_freqs, truncated_wavelets)):
+        ax = axes[i] if len(wavelet_freqs) > 1 else axes
+        ax.plot(time, wavelet.real, label='Real Part', color='b')
+        ax.plot(time, wavelet.imag, label='Imaginary Part', color='r', linestyle='dashed')
+        ax.set_title(f'Wavelet at {freq:.2f} Hz')
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Amplitude')
+        ax.legend()
+    
+    plt.tight_layout()
+    plt.show()
+
+def plotter():
+    total_samples = SAMPLING_RATE[MuseDataType.EEG] * 5
+    shm = shared_memory.SharedMemory(name=EEG_PLOTTING_SHARED_MEMORY)
+    data_array = np.ndarray((total_samples, NUM_CHANNELS), dtype=np.float32, buffer=shm.buf)
+    
+    plt.matplotlib.use('QtAgg')
+    sns.set_theme(style="whitegrid")
+    sns.despine(left=True)
+    
+    fig, ax = plt.subplots(figsize=[15, 6])
+    lines = []
+    impedances = np.zeros(NUM_CHANNELS)
+    time_axis = np.linspace(-5, 0, total_samples // 2)  # X-axis from -10s to 0s
+    
+    for i in range(NUM_CHANNELS):
+        line, = ax.plot(time_axis, np.zeros(total_samples // 2) - i, lw=1)
+        lines.append(line)
+    
+    ax.set_ylim(-NUM_CHANNELS + 0.5, 0.5)
+    ax.set_xlabel('Time (s)')
+    ax.xaxis.grid(False)
+    ax.set_yticks(np.arange(0, -NUM_CHANNELS, -1))
+    ax.set_yticklabels([f'Channel {i+1} - {impedance:2f}' for i, impedance in enumerate(impedances)])
+    
+    try:
+        while True:
+            for i, line in enumerate(lines):
+                line.set_ydata(data_array[::2, i] - i)  # Offset each channel
+            plt.pause(0.01)  # Update plot
+    except KeyboardInterrupt:
+        pass
+    finally:
+        shm.close()
+        shm.unlink()
+
 if __name__ == "__main__":
     if sys.platform.startswith("win"):
         ES_CONTINUOUS = 0x80000000
@@ -693,6 +747,7 @@ if __name__ == "__main__":
         ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
 
     try:
+        # plotter_process = Process(target=)
         app = QApplication(sys.argv)
         window = EEGApp()
         window.show()

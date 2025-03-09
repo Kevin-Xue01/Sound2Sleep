@@ -44,6 +44,12 @@ CHANNEL_NAMES = {
     MuseDataType.PPG: ['PPG'],
 }
 
+NUM_CHANNELS = {
+    MuseDataType.EEG: len(CHANNEL_NAMES[MuseDataType.EEG]),
+    MuseDataType.ACC: len(CHANNEL_NAMES[MuseDataType.ACC]),
+    MuseDataType.PPG: len(CHANNEL_NAMES[MuseDataType.PPG]),
+}
+
 TIMESTAMPS = {
     MuseDataType.EEG: (np.arange(CHUNK_SIZE[MuseDataType.EEG], dtype=np.float64) - CHUNK_SIZE[MuseDataType.EEG]) / np.float64(SAMPLING_RATE[MuseDataType.EEG]),
     MuseDataType.ACC: (np.arange(CHUNK_SIZE[MuseDataType.ACC], dtype=np.float64) - CHUNK_SIZE[MuseDataType.ACC]) / np.float64(SAMPLING_RATE[MuseDataType.ACC]),
