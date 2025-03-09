@@ -198,7 +198,7 @@ class EEGApp(QWidget):
         self.wavelet_freqs = np.linspace(self.config.truncated_wavelet.low, self.config.truncated_wavelet.high, self.config.truncated_wavelet.n)
         trunc_wavelet_len = self.processing_window_len_n * 2 # double the length of the signal
         self.trunc_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = self.config.truncated_wavelet.w)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
-        plot_wavelets(self.wavelet_freqs, self.trunc_wavelets, SAMPLING_RATE[MuseDataType.EEG])
+        # plot_wavelets(self.wavelet_freqs, self.trunc_wavelets, SAMPLING_RATE[MuseDataType.EEG])
         self.selected_channel_ind = 1 # AF7
         self.switch_channel_counter = 0
         self.switch_channel_counter_max = int(self.config.switch_channel_period_s * SAMPLING_RATE[MuseDataType.EEG] / CHUNK_SIZE[MuseDataType.EEG])

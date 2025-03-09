@@ -70,9 +70,11 @@ class AppState(Enum):
 
 class ExperimentMode(Enum):
     DISABLED = "Disabled" # disabled CLAS => NOTE: NULL HYPOTHESIS #1
-    RANDOM_PHASE = "Random Phase" # CLAS with random target phase and audio off => NOTE: NULL HYPOTHESIS #2
-    CONFIGURE_DELAY = "Configure Delay" # CLAS with specific target phase + configurable delay and audio off
-    CLAS = "CLAS" # CLAS with specific target phase and audio on
+    RANDOM_PHASE_AUDIO_OFF = "Random Phase Audio Off" # CLAS with random target phase + configurable delay and audio off 
+    RANDOM_PHASE_AUDIO_ON = "Random Phase Audio On" # CLAS with specific target phase + configurable delay and audio on => NOTE: NULL HYPOTHESIS #2
+    CLAS_AUDIO_OFF = "CLAS Audio Off" # CLAS with specific target phase + configurable delay and audio on
+    CLAS_AUDIO_ON = "CLAS Audio On" # CLAS with specific target phase + configurable delay and audio on
+
 
 # ## Running modes
 # **CLAS**: (The full algorithm) Target specific phase and attempt to deliver stimulation exactly on target phase.  
@@ -92,3 +94,17 @@ class EEGProcessorOutput(Enum):
     BACKOFF2 = auto()
     FUTURE = auto()
     FUTURE2 = auto()
+
+class EEGSimulatorBand(Enum):
+    DELTA = 'Delta'
+    THETA = 'Theta'
+    ALPHA = 'Alpha'
+    BETA = 'Beta'
+    GAMMA = 'Gamma'
+
+class EEGSimulatorSignalParam(Enum):
+    PERCENT = 'Percent'
+    CENTER_FREQUENCY = 'Center Frequency'
+    BANDWIDTH = 'Bandwidth'
+    RANGE = 'Range'
+    COLOR = 'Color'

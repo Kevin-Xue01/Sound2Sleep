@@ -2,12 +2,19 @@ import random
 import sys
 import threading
 import time
-from enum import Enum
 from typing import List
 
 import numpy as np
 import pyqtgraph as pg
 from audio import Audio
+from constants import (
+    CHUNK_SIZE,
+    NUM_CHANNELS,
+    SAMPLING_RATE,
+    EEGSimulatorBand,
+    EEGSimulatorSignalParam,
+    MuseDataType,
+)
 from pylsl import StreamInfo, StreamOutlet
 from PyQt5.QtCore import Qt, QThreadPool
 from PyQt5.QtWidgets import (
@@ -23,45 +30,24 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-SRATE = 256  # [Hz]
-
-class Band(Enum):
-    DELTA = 'Delta'
-    THETA = 'Theta'
-    ALPHA = 'Alpha'
-    BETA = 'Beta'
-    GAMMA = 'Gamma'
-
-class SignalParam(Enum):
-    PERCENT = 'Percent'
-    CENTER_FREQUENCY = 'Center Frequency'
-    BANDWIDTH = 'Bandwidth'
-    RANGE = 'Range'
-    COLOR = 'Color'
-
 INITIAL_CONFIG = {
-    Band.DELTA: {SignalParam.PERCENT: 20, SignalParam.CENTER_FREQUENCY: 2, SignalParam.BANDWIDTH: 1, SignalParam.RANGE: (1, 4), SignalParam.COLOR: (255, 0, 0)},
-    Band.THETA: {SignalParam.PERCENT: 20, SignalParam.CENTER_FREQUENCY: 6, SignalParam.BANDWIDTH: 1, SignalParam.RANGE: (4, 8), SignalParam.COLOR: (0, 255, 0)},
-    Band.ALPHA: {SignalParam.PERCENT: 20, SignalParam.CENTER_FREQUENCY: 10, SignalParam.BANDWIDTH: 1, SignalParam.RANGE: (8, 12), SignalParam.COLOR: (0, 0, 255)},
-    Band.BETA: {SignalParam.PERCENT: 20, SignalParam.CENTER_FREQUENCY: 20, SignalParam.BANDWIDTH: 1, SignalParam.RANGE: (12, 30), SignalParam.COLOR: (255, 165, 0)},
-    Band.GAMMA: {SignalParam.PERCENT: 20, SignalParam.CENTER_FREQUENCY: 40, SignalParam.BANDWIDTH: 1, SignalParam.RANGE: (30, 80), SignalParam.COLOR: (128, 0, 128)},
+    EEGSimulatorBand.DELTA: {EEGSimulatorSignalParam.PERCENT: 20, EEGSimulatorSignalParam.CENTER_FREQUENCY: 2, EEGSimulatorSignalParam.BANDWIDTH: 1, EEGSimulatorSignalParam.RANGE: (1, 4), EEGSimulatorSignalParam.COLOR: (255, 0, 0)},
+    EEGSimulatorBand.THETA: {EEGSimulatorSignalParam.PERCENT: 20, EEGSimulatorSignalParam.CENTER_FREQUENCY: 6, EEGSimulatorSignalParam.BANDWIDTH: 1, EEGSimulatorSignalParam.RANGE: (4, 8), EEGSimulatorSignalParam.COLOR: (0, 255, 0)},
+    EEGSimulatorBand.ALPHA: {EEGSimulatorSignalParam.PERCENT: 20, EEGSimulatorSignalParam.CENTER_FREQUENCY: 10, EEGSimulatorSignalParam.BANDWIDTH: 1, EEGSimulatorSignalParam.RANGE: (8, 12), EEGSimulatorSignalParam.COLOR: (0, 0, 255)},
+    EEGSimulatorBand.BETA: {EEGSimulatorSignalParam.PERCENT: 20, EEGSimulatorSignalParam.CENTER_FREQUENCY: 20, EEGSimulatorSignalParam.BANDWIDTH: 1, EEGSimulatorSignalParam.RANGE: (12, 30), EEGSimulatorSignalParam.COLOR: (255, 165, 0)},
+    EEGSimulatorBand.GAMMA: {EEGSimulatorSignalParam.PERCENT: 20, EEGSimulatorSignalParam.CENTER_FREQUENCY: 40, EEGSimulatorSignalParam.BANDWIDTH: 1, EEGSimulatorSignalParam.RANGE: (30, 80), EEGSimulatorSignalParam.COLOR: (128, 0, 128)},
 }
 
 class LSLSimulatorDataGenerator:
-    def __init__(self, name, stream_type, num_channels, base_chunk_size, ics=True, output_signal_max_freq=80):
-
-        self.name = name
-        self.stream_type = stream_type
-        self.num_channels = num_channels
-        self.base_chunk_size = base_chunk_size
-        self.ics = ics # irregular chunk size flag
+    def __init__(self, muse_data_type: MuseDataType, output_signal_max_freq=80):
+        self.muse_data_type = muse_data_type
         self.output_signal_max_freq = output_signal_max_freq
         self.streaming = True
-        self.phases = np.random.uniform(0, 2 * np.pi, (self.output_signal_max_freq, self.num_channels))
+        self.phases = np.random.uniform(0, 2 * np.pi, (self.output_signal_max_freq, NUM_CHANNELS[muse_data_type]))
         self.config = INITIAL_CONFIG
         self.noise_factor = 0.01
         self.gain_value = 1.0
-        self.info = StreamInfo(name, stream_type, num_channels)
+        self.info = StreamInfo(muse_data_type.value, muse_data_type.name, NUM_CHANNELS[muse_data_type])
         self.outlet = StreamOutlet(self.info)
 
     def update_config(self, config, gain_value, noise_factor):
@@ -75,10 +61,10 @@ class LSLSimulatorDataGenerator:
         summed_signal = np.zeros_like(frequencies[:self.output_signal_max_freq])
 
         # Sum up the signals for each EEG band (Delta, Theta, Alpha, etc.)
-        for band in Band:
-            percent = self.config[band][SignalParam.PERCENT]
-            center_frequency = self.config[band][SignalParam.CENTER_FREQUENCY]
-            bandwidth = self.config[band][SignalParam.BANDWIDTH]
+        for band in EEGSimulatorBand:
+            percent = self.config[band][EEGSimulatorSignalParam.PERCENT]
+            center_frequency = self.config[band][EEGSimulatorSignalParam.CENTER_FREQUENCY]
+            bandwidth = self.config[band][EEGSimulatorSignalParam.BANDWIDTH]
 
             # Gaussian distribution around center frequency
             summed_signal += (percent / 100) * np.exp(-0.5 * ((frequencies[:self.output_signal_max_freq] - center_frequency) / bandwidth) ** 2)
@@ -103,29 +89,12 @@ class LSLSimulatorDataGenerator:
     def determine_chunk_size(self):
         probabilities = [0.85, 0.1, 0.05]
         size_multiplier = random.choices([1, 2, 3], probabilities)[0]
-        return self.base_chunk_size * size_multiplier
+        return CHUNK_SIZE[self.muse_data_type] * size_multiplier
 
-    # def push_data(self):
-    #     generated_signal = self.simulate_eeg_data()
-    #     while self.streaming:
-    #         chunk_size = self.determine_chunk_size() if self.ics else self.base_chunk_size
-
-    #         # If there isn't enough data left for the next chunk, regenerate signal
-    #         if generated_signal.shape[0] < chunk_size:
-    #             generated_signal = self.simulate_eeg_data()
-
-    #         # Slice the generated signal into chunks
-    #         chunk = generated_signal[:chunk_size, ...]
-
-    #         # Push the chunk to the LSL stream
-    #         self.outlet.push_chunk(chunk.tolist())
-    #         # Remove the chunk from the signal so the next chunk can be pushed
-    #         generated_signal = generated_signal[chunk_size:, ...]  
-    #         time.sleep(chunk_size / SRATE)
     def push_data(self):
         generated_signal = self.simulate_eeg_data()
         while self.streaming:
-            chunk_size = self.determine_chunk_size() if self.ics else self.base_chunk_size
+            chunk_size = CHUNK_SIZE[self.muse_data_type]
             chunk_size = 2
 
             # If there isn't enough data left for the next chunk, regenerate signal
@@ -139,7 +108,7 @@ class LSLSimulatorDataGenerator:
             self.outlet.push_sample()
             # Remove the chunk from the signal so the next chunk can be pushed
             generated_signal = generated_signal[chunk_size:, ...]  
-            time.sleep(chunk_size / SRATE)
+            time.sleep(chunk_size / SAMPLING_RATE[self.muse_data_type])
 
     def stop(self):
         self.streaming = False
@@ -170,22 +139,22 @@ class LSLSimulatorGUI(QMainWindow):
         # Controls for bands
         self.controls = {
             band: {
-                SignalParam.PERCENT: {
-                    'value': self.config[band][SignalParam.PERCENT],
+                EEGSimulatorSignalParam.PERCENT: {
+                    'value': self.config[band][EEGSimulatorSignalParam.PERCENT],
                     'slider': QSlider(Qt.Orientation.Horizontal),
-                    'label': QLabel(f"{SignalParam.PERCENT.value}: {self.config[band][SignalParam.PERCENT]}")
+                    'label': QLabel(f"{EEGSimulatorSignalParam.PERCENT.value}: {self.config[band][EEGSimulatorSignalParam.PERCENT]}")
                 },
-                SignalParam.CENTER_FREQUENCY: {
-                    'value': self.config[band][SignalParam.CENTER_FREQUENCY],
+                EEGSimulatorSignalParam.CENTER_FREQUENCY: {
+                    'value': self.config[band][EEGSimulatorSignalParam.CENTER_FREQUENCY],
                     'slider': QSlider(Qt.Orientation.Horizontal),
-                    'label': QLabel(f"{SignalParam.CENTER_FREQUENCY.value}: {self.config[band][SignalParam.CENTER_FREQUENCY]}")
+                    'label': QLabel(f"{EEGSimulatorSignalParam.CENTER_FREQUENCY.value}: {self.config[band][EEGSimulatorSignalParam.CENTER_FREQUENCY]}")
                 },
-                SignalParam.BANDWIDTH: {
-                    'value': self.config[band][SignalParam.BANDWIDTH],
+                EEGSimulatorSignalParam.BANDWIDTH: {
+                    'value': self.config[band][EEGSimulatorSignalParam.BANDWIDTH],
                     'slider': QSlider(Qt.Orientation.Horizontal),
-                    'label': QLabel(f"{SignalParam.BANDWIDTH.value}: {self.config[band][SignalParam.BANDWIDTH]}")
+                    'label': QLabel(f"{EEGSimulatorSignalParam.BANDWIDTH.value}: {self.config[band][EEGSimulatorSignalParam.BANDWIDTH]}")
                 }
-            } for band in Band
+            } for band in EEGSimulatorBand
         }
 
         # Main window layout
@@ -194,21 +163,21 @@ class LSLSimulatorGUI(QMainWindow):
         main_layout = QHBoxLayout(self.central_widget)
 
         sliders_layout = QVBoxLayout()
-        for band in Band:
+        for band in EEGSimulatorBand:
             group_box = QGroupBox()
-            group_box.setStyleSheet(f"background-color: rgba{INITIAL_CONFIG[band][SignalParam.COLOR] + (40,)};")
+            group_box.setStyleSheet(f"background-color: rgba{INITIAL_CONFIG[band][EEGSimulatorSignalParam.COLOR] + (40,)};")
             group_layout = QVBoxLayout()
 
-            min_center_freq, max_center_freq = self.config[band][SignalParam.RANGE]
+            min_center_freq, max_center_freq = self.config[band][EEGSimulatorSignalParam.RANGE]
 
-            for curr_param in SignalParam:
-                if curr_param != SignalParam.RANGE and curr_param != SignalParam.COLOR:
+            for curr_param in EEGSimulatorSignalParam:
+                if curr_param != EEGSimulatorSignalParam.RANGE and curr_param != EEGSimulatorSignalParam.COLOR:
                     slider: QSlider = self.controls[band][curr_param]['slider']
                     slider.setValue(self.controls[band][curr_param]['value'])
 
-                    if curr_param == SignalParam.PERCENT:
+                    if curr_param == EEGSimulatorSignalParam.PERCENT:
                         slider.setRange(0, 100)  # Percentage is from 0 to 100
-                    elif curr_param == SignalParam.CENTER_FREQUENCY:
+                    elif curr_param == EEGSimulatorSignalParam.CENTER_FREQUENCY:
                         slider.setRange(min_center_freq, max_center_freq)  
                     else:
                         slider.setRange(1, 10)  
@@ -302,14 +271,14 @@ class LSLSimulatorGUI(QMainWindow):
         x = np.linspace(0, 120, 1000)
         summed_signal = np.zeros_like(x)
 
-        for i, band in enumerate(Band):
-            percent = self.controls[band][SignalParam.PERCENT]['value']
-            center_frequency = self.controls[band][SignalParam.CENTER_FREQUENCY]['value']
-            bandwidth = self.controls[band][SignalParam.BANDWIDTH]['value']
+        for i, band in enumerate(EEGSimulatorBand):
+            percent = self.controls[band][EEGSimulatorSignalParam.PERCENT]['value']
+            center_frequency = self.controls[band][EEGSimulatorSignalParam.CENTER_FREQUENCY]['value']
+            bandwidth = self.controls[band][EEGSimulatorSignalParam.BANDWIDTH]['value']
 
             y = percent * np.exp(-0.5 * ((x - center_frequency) / bandwidth) ** 2)
 
-            pen = pg.mkPen(INITIAL_CONFIG[band][SignalParam.COLOR], width=2)
+            pen = pg.mkPen(INITIAL_CONFIG[band][EEGSimulatorSignalParam.COLOR], width=2)
             self.plot_widget.plot(x, y, pen=pen, name=band.value)
 
             summed_signal += y
@@ -329,30 +298,30 @@ class LSLSimulatorGUI(QMainWindow):
     def update_config(self):
         new_config = {
             band: {
-                SignalParam.PERCENT: self.controls[band][SignalParam.PERCENT]['value'],
-                SignalParam.CENTER_FREQUENCY: self.controls[band][SignalParam.CENTER_FREQUENCY]['value'],
-                SignalParam.BANDWIDTH: self.controls[band][SignalParam.BANDWIDTH]['value']
+                EEGSimulatorSignalParam.PERCENT: self.controls[band][EEGSimulatorSignalParam.PERCENT]['value'],
+                EEGSimulatorSignalParam.CENTER_FREQUENCY: self.controls[band][EEGSimulatorSignalParam.CENTER_FREQUENCY]['value'],
+                EEGSimulatorSignalParam.BANDWIDTH: self.controls[band][EEGSimulatorSignalParam.BANDWIDTH]['value']
             }
-            for band in Band
+            for band in EEGSimulatorBand
         }
         for curr_stream in self.streams:
             curr_stream.update_config(new_config, self.gain_value, self.noise_factor)
 
     def normalize_percentages(self):
-        total_percent = sum(self.controls[band][SignalParam.PERCENT]['value'] for band in Band)
+        total_percent = sum(self.controls[band][EEGSimulatorSignalParam.PERCENT]['value'] for band in EEGSimulatorBand)
         if total_percent == 0:
-            for i, band in enumerate(Band):
-                self.controls[band][SignalParam.PERCENT]['value'] = 20
-                self.controls[band][SignalParam.PERCENT]['slider'].setValue(20)  # Update slider position
-                self.controls[band][SignalParam.PERCENT]['label'].setText(f"{SignalParam.PERCENT.value}: 20")
+            for i, band in enumerate(EEGSimulatorBand):
+                self.controls[band][EEGSimulatorSignalParam.PERCENT]['value'] = 20
+                self.controls[band][EEGSimulatorSignalParam.PERCENT]['slider'].setValue(20)  # Update slider position
+                self.controls[band][EEGSimulatorSignalParam.PERCENT]['label'].setText(f"{EEGSimulatorSignalParam.PERCENT.value}: 20")
  
         else:
-            normalized_values = [int(100 * self.controls[band][SignalParam.PERCENT]['value'] / total_percent) for band in Band]
+            normalized_values = [int(100 * self.controls[band][EEGSimulatorSignalParam.PERCENT]['value'] / total_percent) for band in EEGSimulatorBand]
             normalized_values[0] += 100 - sum(normalized_values)
-            for i, band in enumerate(Band):
-                self.controls[band][SignalParam.PERCENT]['value'] = normalized_values[i]
-                self.controls[band][SignalParam.PERCENT]['slider'].setValue(int(normalized_values[i]))  # Update slider position
-                self.controls[band][SignalParam.PERCENT]['label'].setText(f"{SignalParam.PERCENT.value}: {int(normalized_values[i])}")
+            for i, band in enumerate(EEGSimulatorBand):
+                self.controls[band][EEGSimulatorSignalParam.PERCENT]['value'] = normalized_values[i]
+                self.controls[band][EEGSimulatorSignalParam.PERCENT]['slider'].setValue(int(normalized_values[i]))  # Update slider position
+                self.controls[band][EEGSimulatorSignalParam.PERCENT]['label'].setText(f"{EEGSimulatorSignalParam.PERCENT.value}: {int(normalized_values[i])}")
         
         self.update_plot()
         self.update_config()
@@ -363,16 +332,16 @@ class LSLSimulatorGUI(QMainWindow):
         event.accept()
 
 if __name__ == "__main__":
-    eeg_simulator = LSLSimulatorDataGenerator(name="EEG", stream_type="EEG", num_channels=4, base_chunk_size=12)
-    acc_simulator = LSLSimulatorDataGenerator(name="Accelerometer", stream_type="ACC", num_channels=3, base_chunk_size=6)
-    ppg_simulator = LSLSimulatorDataGenerator(name="PPG", stream_type="PPG", num_channels=3, base_chunk_size=6)
+    eeg_simulator = LSLSimulatorDataGenerator(muse_data_type=MuseDataType.EEG)
+    acc_simulator = LSLSimulatorDataGenerator(muse_data_type=MuseDataType.ACC)
+    ppg_simulator = LSLSimulatorDataGenerator(muse_data_type=MuseDataType.PPG)
 
     streams = [eeg_simulator, acc_simulator, ppg_simulator]
     for stream in streams:
         thread = threading.Thread(target=stream.push_data)
         thread.daemon = True
         thread.start()
-        break
+        # break
 
     app = QApplication(sys.argv)
     window = LSLSimulatorGUI(streams)
