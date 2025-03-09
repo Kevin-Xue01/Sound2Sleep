@@ -1,27 +1,24 @@
 # pyright: reportGeneralTypeIssues=false
 
 # Qt framework
-from PyQt5.QtCore import pyqtSignal, QRunnable, QObject
-
 # built in
 import datetime
+import json
 from enum import IntEnum
 from math import pi
-import json
 
 # pip
 import numpy as np
+from PyQt5.QtCore import QObject, QRunnable, pyqtSignal
+
+import CLASAlgo
 
 # custom
-import PinkNoiseGenerator
-import CLASAlgo
-from CLASAlgo import ExperimentMode, CLASResult
+from CLASAlgo import CLASResult, ExperimentMode
 
 ##########
 # STATIC #
 ##########
-pink_noise = PinkNoiseGenerator.generate_noise()
-
 
 ###########
 # CLASSES #

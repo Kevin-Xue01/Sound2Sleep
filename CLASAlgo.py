@@ -1,13 +1,15 @@
 # native
-from enum import IntEnum, Enum, auto as EnumAuto
-from math import pi, nan, isnan, floor, ceil
-from typing import Tuple, Union
 import json
 import logging
+from enum import Enum, IntEnum
+from enum import auto as EnumAuto
+from math import ceil, floor, isnan, nan, pi
+from typing import Tuple, Union
 
 # pip
 import numpy as np
-import scipy, scipy.signal
+import scipy
+import scipy.signal
 
 
 class CLASResult(IntEnum):
@@ -63,11 +65,11 @@ class CLASAlgo():
 
         # store CLAS parameters
         self.amp_threshold = params['amp_threshold']
-        self.amp_limit = params['amp_limit']
+        # self.amp_limit = params['amp_limit']
         self.prediction_limit_sec = params['prediction_limit_sec']
         self.backoff_time = params['backoff_time']
-        self.quadrature_thresh = params['quadrature_thresh'] or nan
-        self.quadrature_len = params['quadrature_len']
+        # self.quadrature_thresh = params['quadrature_thresh'] or nan
+        # self.quadrature_len = params['quadrature_len']
         self.sham_mindelay = params['sham_mindelay']
         self.sham_maxdelay = params['sham_maxdelay']
         self.freq_limits = params['freq_limits']

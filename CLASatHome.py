@@ -1,198 +1,299 @@
-from PyQt5 import uic
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QSizePolicy, QHBoxLayout, QPushButton
-from PyQt5.QtCore import QTimer, QThread, Qt
-import sys
-import os
-import pyqtgraph as pg
-
-import numpy as np
-import matplotlib, matplotlib.figure
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from CLASAlgo import CLASAlgo
-from scipy import signal
+import csv
+import ctypes
+import subprocess
+import time
+import traceback
 from datetime import datetime
-from utils import BlueMuseSignal, StreamType
-from blue_muse import BlueMuse
-from data_controller import DataWriter
+from multiprocessing import Process
+from threading import Thread, Timer
 
-# matplotlib.use('QT5Agg')
-# QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
+import matplotlib
+import matplotlib.figure
+import matplotlib.pyplot as plt
+import numpy as np
+import psutil
+import seaborn as sns
+from constants import (
+    CHANNEL_NAMES,
+    CHUNK_SIZE,
+    NB_CHANNELS,
+    SAMPLING_RATE,
+    TIMESTAMPS,
+    MuseDataType,
+)
+from logger import Logger as Logger
+from muselsl.constants import LSL_SCAN_TIMEOUT, VIEW_SUBSAMPLE
+from pylsl import StreamInfo, StreamInlet, resolve_byprop
+from scipy.signal import firwin, lfilter, lfilter_zi
 
-class EEGPlotterWidget(QWidget):
-    MAX_BUFFER_SIZE = 1000  # Maximum number of data points to retain for each channel
-    def __init__(self, eeg_channels=['TP9', 'AF7', 'AF8', 'TP10']):
-        super().__init__()
-        self.eeg_channels = eeg_channels
-        self.plot_data = [[] for _ in range(len(self.eeg_channels))]  # Buffer to hold data for each channel
-        self.time_data = []  # Time data for each channel
 
-        # Initialize the GUI layout
-        self.layout = QVBoxLayout(self)
-        self.plots = []
-        self.curves = []
+class CLASatHome:
+    no_data_count = 0
+    reset_attempt_count = 0
+    
+    def init_EEG_UI(self):
+        matplotlib.use('TkAgg')
+        sns.set_theme(style="whitegrid")
+        sns.despine(left=True)
 
-        # Create time series plots for each channel
-        for i, channel in enumerate(self.eeg_channels):
-            plot = pg.PlotWidget(title=channel)
-            plot.setLabel('bottom', 'time', units='s')
-            plot.setLabel('left', 'EEG Amplitude', units='μV')
-            plot.showGrid(x=True, y=True)  # Show grid lines
-            plot.enableAutoRange(axis=pg.ViewBox.YAxis)  # Enable auto-scaling
-            self.layout.addWidget(plot)  # Add plot to the layout
+        self.ui_window_s = 5
 
-            curve = plot.plot([], pen=pg.mkPen('w'))  # Plot line initialized with an empty array
-            self.plots.append(plot)
-            self.curves.append(curve)
+        self.fig, self.axes = plt.subplots(1, 1, figsize=[15, 6], sharex=True)
+        self.fig.canvas.mpl_connect('close_event', self.stop_streaming)
+        help_str = """
+                    toggle filter : d
+                    toogle full screen : f
+                    zoom out : /
+                    zoom in : *
+                    increase time scale : -
+                    decrease time scale : +
+                """
+        print(help_str)
+        self.eeg_nchan = NB_CHANNELS[MuseDataType.EEG]
+        self.eeg_ui_samples = int(self.ui_window_s * SAMPLING_RATE[MuseDataType.EEG])
+        self.data = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
+        self.times = np.arange(-self.ui_window_s, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
+        self.impedances = np.std(self.data, axis=0)
+        self.lines = []
 
-    def update_plots(self, streamtype: StreamType, times: np.ndarray, data: np.ndarray):
-        """
-        Update EEG data plots with new data chunks.
+        for ii in range(self.eeg_nchan):
+            line, = self.axes.plot(self.times[::VIEW_SUBSAMPLE], self.data[::VIEW_SUBSAMPLE, ii] - ii, lw=1)
+            self.lines.append(line)
 
-        Parameters:
-        - data (np.ndarray): Array with shape (n_samples, 4) for 4 EEG channels.
-        - times (np.ndarray): Array of timestamps for the EEG samples.
-        """
-        if streamtype == StreamType.EEG:
-            self.time_data.extend(times.tolist())
-            if len(self.time_data) > self.MAX_BUFFER_SIZE:
-                self.time_data = self.time_data[-self.MAX_BUFFER_SIZE:]
+        self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
+        ticks = np.arange(0, -self.eeg_nchan, -1)
 
-            for i in range(data.shape[1]):
-                # Append the new data to the buffer
-                self.plot_data[i].extend(data[:, i].tolist())
-                print(f'Max: {max(data[:, i])}, Min: {min(data[:, i])}')
-                # Keep the buffer within the maximum size
-                if len(self.plot_data[i]) > self.MAX_BUFFER_SIZE:
-                    self.plot_data[i] = self.plot_data[i][-self.MAX_BUFFER_SIZE:]
+        self.axes.set_xlabel('Time (s)')
+        self.axes.xaxis.grid(False)
+        self.axes.set_yticks(ticks)
 
-                # Update the plot with new data
-                self.curves[i].setData(self.time_data, self.plot_data[i])  # X-axis as time, Y-axis as EEG data
+        self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
 
-class CLASatHome(QMainWindow):
-    draw_timer = None
+        self.display_every = 5
 
-    plots = dict()
+        self.bf = firwin(32, np.array([1, 40]) / (SAMPLING_RATE[MuseDataType.EEG] / 2.), width=0.05, pass_zero=False)
+        self.af = [1.0]
 
-    def init_UI(self):
-        self.setWindowTitle('CLAS At Home')
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-        self.layout = QVBoxLayout(self.central_widget)
-
-        self.eeg_plotter = EEGPlotterWidget()
-        self.layout.addWidget(self.eeg_plotter)
-
-        # Create a horizontal layout for the buttons below the EEG plot
-        self.button_layout = QHBoxLayout()
-
-        # Create "Start Streaming" button
-        self.btn_start = QPushButton('Start Streaming')
-        self.btn_start.clicked.connect(self.start_streaming)
-        self.button_layout.addWidget(self.btn_start)
-
-        # Create "Stop Streaming" button
-        self.btn_stop = QPushButton('Stop Streaming')
-        self.btn_stop.clicked.connect(self.stop_streaming)
-        self.button_layout.addWidget(self.btn_stop)
-
-        # Add the horizontal layout of buttons to the main layout
-        self.layout.addLayout(self.button_layout)
-        self.show()
+        zi = lfilter_zi(self.bf, self.af)
+        self.filt_state = np.tile(zi, (self.eeg_nchan, 1)).transpose()
+        self.data_f = np.zeros((self.eeg_ui_samples, self.eeg_nchan))
 
     def init_BlueMuse(self):
-        self.blue_muse_signal = BlueMuseSignal()
-        self.blue_muse_signal.update_data.connect(self.write_data)
-        self.blue_muse_signal.update_data.connect(self.eeg_plotter.update_plots)
-        self.blue_muse = BlueMuse(self.blue_muse_signal)
-        self.blue_muse.start_timer_signal.connect(self.start_timer)
-        self.blue_muse.stop_timer_signal.connect(self.stop_timer)
-        self.blue_muse_thread = QThread()
-        self.blue_muse.moveToThread(self.blue_muse_thread)
-        self.blue_muse_thread.started.connect(self.blue_muse.start_streaming)
-        self.blue_muse_thread.finished.connect(self.blue_muse.stop_streaming)
+        subprocess.call('start bluemuse:', shell=True)
+        subprocess.call('start bluemuse://setting?key=primary_timestamp_format!value=BLUEMUSE', shell=True)
+        subprocess.call('start bluemuse://setting?key=channel_data_type!value=float32', shell=True)
+        subprocess.call('start bluemuse://setting?key=eeg_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=accelerometer_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
 
-    def __init__(self):
-        super().__init__()
-        self.init_UI()
-        self.init_BlueMuse()
-        self.lsl_timer = QTimer()
-        self.lsl_timer.timeout.connect(self.blue_muse.lsl_timer_callback)
+    def __init__(self, filt=True):
+        self.stream_info: dict[MuseDataType, StreamInfo] = dict()
+        self.stream_inlet: dict[MuseDataType, StreamInlet] = dict()
 
-        output_file = os.path.join(os.getcwd(), 'data', 'kevin', 'output.h5')
-        self.eeg_data_writer = DataWriter(output_file, 4, 12)
+        self.filt = filt
+        self.processing_window_s = 2
+        self.logger = Logger()
 
-        # # self.clas_algo = CLASAlgo(100, 'params.json')
+    def screenoff(self):
+        ''' Darken the screen by starting the blank screensaver '''
+        try:
+            subprocess.call(['C:\Windows\System32\scrnsave.scr', '/start'])
+        except Exception as ex:
+            self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
 
-    def write_data(self, streamtype, timestamps, data):
-        if streamtype == StreamType.EEG:
-            self.eeg_data_writer.write_data(timestamps, data)
+    def lsl_reload(self):
+        self.logger.info('Reloading LSL streams')
 
-    def start_timer(self):
-        if not self.lsl_timer.isActive():
-            self.lsl_timer.start(200)
+        allok = True
+        self.stream_info = dict()
+        self.stream_inlet = dict()
+        for stream in MuseDataType:
+            self.stream_info[stream] = resolve_byprop('type', stream.value, timeout=LSL_SCAN_TIMEOUT)
 
-    def stop_timer(self):
-        if self.lsl_timer.isActive():
-            self.lsl_timer.stop()
-    
+            if self.stream_info[stream]:
+                self.stream_info[stream] = self.stream_info[stream][0]
+                self.logger.info(f'{stream.name} OK.')
+            else:
+                self.logger.warning(f'{stream.name} not found.')
+                allok = False
+
+        return allok
+
+
+    def eeg_callback(self):
+        with open(f'data/kevin/eeg_data_{datetime.now().strftime("%Y-%m-%d_%H-%M")}.csv', mode='a', newline='') as file:
+            writer = csv.writer(file)
+            if file.tell() == 0:
+                writer.writerow(['Timestamp'] + CHANNEL_NAMES[MuseDataType.EEG])
+            
+            display_every_counter = 0
+            no_data_counter = 0
+            while self.run_eeg_thread:
+                time.sleep(CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG])
+                try:
+                    data, timestamps = self.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=1.0, max_samples=CHUNK_SIZE[MuseDataType.EEG])
+                    if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
+                        timestamps = TIMESTAMPS[MuseDataType.EEG] + time.time() + 1. / SAMPLING_RATE[MuseDataType.EEG]
+
+                        for t, s in zip(timestamps, data):
+                            writer.writerow([t] + list(s))
+
+                        self.times = np.concatenate([self.times, timestamps])
+                        self.n_samples = int(SAMPLING_RATE[MuseDataType.EEG] * self.processing_window_s)
+                        self.times = self.times[-self.n_samples:]
+                        self.data = np.vstack([self.data, data])
+                        self.data = self.data[-self.n_samples:]
+                        filt_samples, self.filt_state = lfilter(self.bf, self.af, data, axis=0, zi=self.filt_state)
+                        self.data_f = np.vstack([self.data_f, filt_samples])
+                        self.data_f = self.data_f[-self.n_samples:]
+
+                        display_every_counter += 1
+                        if display_every_counter == self.display_every:
+                            print('Displaying data')
+                            if self.filt:
+                                plot_data = self.data_f
+                            elif not self.filt:
+                                plot_data = self.data - self.data.mean(axis=0)
+                            for ii in range(NB_CHANNELS[MuseDataType.EEG]):
+                                self.lines[ii].set_xdata(self.times[::VIEW_SUBSAMPLE] - self.times[-1])
+                                self.lines[ii].set_ydata(plot_data[::VIEW_SUBSAMPLE, ii] - ii)
+                                self.impedances = np.std(plot_data, axis=0)
+
+                            self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
+                            self.axes.set_xlim(-self.ui_window_s, 0)
+                            self.fig.canvas.draw()
+                            display_every_counter = 0
+                    else:
+                        no_data_counter += 1
+
+                        if no_data_counter > 20:
+                            self.run_eeg_thread = False
+                            self.run_acc_thread = False
+                            self.run_ppg_thread = False
+                            Timer(1, self.lsl_reset_stream_step1).start()
+
+                except Exception as ex:
+                    self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+
+            self.logger.info('EEG thread stopped')
+
+    def acc_callback(self):
+        while self.run_acc_thread:
+            print('ACC callback')
+            time.sleep(3)
+        self.logger.critical('ACC thread stopped')
+
+    def ppg_callback(self):
+        while self.run_ppg_thread:
+            print('PPG callback')
+            time.sleep(3)
+        self.logger.critical('PPG thread stopped')
+
+    def lsl_reset_stream_step1(self):
+        self.logger.info('Resetting stream step 1')
+        subprocess.call('start bluemuse://stop?stopall', shell=True)
+        time.sleep(3)
+        self.lsl_reset_stream_step2()
+
+
+    def lsl_reset_stream_step2(self):
+        self.logger.info('Resetting stream step 2')
+        subprocess.call('start bluemuse://start?startall', shell=True)
+        time.sleep(3)
+        self.lsl_reset_stream_step3()
+
+    def lsl_reset_stream_step3(self):
+        self.logger.info('Resetting stream step 3')
+        reset_success = self.lsl_reload()
+
+        if not reset_success:
+            self.reset_attempt_count += 1
+            if self.reset_attempt_count <= 3:
+                self.logger.info('Resetting Attempt: ' + str(self.reset_attempt_count))
+                self.lsl_reset_stream_step1() 
+            else:
+                self.reset_attempt_count = 0
+
+                for p in psutil.process_iter(['name']):
+                    if p.info['name'] == 'BlueMuse.exe':
+                        self.logger.info('Killing BlueMuse')
+                        p.kill()
+
+                self.logger.info('Resetting stream again')
+                # Timer(3, self.lsl_reset_stream_step1)
+                time.sleep(2)
+                self.lsl_reset_stream_step1()
+        else:
+            # if all streams have resolved, start polling data again!
+            self.reset_attempt_count = 0
+            self.logger.info('Starting threads')
+            time.sleep(3)
+            subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+
+            # start the selected steram
+            for stream in MuseDataType:
+                self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
+            
+            self.start_threads()
+
+
+    def start_threads(self):
+        self.run_eeg_thread = True
+        self.run_acc_thread = True
+        self.run_ppg_thread = True
+
+        self.eeg_thread = Thread(target=self.eeg_callback)
+        self.acc_thread = Thread(target=self.acc_callback)
+        self.ppg_thread = Thread(target=self.ppg_callback)
+
+        self.eeg_thread.daemon = True
+        self.acc_thread.daemon = True
+        self.ppg_thread.daemon = True
+
+        self.eeg_thread.start()
+        self.acc_thread.start()
+        self.ppg_thread.start()
+
     def start_streaming(self):
-        if not self.blue_muse_thread.isRunning():
-            self.blue_muse_thread.start()
+        subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+        while not self.lsl_reload(): 
+            time.sleep(3)
+
+        # start the selected steram
+        for stream in MuseDataType:
+            self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
+        
+        self.start_threads()
+
 
     def stop_streaming(self):
-        if self.blue_muse_thread.isRunning():
-            self.blue_muse_thread.quit()  # Gracefully stop the thread
-            self.blue_muse_thread.wait()  # Wait for the thread to fully finish
+        self.run_eeg_thread = False
+        self.run_acc_thread = False
+        self.run_ppg_thread = False
 
-class TimeseriesPlot(FigureCanvasQTAgg):
+        for stream in MuseDataType:
+            try:
+                self.stream_inlet[stream].close_stream()
+            except Exception as ex:
+                self.logger.critical(str(ex))
 
-    def __init__(self, parent, dpi=96):
-        wsize = parent.size()
-        self.fig = matplotlib.figure.Figure(figsize=(wsize.width() / dpi, wsize.height() / dpi), dpi=dpi)
-
-        self.axes = self.fig.add_subplot(111)
-        self.axes.set_position((0.1, 0.1, 0.85, 0.85))
-
-        s = super(TimeseriesPlot, self)
-        s.__init__(self.fig)
-        self.setParent(parent)
-
-        s.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        s.updateGeometry()
-
-    def init_data(self, fsample, history_time, nchan=4):
-        self.fsample = fsample
-        self.history_time = history_time
-        self.data = np.zeros((int(self.fsample * self.history_time), nchan))
-        self.time = np.arange(-1 * self.history_time * self.fsample, 0) / self.fsample
-
-        self.ylims = 0.1
-
-        self.compute_initial_figure()
-
-    def compute_initial_figure(self):
-        self.axes.clear()
-        self.plt = self.axes.plot(self.time, self.data, alpha=0.6)
-        self.axes.set_xlim(-1 * self.history_time, 0)
-        self.draw()
-
-    def add_data(self, x):
-        n_new_samp = x.shape[0]
-        self.data[:-n_new_samp, :] = self.data[n_new_samp:, :]
-        self.data[-n_new_samp:, :] = x
-
-        self.ylims = (0.9 * self.ylims) + (0.1 * np.abs(self.data).max() * 1.05)
-
-    def redraw(self):
-        for i, p in enumerate(self.plt):
-            p.set_ydata(self.data[:, i])
-        self.axes.set_ylim(-1 * self.ylims, self.ylims)
-        self.draw()
+        subprocess.call('start bluemuse://stop?stopall', shell=True)
 
 
 
 if __name__ == "__main__":
-    App = QApplication(sys.argv)
-    window = CLASatHome()
-    sys.exit(App.exec())
+    ES_CONTINUOUS = 0x80000000
+    ES_SYSTEM_REQUIRED = 0x00000001
+    ES_AWAYMODE_REQUIRED = 0x0000040
+    
+    ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
+
+    try:
+        clas = CLASatHome()
+        clas.init_EEG_UI()
+        clas.init_BlueMuse()
+        clas.start_streaming()
+        plt.show()
+    finally:
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)

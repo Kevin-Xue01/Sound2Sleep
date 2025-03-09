@@ -34,7 +34,7 @@ class PortCodes(IntEnum):
 class EEGProcessorSignal(QObject):
     ''' QObject helper so MLRunner can send Qt signals '''
     result = pyqtSignal(int)
-    cue_stim = pyqtSignal(float, int, bool)
+    cue_stim = pyqtSignal(int, int, bool)
     datavals = pyqtSignal(dict)
 
 
@@ -81,7 +81,7 @@ class EEGProcessor(QRunnable):
         if (result != CLASResult.STIM) and (result != CLASResult.STIM2):
             self.signals.result.emit(result)
             return
-            
+
         # if we are stimming, continue...
 
         ### get ready to stim ###

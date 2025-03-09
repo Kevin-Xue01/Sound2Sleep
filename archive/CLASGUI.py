@@ -1,3 +1,8 @@
+'''
+GUI for running the Closed Loop Auditory Stimulation experiment
+Author: Simeon Wong
+'''
+
 # Misc
 import datetime
 import io
@@ -21,21 +26,44 @@ import matplotlib.pyplot as plt
 # Math stuff
 import numpy as np
 import psutil
+import qdarkstyle
+
+# for Pushover
+import requests
 
 # triggers
 import serial
 import serial.tools.list_ports
+import yaml
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtCore import QPoint, QRunnable, Qt, QThreadPool, QTimer
 from PyQt5.QtGui import QBrush, QColor, QPainter, QPen, QStaticText
 from PyQt5.QtWidgets import QComboBox, QDateTimeEdit, QFileDialog, QWidget
 
+# EEG streaming interface
+from QOpenBCI import ConnectionState, QEEGStreamer
+
 # CLAS algorithm
 import QCLASAlgo
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+with open('pushover.yml', 'r') as f:
+    pushover_params = yaml.safe_load(f)
+
+def send_error(msg):
+    try:
+        requests.post('https://api.pushover.net/1/messages.json',
+                      data = {
+                          "token": pushover_params['token'],
+                          "user": pushover_params['user'],
+                          "message":msg
+                      })
+    except:
+        print('Pushover error')
 
 
 class ToggleButtonState(Enum):
@@ -60,8 +88,12 @@ class CLASGUI(QtWidgets.QMainWindow):
         # load the UI
         uic.loadUi('CLASGUI.ui', self)
 
+        # load config
+        with open('config.yml', 'r') as f:
+            self.config = yaml.load(f, Loader=yaml.SafeLoader)
 
         # set darkmode
+        self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
         plt.style.use('dark_background')
 
         # files and stuff
@@ -70,6 +102,8 @@ class CLASGUI(QtWidgets.QMainWindow):
         self.data_eeg = io.BytesIO()
         self.data_phase = io.BytesIO()
         self.data_intent = io.BytesIO()
+
+        self.eeg = QEEGStreamer()
 
 
         ### BIND BUTTONS ###
@@ -89,6 +123,9 @@ class CLASGUI(QtWidgets.QMainWindow):
         self.btn_soundtest_startcont.clicked.connect(
             self.soundtest_start_continuous)
         self.btn_soundtest_stop.clicked.connect(self.soundtest_stop)
+
+        self.btn_triggertest_seq.clicked.connect(self.triggertest_start)
+        self.btn_triggertest_max.clicked.connect(self.triggertest_max)
 
         self.triggertest_state = -1
 
@@ -139,26 +176,28 @@ class CLASGUI(QtWidgets.QMainWindow):
             datetime.datetime.combine(basedate + datetime.timedelta(days=1),
                                       datetime.time(hour=12)))
 
-        # ### INITIALIZE PLOTS ###
-        # self.tsplot = TSPlot(self.timeseries)
-        # self.hplot = HistoricalPlot(self.historical)
+        ### INITIALIZE PLOTS ###
+        self.tsplot = TSPlot(self.timeseries)
+        self.hplot = HistoricalPlot(self.historical)
 
-        # ### TRIGGER OUTPUT ###
-        # comports = serial.tools.list_ports.comports()
-        # comports = [p for p in comports if p.vid in [9025, 10755]]
+        ### TRIGGER OUTPUT ###
+        comports = serial.tools.list_ports.comports()
+        comports = [p for p in comports if p.vid in [9025, 10755]]
 
-        # if len(comports) == 0:
-        #     raise Exception('No matching ports found')
+        if len(comports) == 0:
+            raise Exception('No matching ports found')
 
-        # if len(comports) > 1:
-        #     raise Exception('Multiple trigger interfaces detected')
+        if len(comports) > 1:
+            raise Exception('Multiple trigger interfaces detected')
+
+        self.port = serial.Serial(comports[0].device, baudrate=9600)
 
         ### Show figure ###
         self.show()
 
         ### Preinitialize other variables ###
         self.status_report = QTimer(self)
-        # self.triggertest_timer = None
+        self.triggertest_timer = None
         self.soundtest_timer = None
 
         # guess the clas params file
@@ -181,6 +220,10 @@ class CLASGUI(QtWidgets.QMainWindow):
               ' → CLASGUI.btn_startstreaming_clicked() | Previous state: ' +
               str(self.eeg.state))
 
+        if self.eeg.state != ConnectionState.DISCONNECTED:
+            self.stop_streaming()
+        else:
+            self.start_streaming()
 
     def btn_startclas_clicked(self):
         ''' Start or stop CLAS algorithm, depending on toggle button state. '''
@@ -214,15 +257,129 @@ class CLASGUI(QtWidgets.QMainWindow):
         btn_eeg = ToggleButtonState.DISABLED
         btn_clas = ToggleButtonState.DISABLED
 
+        if self.eeg.state != ConnectionState.DISCONNECTED:  # is eeg streaming
+            if self.btn_startclas_running:  # has "start CLAS" been clicked
+                # eeg streaming, algo has been cued to start
+                if self.runner.ca.experiment_mode == QCLASAlgo.ExperimentMode.DISABLED:
+                    # algo cued to start, but not yet...
+                    status_text = 'Waiting for start...'
+                else:
+                    # algo cued to start and is currently running
+                    status_text = 'Running ' + str(
+                        self.runner.ca.experiment_mode).split('.')[-1]
+
+                btn_clas = ToggleButtonState.ON
+                btn_eeg = ToggleButtonState.DISABLED
+
+            else:
+                # eeg streaming, but algo is disabled
+                if self.eeg.state == ConnectionState.STREAMING:
+                    status_text = 'EEG streaming'
+                    btn_eeg = ToggleButtonState.ON
+                    btn_clas = ToggleButtonState.OFF
+
+                else:
+                    status_text = 'EEG connecting: ' + str(self.eeg.state)
+                    btn_eeg = ToggleButtonState.DISABLED
+                    btn_clas = ToggleButtonState.DISABLED
+
+        else:
+            # eeg not streaming
+            status_text = 'Disconnected'
+
+            # eeg control toggle button state
+            btn_eeg = ToggleButtonState.OFF
+            btn_clas = ToggleButtonState.DISABLED
+
+        ### BUTTON STATES
+        # eeg button
+        if btn_eeg == ToggleButtonState.DISABLED:
+            self.btn_startstreaming.setText('-')
+            self.btn_startstreaming.setStyleSheet('background-color: none')
+            self.btn_startstreaming.setEnabled(False)
+
+        elif btn_eeg == ToggleButtonState.OFF:
+            self.btn_startstreaming.setText('Start streaming')
+            self.btn_startstreaming.setStyleSheet('background-color: none')
+
+            if len(self.txt_clasparampath.text()) > 0:
+                self.btn_startstreaming.setEnabled(True)
+            else:
+                self.btn_startstreaming.setEnabled(False)
+
+        elif btn_eeg == ToggleButtonState.ON:
+            self.btn_startstreaming.setText('Stop streaming')
+            self.btn_startstreaming.setStyleSheet('background-color: orange')
+            self.btn_startstreaming.setEnabled(True)
+
+        # clas buttons
+        if btn_clas == ToggleButtonState.DISABLED:
+            self.btn_startclas.setText('-')
+            self.btn_startclas.setStyleSheet('background-color: none')
+            self.btn_startclas.setEnabled(False)
+
+            for el_c, el_t in zip(self.combo_modes, self.time_modes):
+                el_c.setEnabled(True)
+                el_t.setEnabled(True)
+
+        elif btn_clas == ToggleButtonState.OFF:
+            self.btn_startclas.setText('Start CLAS algo')
+            self.btn_startclas.setStyleSheet('background-color: none')
+            self.btn_startclas.setEnabled(True)
+
+            for el_c, el_t in zip(self.combo_modes, self.time_modes):
+                el_c.setEnabled(True)
+                el_t.setEnabled(True)
+
+        elif btn_clas == ToggleButtonState.ON:
+            self.btn_startclas.setText('Stop CLAS algo')
+            self.btn_startclas.setStyleSheet('background-color: orange')
+            self.btn_startclas.setEnabled(True)
+
+            for el_c, el_t in zip(self.combo_modes, self.time_modes):
+                el_c.setEnabled(False)
+                el_t.setEnabled(False)
+
+        # trigger test
+        if self.triggertest_timer is None and not self.btn_startclas_running:
+            self.btn_triggertest_seq.setEnabled(True)
+            self.btn_triggertest_max.setEnabled(True)
+        else:
+            self.btn_triggertest_seq.setEnabled(False)
+            self.btn_triggertest_max.setEnabled(False)
+
+        if self.triggertest_timer is not None:
+            status_text = 'Trigger test'  # override status text with test
+
+        # sound test
+        if self.soundtest_timer is None and not self.btn_startclas_running:
+            self.btn_soundtest_startper.setEnabled(True)
+            self.btn_soundtest_startcont.setEnabled(True)
+            self.btn_soundtest_stop.setEnabled(False)
+        elif self.soundtest_timer is not None:
+            self.btn_soundtest_startper.setEnabled(False)
+            self.btn_soundtest_startcont.setEnabled(False)
+            self.btn_soundtest_stop.setEnabled(True)
+        else:
+            self.btn_soundtest_startper.setEnabled(False)
+            self.btn_soundtest_startcont.setEnabled(False)
+            self.btn_soundtest_stop.setEnabled(False)
+
+
+        if self.soundtest_timer is not None:
+            status_text = 'Sound test'  # override status text with test
+
+        self.txt_status.setText(status_text)
+
     def start_algo(self):
         ''' Start the CLAS algorithm. '''
         print(datetime.datetime.now().isoformat() + ' → CLASGUI.start_algo()')
 
-        # if self.eeg.state != ConnectionState.STREAMING:
-        #     msg = '!!! EEG state is ' + str(self.eeg.state) + '. Cannot start algo.'
-        #     print(msg)
-        #     send_error(msg)
-        #     return
+        if self.eeg.state != ConnectionState.STREAMING:
+            msg = '!!! EEG state is ' + str(self.eeg.state) + '. Cannot start algo.'
+            print(msg)
+            send_error(msg)
+            return
 
         self.runner.set_experiment_mode(QCLASAlgo.ExperimentMode.DISABLED)
 
@@ -300,6 +457,20 @@ class CLASGUI(QtWidgets.QMainWindow):
         self.send_pp_mode_train(mode)
         self.update_gui_statuslabel_buttons()
 
+    def send_pp_mode_train(self, mode: QCLASAlgo.ExperimentMode):
+        '''
+        Send parallel port pulse pattern that indicates which mode we're running.
+           - 5 pulses, every 100 ms, at 10 ms pulse width
+        '''
+        portcode = 2**(mode + 2) + 128
+        print(datetime.datetime.now().isoformat() +
+              ' → CLASGUI.send_pp_mode_train() | code: ' + str(portcode))
+
+        self.port.write(portcode.to_bytes(1, byteorder='little', signed=False))
+
+        for kk in range(4):
+            QTimer.singleShot(100 * kk, self.get_defer_portcode(portcode))
+
     def start_streaming(self):
         ''' Initiate streaming when the button is pressed '''
         print(datetime.datetime.now().isoformat() +
@@ -337,6 +508,7 @@ class CLASGUI(QtWidgets.QMainWindow):
         process.nice(psutil.HIGH_PRIORITY_CLASS)
 
         # initialize EEG system
+        self.eeg = QEEGStreamer()
         self.eeg.dataReceived.connect(self.eeg_data_received)  #type:ignore
         self.eeg.initialized.connect(self.eeg_connected)  #type:ignore
 
@@ -527,64 +699,64 @@ class CLASGUI(QtWidgets.QMainWindow):
 
         self.update_gui_statuslabel_buttons()
 
-    # def triggertest_start(self):
-    #     print(datetime.datetime.now().isoformat() +
-    #           ' → CLASGUI.triggertest_start()')
+    def triggertest_start(self):
+        print(datetime.datetime.now().isoformat() +
+              ' → CLASGUI.triggertest_start()')
 
-    #     # reset timer
-    #     if self.triggertest_timer is not None:
-    #         self.triggertest_timer.stop()
+        # reset timer
+        if self.triggertest_timer is not None:
+            self.triggertest_timer.stop()
 
-    #     # reset trigger test state variable
-    #     self.triggertest_state = 0
+        # reset trigger test state variable
+        self.triggertest_state = 0
 
-    #     # start callback timer
-    #     self.triggertest_timer = QTimer(self)
-    #     self.triggertest_timer.timeout.connect(self.triggertest_callback)
-    #     self.triggertest_timer.start(250)
+        # start callback timer
+        self.triggertest_timer = QTimer(self)
+        self.triggertest_timer.timeout.connect(self.triggertest_callback)
+        self.triggertest_timer.start(250)
 
-    #     self.txt_triggertest.setText('Starting')
+        self.txt_triggertest.setText('Starting')
 
-    #     self.update_gui_statuslabel_buttons()
+        self.update_gui_statuslabel_buttons()
 
-    # def triggertest_callback(self):
-    #     print(datetime.datetime.now().isoformat() +
-    #           ' → CLASGUI.triggertest_callback()  |  state = {:d}'.format(
-    #               self.triggertest_state))
+    def triggertest_callback(self):
+        print(datetime.datetime.now().isoformat() +
+              ' → CLASGUI.triggertest_callback()  |  state = {:d}'.format(
+                  self.triggertest_state))
 
-    #     if self.triggertest_state > 15:
-    #         self.triggertest_timer.stop()  # type:ignore
-    #         self.triggertest_timer = None
+        if self.triggertest_state > 15:
+            self.triggertest_timer.stop()  # type:ignore
+            self.triggertest_timer = None
 
-    #         self.port.write((255).to_bytes(1, byteorder='little',
-    #                                        signed=False))
+            self.port.write((255).to_bytes(1, byteorder='little',
+                                           signed=False))
 
-    #         self.triggertest_reset()
+            self.triggertest_reset()
 
-    #     else:
-    #         pw = self.triggertest_state if (self.triggertest_state < 8) else (
-    #             15 - self.triggertest_state)
-    #         self.triggertest_state += 1
+        else:
+            pw = self.triggertest_state if (self.triggertest_state < 8) else (
+                15 - self.triggertest_state)
+            self.triggertest_state += 1
 
-    #         self.txt_triggertest.setText('Sent {:d}'.format(2**pw))
-    #         self.port.write((2**pw).to_bytes(1,
-    #                                          byteorder='little',
-    #                                          signed=False))
+            self.txt_triggertest.setText('Sent {:d}'.format(2**pw))
+            self.port.write((2**pw).to_bytes(1,
+                                             byteorder='little',
+                                             signed=False))
 
-    # def triggertest_max(self):
-    #     print(datetime.datetime.now().isoformat() +
-    #           ' → CLASGUI.triggertest_max()')
-    #     self.port.write((255).to_bytes(1, byteorder='little', signed=False))
-    #     self.triggertest_state = -2
-    #     self.txt_triggertest.setText('Sending 255...')
-    #     QTimer.singleShot(100, self.triggertest_reset)
+    def triggertest_max(self):
+        print(datetime.datetime.now().isoformat() +
+              ' → CLASGUI.triggertest_max()')
+        self.port.write((255).to_bytes(1, byteorder='little', signed=False))
+        self.triggertest_state = -2
+        self.txt_triggertest.setText('Sending 255...')
+        QTimer.singleShot(100, self.triggertest_reset)
 
-    # def triggertest_reset(self):
-    #     print(datetime.datetime.now().isoformat() +
-    #           ' → CLASGUI.triggertest_reset()')
-    #     self.triggertest_state = -1
-    #     self.txt_triggertest.setText('Not running')
-    #     self.update_gui_statuslabel_buttons()
+    def triggertest_reset(self):
+        print(datetime.datetime.now().isoformat() +
+              ' → CLASGUI.triggertest_reset()')
+        self.triggertest_state = -1
+        self.txt_triggertest.setText('Not running')
+        self.update_gui_statuslabel_buttons()
 
     def cue_stim(self, delay: int, trig: int, muted: bool):
         if delay > 0:
@@ -602,18 +774,34 @@ class CLASGUI(QtWidgets.QMainWindow):
         self.data_intent.write(
             trig.to_bytes(1, byteorder='little', signed=False))
 
+    def reset_pp(self):
+        ''' Set parallel port output to zero. '''
+        # this is no longer needed because the port automatically goes to zero
+        pass
+
     def deliver_stim(self, trig: int, muted: bool = False):
         ''' Write trigger to parallel port and play sound if asked. '''
         self.port.write((trig).to_bytes(1, byteorder='little', signed=False))
         if not muted:
             QCLASAlgo.pink_noise.play()
-        print('Stim {:d} delivered at {} (muted = {})'.format(trig, datetime.datetime.now().isoformat(), muted))
+        print('Stim {:d} delivered at {} (muted = {})'.format(
+            trig,
+            datetime.datetime.now().isoformat(), muted))
 
     def get_defer_stim(self, trig: int, muted: bool = False) -> Callable:
         ''' Return a callable with the trigger built in. '''
 
         def func():
             self.deliver_stim(trig, muted)
+
+        return func
+
+    def get_defer_portcode(self, portcode: int):
+
+        def func():
+            self.port.write((portcode).to_bytes(1,
+                                                byteorder='little',
+                                                signed=False))
 
         return func
 
@@ -636,8 +824,93 @@ class CLASGUI(QtWidgets.QMainWindow):
             self.algo_set_mode(past_modes[-1])
 
 
+class TSPlot(FigureCanvasQTAgg):
+
+    def __init__(self, parent=None, dpi=60):
+        # initialize the figure
+        wsize = parent.size()
+        self.fig = matplotlib.figure.Figure(figsize=(wsize.width() / dpi,
+                                                     wsize.height() / dpi),
+                                            dpi=dpi)  #type:ignore
+        self.axes = self.fig.add_subplot(111)
+        self.axes.invert_yaxis()
+        self.axes.set_position((0.05, 0.18, 0.92, 0.77))
+
+        s = super(TSPlot, self)
+        s.__init__(self.fig)
+        self.setParent(parent)
+
+        s.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                        QtWidgets.QSizePolicy.Expanding)
+        s.updateGeometry()
+
+    def clear(self):
+        self.axes.cla()
+
+    def plot(self, time, data):
+        self.plt = self.axes.plot(time, data.T, lw=1, c='white', alpha=0.8)
+        self.axes.set_ylim(-500, 500)
+        self.draw()
+
+    def update_data(self, data):
+        # for kk, ln in enumerate(self.plt):
+        #     ln.set_ydata(data[kk, :])
+        self.plt[0].set_ydata(data)
+        self.draw()
+
+
+class HistoricalPlot(FigureCanvasQTAgg):
+
+    def __init__(self, parent=None, dpi=60):
+        # initialize the figure
+        wsize = parent.size()
+        self.fig = matplotlib.figure.Figure(figsize=(wsize.width() / dpi,
+                                                     wsize.height() / dpi),
+                                            dpi=dpi)  #type:ignore
+        self.axes = self.fig.add_subplot(111)
+        self.axes.invert_yaxis()
+        self.axes.set_position((0.05, 0.18, 0.92, 0.77))
+
+        s = super(HistoricalPlot, self)
+        s.__init__(self.fig)
+        self.setParent(parent)
+
+        s.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                        QtWidgets.QSizePolicy.Expanding)
+        s.updateGeometry()
+
+    def clear(self):
+        self.axes.cla()
+
+    def plot(self, time, data):
+        self.plt = self.axes.plot(time, data.T)
+        self.axes.set_ylim(-15, 0)
+        self.draw()
+
+    def update_data(self, data):
+        # for kk, ln in enumerate(self.plt):
+        #     ln.set_ydata(data[kk, :])
+        self.plt[0].set_ydata(data)
+        self.draw()
+
+class DummyPort():
+    def __init__(self):
+        pass
+
+    def write(self, val:int):
+        print('PORT WRITE {:d}'.format(val))
+
+
+def excepthook(exc_type, exc_value, exc_tb):
+    tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    print('################\n## escapehook ##\n################\n' + tb +
+          '################')
+    send_error(tb)
+
+
 
 if __name__ == "__main__":
+    sys.excepthook = excepthook
     App = QtWidgets.QApplication(sys.argv)
     window = CLASGUI()
     sys.exit(App.exec())
