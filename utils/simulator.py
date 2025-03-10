@@ -6,7 +6,6 @@ from typing import List
 
 import numpy as np
 import pyqtgraph as pg
-from audio import Audio
 from constants import (
     CHUNK_SIZE,
     NUM_CHANNELS,
@@ -43,22 +42,35 @@ class LSLSimulatorDataGenerator:
         self.muse_data_type = muse_data_type
         self.output_signal_max_freq = output_signal_max_freq
         self.streaming = True
-        self.phases = np.random.uniform(0, 2 * np.pi, (self.output_signal_max_freq, NUM_CHANNELS[muse_data_type]))
+        self.phases = np.random.uniform(0, 2 * np.pi, (self.output_signal_max_freq + 1, NUM_CHANNELS[muse_data_type]))
         self.config = INITIAL_CONFIG
         self.noise_factor = 0.01
         self.gain_value = 1.0
-        self.info = StreamInfo(muse_data_type.value, muse_data_type.name, NUM_CHANNELS[muse_data_type])
+        self.info = StreamInfo(muse_data_type.value, muse_data_type.name, NUM_CHANNELS[muse_data_type], nominal_srate=SAMPLING_RATE[muse_data_type])
         self.outlet = StreamOutlet(self.info)
+
 
     def update_config(self, config, gain_value, noise_factor):
         self.config = config
         self.gain_value = gain_value
         self.noise_factor = noise_factor 
 
-    def simulate_eeg_data(self):
+    def simulate_eeg_data(self, pure_sine_wave=True):
         # Generate frequencies up to half the sampling rate
         frequencies = np.fft.fftfreq(2 * self.output_signal_max_freq, 1 / (2 * self.output_signal_max_freq))
-        summed_signal = np.zeros_like(frequencies[:self.output_signal_max_freq])
+        # print(frequencies[:self.output_signal_max_freq + 1])
+        if pure_sine_wave:
+            sine_wave_time = np.linspace(0, 1, SAMPLING_RATE[self.muse_data_type], endpoint=False)  # Time vector
+            sine_wave_freq = 1
+
+            sine_wave_signals = []
+            for i in range(4):
+                sine_wave_signal = self.gain_value * np.sin(2 * np.pi * sine_wave_freq * sine_wave_time + i * (np.pi/3))
+                sine_wave_signals.append(sine_wave_signal)
+            output = np.array(sine_wave_signals).T
+
+            return output
+        summed_signal = np.zeros_like(frequencies[:self.output_signal_max_freq + 1])
 
         # Sum up the signals for each EEG band (Delta, Theta, Alpha, etc.)
         for band in EEGSimulatorBand:
@@ -67,7 +79,7 @@ class LSLSimulatorDataGenerator:
             bandwidth = self.config[band][EEGSimulatorSignalParam.BANDWIDTH]
 
             # Gaussian distribution around center frequency
-            summed_signal += (percent / 100) * np.exp(-0.5 * ((frequencies[:self.output_signal_max_freq] - center_frequency) / bandwidth) ** 2)
+            summed_signal += (percent / 100) * np.exp(-0.5 * ((frequencies[:self.output_signal_max_freq + 1] - center_frequency) / bandwidth) ** 2)
 
         summed_signal = summed_signal * self.gain_value
         summed_signal += np.random.uniform(-self.noise_factor*self.gain_value, self.noise_factor*self.gain_value, size=summed_signal.shape)
@@ -86,37 +98,28 @@ class LSLSimulatorDataGenerator:
 
         return time_signal_random_phase
 
-    def determine_chunk_size(self):
-        probabilities = [0.85, 0.1, 0.05]
-        size_multiplier = random.choices([1, 2, 3], probabilities)[0]
-        return CHUNK_SIZE[self.muse_data_type] * size_multiplier
-
     def push_data(self):
         generated_signal = self.simulate_eeg_data()
         while self.streaming:
-            chunk_size = CHUNK_SIZE[self.muse_data_type]
-            chunk_size = 2
-
             # If there isn't enough data left for the next chunk, regenerate signal
-            if generated_signal.shape[0] < chunk_size:
-                generated_signal = self.simulate_eeg_data()
+            if generated_signal.shape[0] < CHUNK_SIZE[self.muse_data_type]:
+                generated_signal = np.vstack((generated_signal, self.simulate_eeg_data()))
 
             # Slice the generated signal into chunks
-            chunk = generated_signal[0, ...]
+            chunk = generated_signal[:CHUNK_SIZE[self.muse_data_type], ...]
 
             # Push the chunk to the LSL stream
-            self.outlet.push_sample()
+            self.outlet.push_chunk(chunk.tolist())
             # Remove the chunk from the signal so the next chunk can be pushed
-            generated_signal = generated_signal[chunk_size:, ...]  
-            time.sleep(chunk_size / SAMPLING_RATE[self.muse_data_type])
+            generated_signal = generated_signal[CHUNK_SIZE[self.muse_data_type]:, ...]  
+            time.sleep(CHUNK_SIZE[self.muse_data_type] / SAMPLING_RATE[self.muse_data_type])
 
     def stop(self):
         self.streaming = False
 
 class LSLSimulatorGUI(QMainWindow):
-    def __init__(self, streams: List[LSLSimulatorDataGenerator]):
+    def __init__(self, stream: LSLSimulatorDataGenerator):
         super().__init__()
-        self.pool = QThreadPool.globalInstance()
         self.setWindowTitle("LSL Simulator GUI")
         # Get the screen size
         screen = QApplication.primaryScreen().availableGeometry()
@@ -131,7 +134,7 @@ class LSLSimulatorGUI(QMainWindow):
             window_height
         )
 
-        self.streams = streams
+        self.stream = stream
         self.config = INITIAL_CONFIG
         self.gain_value = 1.0  # Default gain value is 1.0
         self.noise_factor = 0.01
@@ -249,8 +252,6 @@ class LSLSimulatorGUI(QMainWindow):
         main_layout.addLayout(right_layout)
         self.update_plot()
         self.update_config()
-        self.audio = Audio(3.0, 1.0)
-        self.pool.start(self.audio)
 
     def update_views(self):
         self.sum_viewbox.setGeometry(self.p1.vb.sceneBoundingRect())
@@ -304,8 +305,7 @@ class LSLSimulatorGUI(QMainWindow):
             }
             for band in EEGSimulatorBand
         }
-        for curr_stream in self.streams:
-            curr_stream.update_config(new_config, self.gain_value, self.noise_factor)
+        self.stream.update_config(new_config, self.gain_value, self.noise_factor)
 
     def normalize_percentages(self):
         total_percent = sum(self.controls[band][EEGSimulatorSignalParam.PERCENT]['value'] for band in EEGSimulatorBand)
@@ -327,23 +327,17 @@ class LSLSimulatorGUI(QMainWindow):
         self.update_config()
 
     def closeEvent(self, event):
-        for simulator in self.streams:
-            simulator.stop()
+        self.stream.stop()
         event.accept()
 
 if __name__ == "__main__":
     eeg_simulator = LSLSimulatorDataGenerator(muse_data_type=MuseDataType.EEG)
-    acc_simulator = LSLSimulatorDataGenerator(muse_data_type=MuseDataType.ACC)
-    ppg_simulator = LSLSimulatorDataGenerator(muse_data_type=MuseDataType.PPG)
 
-    streams = [eeg_simulator, acc_simulator, ppg_simulator]
-    for stream in streams:
-        thread = threading.Thread(target=stream.push_data)
-        thread.daemon = True
-        thread.start()
-        # break
+    thread = threading.Thread(target=eeg_simulator.push_data)
+    thread.daemon = True
+    thread.start()
 
     app = QApplication(sys.argv)
-    window = LSLSimulatorGUI(streams)
+    window = LSLSimulatorGUI(eeg_simulator)
     window.show()
     sys.exit(app.exec_())

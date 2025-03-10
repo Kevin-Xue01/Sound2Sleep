@@ -100,6 +100,7 @@ class DatastreamWorker(QObject):
             try:
                 data, timestamps = self.parent_app.stream_inlet[self.muse_data_type].pull_chunk(timeout=DELAYS[self.muse_data_type], max_samples=CHUNK_SIZE[self.muse_data_type])
                 if timestamps and len(timestamps) == CHUNK_SIZE[self.muse_data_type]:
+                    # timestamps = (np.arange(CHUNK_SIZE[MuseDataType.EEG], dtype=np.float64) - CHUNK_SIZE[MuseDataType.EEG]) / np.float64(SAMPLING_RATE[MuseDataType.EEG])  + np.float64(time.time())
                     timestamps = TIMESTAMPS[self.muse_data_type] + np.float64(time.time())
                     data = np.array(data).astype(np.float32)
 
@@ -204,6 +205,10 @@ class EEGApp(QWidget):
         self.switch_channel_counter_max = int(self.config.switch_channel_period_s * SAMPLING_RATE[MuseDataType.EEG] / CHUNK_SIZE[MuseDataType.EEG])
 
         self.init_ui()
+
+        self.plotter_shm = shared_memory.SharedMemory(name=EEG_PLOTTING_SHARED_MEMORY, create=True, size=self.display_window_len_n * NUM_CHANNELS * 4 + self.display_window_len_n * 8)  # float32 EEG + float64 timestamps
+        self.plotter_eeg_data = np.ndarray((self.display_window_len_n, NUM_CHANNELS), dtype=np.float32, buffer=self.plotter_shm.buf[:self.display_window_len_n * NUM_CHANNELS * 4])
+        self.plotter_timestamps = np.ndarray((self.display_window_len_n,), dtype=np.float64, buffer=self.plotter_shm.buf[self.display_window_len_n * NUM_CHANNELS * 4:])
 
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
@@ -560,13 +565,13 @@ class EEGApp(QWidget):
             self.second_stim_start = nan
             self.second_stim_end = nan
 
-            if self.config.experiment_mode == ExperimentMode.RANDOM_PHASE:
+            if self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_OFF or self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_ON:
                 self.randomize_phase()
 
             return EEGProcessorOutput.STIM2, delta_t, phase, freq, amp, amp_buffer_mean
     
     def process_eeg_step_2(self, time_to_target):
-        if self.config.experiment_mode == ExperimentMode.CLAS: self.play_audio(time_to_target)
+        if self.config.experiment_mode == ExperimentMode.CLAS_AUDIO_ON or self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_ON: self.play_audio(time_to_target)
 
     def randomize_phase(self):
         self.target_phase = random.uniform(0.0, 2*np.pi)
@@ -687,22 +692,22 @@ class EEGApp(QWidget):
                 p.kill()
         self.on_disconnected()
 
-def plot_wavelets(wavelet_freqs, truncated_wavelets, sampling_rate):
-    """Plots the real and imaginary parts of the truncated wavelets."""
-    fig, axes = plt.subplots(len(wavelet_freqs), 1, figsize=(10, 2 * len(wavelet_freqs)))
-    time = np.arange(len(truncated_wavelets[0])) / sampling_rate
+# def plot_wavelets(wavelet_freqs, truncated_wavelets, sampling_rate):
+#     """Plots the real and imaginary parts of the truncated wavelets."""
+#     fig, axes = plt.subplots(len(wavelet_freqs), 1, figsize=(10, 2 * len(wavelet_freqs)))
+#     time = np.arange(len(truncated_wavelets[0])) / sampling_rate
     
-    for i, (freq, wavelet) in enumerate(zip(wavelet_freqs, truncated_wavelets)):
-        ax = axes[i] if len(wavelet_freqs) > 1 else axes
-        ax.plot(time, wavelet.real, label='Real Part', color='b')
-        ax.plot(time, wavelet.imag, label='Imaginary Part', color='r', linestyle='dashed')
-        ax.set_title(f'Wavelet at {freq:.2f} Hz')
-        ax.set_xlabel('Time (s)')
-        ax.set_ylabel('Amplitude')
-        ax.legend()
+#     for i, (freq, wavelet) in enumerate(zip(wavelet_freqs, truncated_wavelets)):
+#         ax = axes[i] if len(wavelet_freqs) > 1 else axes
+#         ax.plot(time, wavelet.real, label='Real Part', color='b')
+#         ax.plot(time, wavelet.imag, label='Imaginary Part', color='r', linestyle='dashed')
+#         ax.set_title(f'Wavelet at {freq:.2f} Hz')
+#         ax.set_xlabel('Time (s)')
+#         ax.set_ylabel('Amplitude')
+#         ax.legend()
     
-    plt.tight_layout()
-    plt.show()
+#     plt.tight_layout()
+#     plt.show()
 
 def plotter():
     total_samples = SAMPLING_RATE[MuseDataType.EEG] * 5
