@@ -45,11 +45,15 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from muselsl.constants import LSL_SCAN_TIMEOUT
+# from muselsl.constants import LSL_SCAN_TIMEOUT
 from utils import (
     CHANNEL_NAMES,
     CHUNK_SIZE,
     DELAYS,
+    DISPLAY_WINDOW_LEN_N,
+    DISPLAY_WINDOW_LEN_S,
+    EEG_PLOTTING_SHARED_MEMORY,
+    LSL_SCAN_TIMEOUT,
     NUM_CHANNELS,
     SAMPLING_RATE,
     TIMESTAMPS,
@@ -63,7 +67,6 @@ from utils import (
     SessionConfig,
 )
 
-EEG_PLOTTING_SHARED_MEMORY = "eeg_plotting_shared_memory"
 
 class DatastreamWorker(QObject):
     results_ready = pyqtSignal(np.ndarray, np.ndarray)  # Signal that will emit results once processing is done
@@ -129,7 +132,6 @@ class EEGApp(QWidget):
         self.app_state = AppState.DISCONNECTED
         self.recording_elapsed_time = 0  # Elapsed time in seconds
         self.reset_attempt_count = 0
-        self.display_every_counter = 0
         
         self.processor_elapsed_time = 0.0
         self.target_phase = self.config.target_phase
@@ -180,16 +182,10 @@ class EEGApp(QWidget):
         self.acc_worker.set_app(self)
         self.ppg_worker.set_app(self)
 
-
-        self.display_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config.display_window_len_s)
         self.processing_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config.processing_window_len_s)
-        self.eeg_nchan = len(CHANNEL_NAMES[MuseDataType.EEG])
 
         self.amp_buffer = np.zeros(self.config.amp_buffer_len)
         self.hl_ratio_buffer = np.zeros(self.config.hl_ratio_buffer_len)
-
-        self.eeg_timestamp = []
-        self.eeg_data = None
 
         self.sos_low = signal.butter(self.config.bpf_order, self.config.low_bpf_cutoff, btype = 'bandpass', output = 'sos', fs = SAMPLING_RATE[MuseDataType.EEG])
         self.sos_high = signal.butter(self.config.bpf_order, self.config.high_bpf_cutoff, btype = 'bandpass', output = 'sos', fs = SAMPLING_RATE[MuseDataType.EEG])
@@ -206,9 +202,11 @@ class EEGApp(QWidget):
 
         self.init_ui()
 
-        self.plotter_shm = shared_memory.SharedMemory(name=EEG_PLOTTING_SHARED_MEMORY, create=True, size=self.display_window_len_n * NUM_CHANNELS * 4 + self.display_window_len_n * 8)  # float32 EEG + float64 timestamps
-        self.plotter_eeg_data = np.ndarray((self.display_window_len_n, NUM_CHANNELS), dtype=np.float32, buffer=self.plotter_shm.buf[:self.display_window_len_n * NUM_CHANNELS * 4])
-        self.plotter_timestamps = np.ndarray((self.display_window_len_n,), dtype=np.float64, buffer=self.plotter_shm.buf[self.display_window_len_n * NUM_CHANNELS * 4:])
+        self.plotter_shm = shared_memory.SharedMemory(name=EEG_PLOTTING_SHARED_MEMORY, create=True, size=DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4 + DISPLAY_WINDOW_LEN_N * 8)  # float32 EEG + float64 timestamps
+        self.plotter_eeg_data = np.ndarray((DISPLAY_WINDOW_LEN_N, NUM_CHANNELS[MuseDataType.EEG]), dtype=np.float32, buffer=self.plotter_shm.buf[:DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4])
+        self.plotter_timestamps = np.ndarray((DISPLAY_WINDOW_LEN_N,), dtype=np.float64, buffer=self.plotter_shm.buf[DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4:])
+        
+        self.plotter_shm_counter = 0
 
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
@@ -242,29 +240,29 @@ class EEGApp(QWidget):
         self.config_panel_error_label.hide()
         config_panel_layout.addWidget(self.config_panel_error_label)
         
-        matplotlib.use('QtAgg')
-        sns.set_theme(style="whitegrid")
-        sns.despine(left=True)
+        # matplotlib.use('QtAgg')
+        # sns.set_theme(style="whitegrid")
+        # sns.despine(left=True)
 
-        self.fig, self.axes = plt.subplots(1, 1, figsize=[15, 6], sharex=True)
-        self.lines = []
+        # self.fig, self.axes = plt.subplots(1, 1, figsize=[15, 6], sharex=True)
+        # self.lines = []
 
-        self.impedances = np.zeros(self.eeg_nchan)
+        # self.impedances = np.zeros(self.eeg_nchan)
 
-        for ii in range(self.eeg_nchan):
-            line, = self.axes.plot(np.arange(-self.config.display_window_len_s, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])[::2], np.zeros(self.display_window_len_n)[::2] - ii, lw=1)
-            self.lines.append(line)
+        # for ii in range(self.eeg_nchan):
+        #     line, = self.axes.plot(np.arange(-DISPLAY_WINDOW_LEN_S, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])[::2], np.zeros(DISPLAY_WINDOW_LEN_N)[::2] - ii, lw=1)
+        #     self.lines.append(line)
 
-        self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
-        ticks = np.arange(0, -self.eeg_nchan, -1)
+        # self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
+        # ticks = np.arange(0, -self.eeg_nchan, -1)
 
-        self.axes.set_xlabel('Time (s)')
-        self.axes.xaxis.grid(False)
-        self.axes.set_yticks(ticks)
+        # self.axes.set_xlabel('Time (s)')
+        # self.axes.xaxis.grid(False)
+        # self.axes.set_yticks(ticks)
 
-        self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
+        # self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
 
-        self.eeg_plot_widget = FigureCanvas(self.fig)
+        # self.eeg_plot_widget = FigureCanvas(self.fig)
         control_panel_widget = QWidget()
         control_panel_layout = QVBoxLayout(control_panel_widget)
         
@@ -433,10 +431,13 @@ class EEGApp(QWidget):
 
     def handle_eeg_data(self, data: np.ndarray, timestamp: np.ndarray):
         self.eeg_timestamp = np.concatenate([self.eeg_timestamp, timestamp])
-        self.eeg_timestamp = self.eeg_timestamp[-self.display_window_len_n:]
+        self.eeg_timestamp = self.eeg_timestamp[-DISPLAY_WINDOW_LEN_N:]
         self.eeg_data = np.vstack([self.eeg_data, data]) if self.eeg_data is not None else data
-        self.eeg_data = self.eeg_data[-self.display_window_len_n:]
-        if len(self.eeg_timestamp) >= self.processing_window_len_n: 
+        self.eeg_data = self.eeg_data[-DISPLAY_WINDOW_LEN_N:]
+        if self.plotter_shm_counter <= DISPLAY_WINDOW_LEN_N:
+            self.plotter_shm_counter += CHUNK_SIZE[MuseDataType.EEG]
+
+        if len(self.eeg_timestamp) >= DISPLAY_WINDOW_LEN_N: 
 
             result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
             if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
@@ -446,7 +447,6 @@ class EEGApp(QWidget):
 
         self.file_writer.write_chunk(data, timestamp)
 
-        # if self.display_every_counter == self.config.display_every_counter_max:
         #     plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
         #     for ii in range(4):
         #         self.lines[ii].set_xdata(self.eeg_timestamp[::2] - self.eeg_timestamp[-1])
@@ -454,11 +454,8 @@ class EEGApp(QWidget):
         #         self.impedances = np.std(plot_data, axis=0)
 
         #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-        #     self.axes.set_xlim(-self.config.display_window_len_s, 0)
+        #     self.axes.set_xlim(-DISPLAY_WINDOW_LEN_S, 0)
         #     self.eeg_plot_widget.draw()
-        #     self.display_every_counter = 0
-        # else:
-        #     self.display_every_counter += 1
 
     def handle_acc_data(self, data: np.ndarray, timestamp: np.ndarray):
         self.logger.debug('Not Implemented')
@@ -520,7 +517,7 @@ class EEGApp(QWidget):
         self.hl_ratio_buffer[:-1] = self.hl_ratio_buffer[1:]
         self.hl_ratio_buffer[-1] = hl_ratio
         hl_ratio_buffer_mean = self.hl_ratio_buffer.mean()
-
+        self.processor_elapsed_time = self.eeg_timestamp[-1]
 
         if self.config.experiment_mode == ExperimentMode.DISABLED:
             self.logger.info(f"Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
@@ -692,6 +689,10 @@ class EEGApp(QWidget):
                 p.kill()
         self.on_disconnected()
 
+    def closeEvent(self, event):
+        self.plotter_shm.close()
+        self.plotter_shm.unlink()
+
 # def plot_wavelets(wavelet_freqs, truncated_wavelets, sampling_rate):
 #     """Plots the real and imaginary parts of the truncated wavelets."""
 #     fig, axes = plt.subplots(len(wavelet_freqs), 1, figsize=(10, 2 * len(wavelet_freqs)))
@@ -709,40 +710,46 @@ class EEGApp(QWidget):
 #     plt.tight_layout()
 #     plt.show()
 
-def plotter():
-    total_samples = SAMPLING_RATE[MuseDataType.EEG] * 5
-    shm = shared_memory.SharedMemory(name=EEG_PLOTTING_SHARED_MEMORY)
-    data_array = np.ndarray((total_samples, NUM_CHANNELS), dtype=np.float32, buffer=shm.buf)
+# def plotter():
+#     total_samples = SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S
+#     shm_data = shared_memory.SharedMemory(name=SHM_NAME)
+#     data_array = np.ndarray((TOTAL_SAMPLES, NUM_CHANNELS), dtype=np.float32, buffer=shm_data.buf[:TOTAL_SAMPLES * NUM_CHANNELS * 4])
+#     timestamps = np.ndarray((TOTAL_SAMPLES,), dtype=np.float64, buffer=shm_data.buf[TOTAL_SAMPLES * NUM_CHANNELS * 4:])
     
-    plt.matplotlib.use('QtAgg')
-    sns.set_theme(style="whitegrid")
-    sns.despine(left=True)
+#     plt.ion()
+#     fig, ax = plt.subplots()
+#     lines = []
+#     impedances = np.zeros(NUM_CHANNELS)
+#     time_axis = np.arange(-WINDOW_SIZE, 0, 1.0 / SAMPLE_RATE)[::2]
     
-    fig, ax = plt.subplots(figsize=[15, 6])
-    lines = []
-    impedances = np.zeros(NUM_CHANNELS)
-    time_axis = np.linspace(-5, 0, total_samples // 2)  # X-axis from -10s to 0s
+#     for ii in range(NUM_CHANNELS):
+#         line, = ax.plot(time_axis, np.zeros(TOTAL_SAMPLES // 2) - ii, lw=1)
+#         lines.append(line)
     
-    for i in range(NUM_CHANNELS):
-        line, = ax.plot(time_axis, np.zeros(total_samples // 2) - i, lw=1)
-        lines.append(line)
+#     ax.set_ylim(-NUM_CHANNELS, 0.0)
+#     ax.set_xlabel('Time (s)')
+#     ax.set_yticks(np.arange(0, -NUM_CHANNELS, -1))
+#     ax.xaxis.grid(False)
     
-    ax.set_ylim(-NUM_CHANNELS + 0.5, 0.5)
-    ax.set_xlabel('Time (s)')
-    ax.xaxis.grid(False)
-    ax.set_yticks(np.arange(0, -NUM_CHANNELS, -1))
-    ax.set_yticklabels([f'Channel {i+1} - {impedance:2f}' for i, impedance in enumerate(impedances)])
-    
-    try:
-        while True:
-            for i, line in enumerate(lines):
-                line.set_ydata(data_array[::2, i] - i)  # Offset each channel
-            plt.pause(0.01)  # Update plot
-    except KeyboardInterrupt:
-        pass
-    finally:
-        shm.close()
-        shm.unlink()
+#     try:
+#         while True:
+#             latest_time = timestamps[-1]
+#             time_axis = timestamps[::2] - latest_time  # Convert to seconds relative to latest timestamp
+            
+#             impedances = np.std(data_array, axis=0)  # Recalculate impedances
+#             ax.set_yticklabels([f'{label} - {impedance:.2f}' for label, impedance in zip(CHANNEL_NAMES, impedances)])
+            
+#             for i, line in enumerate(lines):
+#                 norm_data = data_array[:, i] - np.mean(data_array[:, i])  # Normalize to mean 0
+#                 line.set_xdata(time_axis)
+#                 line.set_ydata(norm_data[::2] / 3 - i)  # Offset each channel
+            
+#             plt.pause(0.01)  # Update plot
+#     except KeyboardInterrupt:
+#         pass
+#     finally:
+#         shm_data.close()
+#         shm_data.unlink()
 
 if __name__ == "__main__":
     if sys.platform.startswith("win"):
@@ -762,4 +769,6 @@ if __name__ == "__main__":
             ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
             for p in psutil.process_iter(['name']):
                 if p.info['name'] == 'BlueMuse.exe': p.kill()
+
+
     sys.exit(exit_code)

@@ -108,3 +108,8 @@ class EEGSimulatorSignalParam(Enum):
     BANDWIDTH = 'Bandwidth'
     RANGE = 'Range'
     COLOR = 'Color'
+
+DISPLAY_WINDOW_LEN_S = 5.0
+LSL_SCAN_TIMEOUT = 10.5
+DISPLAY_WINDOW_LEN_N = int(SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S)
+EEG_PLOTTING_SHARED_MEMORY = "eeg_plotting_shared_memory"
