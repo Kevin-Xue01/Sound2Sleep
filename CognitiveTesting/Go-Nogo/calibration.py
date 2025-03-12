@@ -152,7 +152,7 @@ font = pygame.font.SysFont(None, 48)
 idle_frames = []
 try:
     for i in range(1, 5):
-        frame = pygame.image.load(f"Go-Nogo/assets/sprites/player_idle/{i}.png").convert_alpha()
+        frame = pygame.image.load(f"CognitiveTesting/Go-Nogo/assets/sprites/player_idle/{i}.png").convert_alpha()
         frame = pygame.transform.scale(frame, (150, 150))
         idle_frames.append(frame)
 except Exception as e:
@@ -162,7 +162,7 @@ except Exception as e:
 slash_frames = []
 try:
     for i in range(1, 4):
-        frame = pygame.image.load(f"Go-Nogo/assets/sprites/Left/{i}.png").convert_alpha()
+        frame = pygame.image.load(f"CognitiveTesting/Go-Nogo/assets/sprites/Left/{i}.png").convert_alpha()
         frame = pygame.transform.scale(frame, (150, 150))
         slash_frames.append(frame)
 except Exception as e:
@@ -172,7 +172,7 @@ except Exception as e:
 hurt_frames = []
 try:
     for i in range(1, 4):
-        frame = pygame.image.load(f"Go-Nogo/assets/sprites/hurt/{i}.png").convert_alpha()
+        frame = pygame.image.load(f"CognitiveTesting/Go-Nogo/assets/sprites/hurt/{i}.png").convert_alpha()
         frame = pygame.transform.scale(frame, (150, 150))
         hurt_frames.append(frame)
 except Exception as e:
@@ -182,7 +182,7 @@ except Exception as e:
 powerup_frames = []
 try:
     for i in range(1, 4):
-        frame = pygame.image.load(f"Go-Nogo/assets/sprites/powerup/{i}.png").convert_alpha()
+        frame = pygame.image.load(f"CognitiveTesting/Go-Nogo/assets/sprites/powerup/{i}.png").convert_alpha()
         frame = pygame.transform.scale(frame, (150, 150))
         powerup_frames.append(frame)
 except Exception as e:
@@ -194,8 +194,8 @@ player_x = screen_width - 250
 player_y = screen_height - 250
 
 try:
-    shuriken_img = pygame.image.load("Go-Nogo/assets/sprites/shuriken.png").convert_alpha()
-    heart_img = pygame.image.load("Go-Nogo/assets/sprites/heart.png").convert_alpha()
+    shuriken_img = pygame.image.load("CognitiveTesting/Go-Nogo/assets/sprites/shuriken.png").convert_alpha()
+    heart_img = pygame.image.load("CognitiveTesting/Go-Nogo/assets/sprites/heart.png").convert_alpha()
 except Exception as e:
     print("Error loading target images. Check file paths.", e)
     pygame.quit(); sys.exit()
@@ -221,11 +221,11 @@ spawn_count = 0
 amount_of_trials = NUM_TRIALS
 
 # Load and scale background
-background = pygame.image.load('Go-Nogo/assets/sprites/bluegalaxy.png').convert()
+background = pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/bluegalaxy.png').convert()
 background = pygame.transform.scale(background, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
 # Load and scale path while maintaining aspect ratio
-path = pygame.image.load('Go-Nogo/assets/sprites/path.png').convert_alpha()
+path = pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/path.png').convert_alpha()
 original_width, original_height = path.get_size()
 TARGET_PATH_HEIGHT = SCREEN_HEIGHT
 aspect_ratio = original_width / original_height
@@ -234,13 +234,13 @@ path = pygame.transform.scale(path, (TARGET_PATH_WIDTH, TARGET_PATH_HEIGHT))
 path_rect = path.get_rect(midleft=(SCREEN_WIDTH // 15, SCREEN_HEIGHT // 2))
 
 prompt = ''
-img = pygame.image.load('Go-Nogo/assets/sprites/hurt/1.png').convert_alpha()
+img = pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/1.png').convert_alpha()
 
 # Load hurt frames for in-game animation
 hurt_frames = [
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/hurt/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/hurt/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/hurt/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
 ]
 hurt_frame_index = 0
 hurt_animation_active = False
@@ -249,9 +249,9 @@ HURT_ANIMATION_INTERVAL = 150  # milliseconds
 
 # Load power-up frames for in-game animation
 powerup_frames = [
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/powerup/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/powerup/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/powerup/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/powerup/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/powerup/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/powerup/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
 ]
 powerup_frame_index = 0
 powerup_animation_active = False
@@ -264,13 +264,13 @@ player_group = pygame.sprite.GroupSingle()
 
 # Initialize player 
 player = Player(
-    idle_folder='Go-Nogo/assets/sprites/player_idle', 
-    bottom_left='Go-Nogo/assets/sprites/BottomLeft',
-    bottom_right='Go-Nogo/assets/sprites/BottomRight',
-    top_left='Go-Nogo/assets/sprites/TopLeft',
-    top_right='Go-Nogo/assets/sprites/TopRight',
-    left='Go-Nogo/assets/sprites/Left',
-    right='Go-Nogo/assets/sprites/Right', 
+    idle_folder='CognitiveTesting/Go-Nogo/assets/sprites/player_idle', 
+    bottom_left='CognitiveTesting/Go-Nogo/assets/sprites/BottomLeft',
+    bottom_right='CognitiveTesting/Go-Nogo/assets/sprites/BottomRight',
+    top_left='CognitiveTesting/Go-Nogo/assets/sprites/TopLeft',
+    top_right='CognitiveTesting/Go-Nogo/assets/sprites/TopRight',
+    left='CognitiveTesting/Go-Nogo/assets/sprites/Left',
+    right='CognitiveTesting/Go-Nogo/assets/sprites/Right', 
     position=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
 )
 player_group.add(player)
@@ -533,7 +533,7 @@ while con:
     clock.tick(FPS)
 
 # Calibration is complete; save final level to a file
-with open("Go-Nogo/calibration.txt", "w") as f:
+with open("CognitiveTesting/Go-Nogo/calibration.txt", "w") as f:
     f.write(str(LEVEL))
 
 # Display the final message: Calibration Complete! and the final level

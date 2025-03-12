@@ -106,17 +106,17 @@ def spawn_shuriken(shuriken_group, hexagon_points, hexagon_center, change_color=
     # Weighted random choice to set either "go" or "dontgo" type
     if is_inhabitation:
         if random.random() < 0.8:
-            shuriken_image = 'Go-Nogo/assets/sprites/shuriken.png'
+            shuriken_image = 'CognitiveTesting/Go-Nogo/assets/sprites/shuriken.png'
             shuriken_type = "Go"
         else:
-            shuriken_image = 'Go-Nogo/assets/sprites/heart.png'
+            shuriken_image = 'CognitiveTesting/Go-Nogo/assets/sprites/heart.png'
             shuriken_type = "Dontgo"
     elif is_vigilance:
         if random.random() < 0.2:
-            shuriken_image = 'Go-Nogo/assets/sprites/shuriken.png'
+            shuriken_image = 'CognitiveTesting/Go-Nogo/assets/sprites/shuriken.png'
             shuriken_type = "Go"
         else:
-            shuriken_image = 'Go-Nogo/assets/sprites/heart.png'
+            shuriken_image = 'CognitiveTesting/Go-Nogo/assets/sprites/heart.png'
             shuriken_type = "Dontgo"
     
     # Create the shuriken and add it to the group

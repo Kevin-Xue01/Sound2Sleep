@@ -186,7 +186,7 @@ FPS = 60
 font = pygame.font.SysFont(None, 50)
 
 # Set your icon directory (adjust the path as needed)
-icon_path = "VPAT/assets/vpat/Kids-190-a"
+icon_path = "CognitiveTesting/VPAT/assets/vpat/Kids-190-a"
 
 # Load icons and scale them
 icons = []
@@ -329,9 +329,9 @@ clock = pygame.time.Clock()
 FPS = 60
 
 # Load assets
-background = pygame.image.load('VPAT/assets/vpat/background.jpg').convert()
+background = pygame.image.load('CognitiveTesting/VPAT/assets/vpat/background.jpg').convert()
 background = pygame.transform.scale(background, (SCREEN_WIDTH, SCREEN_HEIGHT))
-icon_path = 'VPAT/assets/vpat/Kids-190-a'
+icon_path = 'CognitiveTesting/VPAT/assets/vpat/Kids-190-a'
 icons = [pygame.image.load(os.path.join(icon_path, file)).convert_alpha() for file in os.listdir(icon_path)]
 icons = [pygame.transform.scale(icon, (70, 70)) for icon in icons]
 random.shuffle(icons)

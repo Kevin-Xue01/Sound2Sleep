@@ -7,6 +7,11 @@ import json
 import datetime
 import os
 import random
+# Add the root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))  # Going up two levels to the root
+
+from dropbox_uploader import upload_to_dropbox
+
 
 # Set spawn interval based on level
 if LEVEL == 1:
@@ -38,11 +43,11 @@ clock = pygame.time.Clock()
 correct_counter = 0
 
 # Load and scale background
-background = pygame.image.load('Go-Nogo/assets/sprites/bluegalaxy.png').convert()
+background = pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/bluegalaxy.png').convert()
 background = pygame.transform.scale(background, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
 # Load and scale path while maintaining aspect ratio
-path = pygame.image.load('Go-Nogo/assets/sprites/path.png').convert_alpha()
+path = pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/path.png').convert_alpha()
 original_width, original_height = path.get_size()
 TARGET_PATH_HEIGHT = SCREEN_HEIGHT  # Adjust as needed
 aspect_ratio = original_width / original_height
@@ -51,13 +56,13 @@ path = pygame.transform.scale(path, (TARGET_PATH_WIDTH, TARGET_PATH_HEIGHT))
 path_rect = path.get_rect(midleft=(SCREEN_WIDTH // 15, SCREEN_HEIGHT // 2))
 
 prompt = ''
-img = pygame.image.load('Go-Nogo/assets/sprites/hurt/1.png').convert_alpha()
+img = pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/1.png').convert_alpha()
 
 # Load hurt frames
 hurt_frames = [
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/hurt/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/hurt/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/hurt/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
 ]
 hurt_frame_index = 0
 hurt_animation_active = False
@@ -66,9 +71,9 @@ HURT_ANIMATION_INTERVAL = 150  # milliseconds
 
 # Load power-up frames
 powerup_frames = [
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/powerup/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/powerup/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/powerup/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/powerup/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/powerup/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/powerup/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
 ]
 powerup_frame_index = 0
 powerup_animation_active = False
@@ -81,13 +86,13 @@ player_group = pygame.sprite.GroupSingle()
 
 # Initialize player 
 player = Player(
-    idle_folder='Go-Nogo/assets/sprites/player_idle', 
-    bottom_left='Go-Nogo/assets/sprites/BottomLeft',
-    bottom_right='Go-Nogo/assets/sprites/BottomRight',
-    top_left='Go-Nogo/assets/sprites/TopLeft',
-    top_right='Go-Nogo/assets/sprites/TopRight',
-    left='Go-Nogo/assets/sprites/Left',
-    right='Go-Nogo/assets/sprites/Right', 
+    idle_folder='CognitiveTesting/Go-Nogo/assets/sprites/player_idle', 
+    bottom_left='CognitiveTesting/Go-Nogo/assets/sprites/BottomLeft',
+    bottom_right='CognitiveTesting/Go-Nogo/assets/sprites/BottomRight',
+    top_left='CognitiveTesting/Go-Nogo/assets/sprites/TopLeft',
+    top_right='CognitiveTesting/Go-Nogo/assets/sprites/TopRight',
+    left='CognitiveTesting/Go-Nogo/assets/sprites/Left',
+    right='CognitiveTesting/Go-Nogo/assets/sprites/Right', 
     position=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
 )
 player_group.add(player)
@@ -207,23 +212,26 @@ while True:
         else:
             print("Final Score:", score)
             #Save Data
-            data_folder = "Go-Nogo/data"
+            data_folder = "CognitiveTesting/Go-Nogo/data"
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
-            date = datetime.datetime.now().strftime("%Y-%m-%d") 
-            filename = os.path.join(data_folder, f"go_no_go_{date}.json")
-            with open(filename, "w") as json_file:
+            date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") 
+            filenameData = os.path.join(data_folder, f"go_no_go_data{date}.json")
+            with open(filenameData, "w") as json_file:
                 json.dump(trial_log, json_file, indent=4)
-                data_folder = "Go-Nogo/data"
+                data_folder = "CognitiveTesting/Go-Nogo/data"
             #Save Score
-            data_folder = "Go-Nogo/Score"
+            data_folder = "CognitiveTesting/Go-Nogo/Score"
             score = feedback_score / NUM_TRIALS * 100
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
-            date = datetime.datetime.now().strftime("%Y-%m-%d") 
-            filename = os.path.join(data_folder, f"{date}.json")
-            with open(filename, "w") as json_file:
+            date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") 
+            filenameScore = os.path.join(data_folder, f"go_no_go_score{date}.json")
+            with open(filenameScore, "w") as json_file:
                 json.dump(score, json_file, indent=4)
+            #Upload Data and Score to Dropbox
+            upload_to_dropbox(filenameData)  # Upload the encrypted version of trial log file
+            upload_to_dropbox(filenameScore)  # Upload the encrypted version of score file
             pygame.quit()
             sys.exit()
 
