@@ -64,7 +64,7 @@ def draw_stimulus(stimulus_type):
         pygame.draw.rect(screen, RED, (350, 250, 100, 100))
     pygame.display.flip()
 
-# Function to display feedback for 2 seconds
+# Function to display feedback for 2 seconds on incorrect trials
 def show_feedback(feedback_text):
     screen.fill(WHITE)
     font = pygame.font.SysFont(None, 48)
@@ -113,21 +113,21 @@ while running and trial_num < total_trials:
     else:
         correct = response is None
 
-    # Determine feedback message
-    if correct:
-        feedback = "Correct!"
-    else:
+    # Only prepare a feedback message for incorrect trials
+    if not correct:
         if stimulus_type == "go":
             feedback = "Press on the green circle!"
         else:
             feedback = "Do not press on the red square!"
+    else:
+        feedback = None
 
     # Log trial data as a dictionary
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     trial_data = {
         "trial": trial_num,
         "stimulus": stimulus_type,
-        "response": response,
+        "response": response/100,
         "response_time": response_time,
         "correct": correct,
         "timestamp": timestamp
@@ -135,14 +135,17 @@ while running and trial_num < total_trials:
     trials_data.append(trial_data)
     print(trial_data)
 
-    # Show feedback for 2 seconds
-    show_feedback(feedback)
+    # If the trial was incorrect, display feedback for 2 seconds.
+    # Otherwise, show a blank screen during the inter-trial interval.
+    if feedback:
+        show_feedback(feedback)
+    else:
+        screen.fill(WHITE)
+        pygame.display.flip()
+        pygame.time.delay(500)  # 500 ms inter-trial interval
 
-    # Inter-trial interval (optional pause)
-    pygame.time.delay(500)
+pygame.quit()
 
 # Save the data to a JSON file
 with open(data_file, "w") as f:
     json.dump(trials_data, f, indent=4)
-
-pygame.quit()

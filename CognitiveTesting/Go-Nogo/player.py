@@ -65,7 +65,7 @@ class Player(pygame.sprite.Sprite):
             self.rect.y -= SCREEN_HEIGHT // 32  # Move up when slashing top prompts
 
         # Update animation index
-        self.animation_index += 0.1
+        self.animation_index += 0.2
         if self.animation_index >= len(self.current_frames):
             self.animation_index = 0
             if self.slashing:

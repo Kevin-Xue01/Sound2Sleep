@@ -29,6 +29,104 @@ game_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
 # Calculate offsets to center the game surface on the physical display.
 offset_x = (physical_width - SCREEN_WIDTH) // 2
 offset_y = (physical_height - SCREEN_HEIGHT) // 2
+# ---------------------------------------------------------------------
+# Instruction Screen Function
+def show_instructions():
+    # Fill the screen with a black background.
+    screen.fill((0, 0, 0))
+    font = pygame.font.Font(None, 48)
+
+    # Draw the welcome text at the top center.
+    welcome_text = font.render("Welcome to Ninja Swipe!", True, (255, 255, 255))
+    welcome_rect = welcome_text.get_rect(center=(physical_width // 2, 80))
+    screen.blit(welcome_text, welcome_rect)
+
+    # Load images.
+    try:
+        shuriken_img = pygame.image.load('Go-Nogo/assets/sprites/shuriken.png').convert_alpha()
+        shuriken_img = pygame.transform.scale(shuriken_img, (100, 100))
+    except Exception as e:
+        print("Error loading shuriken image:", e)
+        shuriken_img = None
+
+    try:
+        heart_img = pygame.image.load('Go-Nogo/assets/sprites/heart.png').convert_alpha()
+        heart_img = pygame.transform.scale(heart_img, (100, 100))
+    except Exception as e:
+        print("Error loading heart image:", e)
+        heart_img = None
+
+    gap = 10
+
+    # --- Shuriken Instruction Line ---
+    # "If you see (shuriken image) Tap the Screen!"
+    text1 = font.render("If you see", True, (255, 255, 255))
+    text2 = font.render("Tap the Screen!", True, (255, 255, 255))
+    shuriken_img_width = 100 if shuriken_img is not None else 0
+    total_width = text1.get_width() + gap + shuriken_img_width + gap + text2.get_width()
+    start_x = (physical_width - total_width) // 2
+    y_shuriken = physical_height // 2 - 100  # Adjust vertical placement as needed
+
+    # Blit the first part.
+    text1_rect = text1.get_rect(midleft=(start_x, y_shuriken))
+    screen.blit(text1, text1_rect)
+
+    # Blit the shuriken image.
+    if shuriken_img:
+        image_x = text1_rect.right + gap
+        image_rect = shuriken_img.get_rect(midleft=(image_x, y_shuriken))
+        screen.blit(shuriken_img, image_rect)
+        right_edge = image_rect.right
+    else:
+        right_edge = text1_rect.right
+
+    # Blit the second part.
+    text2_rect = text2.get_rect(midleft=(right_edge + gap, y_shuriken))
+    screen.blit(text2, text2_rect)
+
+    # --- Heart Instruction Line ---
+    # "If you see (heart image) Don't tap the screen!"
+    text3 = font.render("If you see", True, (255, 255, 255))
+    text4 = font.render("Don't tap the screen!", True, (255, 255, 255))
+    heart_img_width = 100 if heart_img is not None else 0
+    total_width2 = text3.get_width() + gap + heart_img_width + gap + text4.get_width()
+    start_x2 = (physical_width - total_width2) // 2
+    y_heart = physical_height // 2 + 50  # Adjust vertical placement as needed
+
+    text3_rect = text3.get_rect(midleft=(start_x2, y_heart))
+    screen.blit(text3, text3_rect)
+
+    if heart_img:
+        image_x2 = text3_rect.right + gap
+        heart_rect = heart_img.get_rect(midleft=(image_x2, y_heart))
+        screen.blit(heart_img, heart_rect)
+        right_edge2 = heart_rect.right
+    else:
+        right_edge2 = text3_rect.right
+
+    text4_rect = text4.get_rect(midleft=(right_edge2 + gap, y_heart))
+    screen.blit(text4, text4_rect)
+
+    # --- Bottom Instruction ---
+    ready_text = font.render("Are you ready? Tap the screen to continue", True, (255, 255, 255))
+    ready_rect = ready_text.get_rect(center=(physical_width // 2, physical_height - 80))
+    screen.blit(ready_text, ready_rect)
+
+    pygame.display.flip()
+
+    # Wait for the user to press a key or tap the screen.
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN):
+                waiting = False
+
+# Show instructions before starting the main game loop.
+show_instructions()
+# ---------------------------------------------------------------------
 
 correct_counter = 0
 SHURIKEN_SPAWN_POINT = (SCREEN_HEIGHT//12, SCREEN_HEIGHT//2)  # Coordinates for a single spawn point
