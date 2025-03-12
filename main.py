@@ -79,7 +79,6 @@ class DatastreamWorker(QObject):
         self.muse_data_type = muse_data_type
         self.running = False
         self.parent_app = None
-        self.logger = Logger(self.config._session_key, self.__class__.__name__)
 
     def set_app(self, app: 'EEGApp'):
         """Set reference to main app to access necessary data."""
@@ -112,11 +111,11 @@ class DatastreamWorker(QObject):
                     no_data_counter += 1
 
                     if no_data_counter > 100:
-                        self.error.emit('No data received for 100 consecutive attempts')
+                        self.error.emit(f'No {self.muse_data_type} data received for 100 consecutive attempts')
                         self.running = False
 
             except Exception as ex:
-                self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+                self.error(traceback.format_exception(type(ex), ex, ex.__traceback__))
 
         self.finished.emit()
 
@@ -125,9 +124,9 @@ class EEGApp(QWidget):
     def __init__(self):
         super().__init__()
         self.config = SessionConfig()
-        self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
         self.file_writer = FileWriter(self.config._session_key)
+        self.logger = Logger(self.config._session_key, self.__class__.__name__)
 
         self.app_state = AppState.DISCONNECTED
         self.recording_elapsed_time = 0  # Elapsed time in seconds
@@ -575,27 +574,27 @@ class EEGApp(QWidget):
     
     def lsl_reset_stream_step1(self):
         self.on_connection_timeout()
-        self.logger.info('Resetting stream step 1')
+        self.logger.error('Resetting stream step 1')
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         time.sleep(4)
         self.lsl_reset_stream_step2()
 
 
     def lsl_reset_stream_step2(self):
-        self.logger.info('Resetting stream step 2')
+        self.logger.error('Resetting stream step 2')
         subprocess.call('start bluemuse://start?startall', shell=True)
         time.sleep(4)
         self.lsl_reset_stream_step3()
 
     def lsl_reset_stream_step3(self):
-        self.logger.info('Resetting stream step 3')
+        self.logger.error('Resetting stream step 3')
         reset_success = self.lsl_reload()
 
         if not reset_success:
-            self.logger.info('LSL stream reset successful. Starting threads')
+            self.logger.warning('LSL stream reset successful. Starting threads')
             self.reset_attempt_count += 1
             if self.reset_attempt_count <= 5:
-                self.logger.info('Resetting Attempt: ' + str(self.reset_attempt_count))
+                self.logger.error('Resetting Attempt: ' + str(self.reset_attempt_count))
                 self.lsl_reset_stream_step1() 
             else:
                 self.reset_attempt_count = 0
@@ -603,14 +602,14 @@ class EEGApp(QWidget):
                 for p in psutil.process_iter(['name']):
                     print(p.info)
                     if p.info['name'] == 'BlueMuse.exe':
-                        self.logger.info('Killing BlueMuse')
+                        self.logger.critical('Killing BlueMuse')
                         p.kill()
 
                 time.sleep(4)
                 self.lsl_reset_stream_step1()
         else:
             self.reset_attempt_count = 0
-            self.logger.info('LSL stream reset successful. Starting threads')
+            self.logger.warning('LSL stream reset successful. Starting threads')
             time.sleep(4)
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
             self.on_connected()
@@ -685,7 +684,7 @@ class EEGApp(QWidget):
 
         for p in psutil.process_iter(['name']):
             if p.info['name'] == 'BlueMuse.exe':
-                self.logger.info('Killing BlueMuse')
+                self.logger.critical('Killing BlueMuse')
                 p.kill()
         self.on_disconnected()
 

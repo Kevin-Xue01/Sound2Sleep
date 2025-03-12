@@ -13,15 +13,13 @@ class Logger:
         except Exception:
             return False
     
-    def __init__(self, session_key: str, logger_name: str, level=logging.DEBUG):
-        self.level = level
+    def __init__(self, session_key: str, logger_name: str):
         self.logger = logging.getLogger(logger_name)
-        self.logger.setLevel(self.level)
+        self.logger.setLevel(logging.DEBUG)
         self.session_key = session_key
 
         # Create a console handler for warnings and above
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(self.level)
         
         console_handler.setFormatter(self.log_format)
         self.logger.addHandler(console_handler)
@@ -33,7 +31,7 @@ class Logger:
         if self.session_key:
             session_log_file_path = os.path.join("data", self.session_key, "log.txt")
             self.file_handler = logging.FileHandler(session_log_file_path, mode='a')
-            self.file_handler.setLevel(self.level)
+            self.file_handler.setLevel(logging.INFO)
             self.file_handler.setFormatter(self.log_format)
             self.logger.addHandler(self.file_handler)
     
