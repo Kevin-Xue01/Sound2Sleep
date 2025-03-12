@@ -30,14 +30,12 @@ class Logger:
         self._setup_file_handler()
 
     def _setup_file_handler(self):
-        # Optionally create a file handler
         if self.session_key:
-            session_log_file_path = f"logs/{self.session_key}.txt"
-            if self.is_valid_path(session_log_file_path):
-                self.file_handler = logging.FileHandler(session_log_file_path, mode='a')
-                self.file_handler.setLevel(self.level)
-                self.file_handler.setFormatter(self.log_format)
-                self.logger.addHandler(self.file_handler)
+            session_log_file_path = os.path.join("data", self.session_key, "log.txt")
+            self.file_handler = logging.FileHandler(session_log_file_path, mode='a')
+            self.file_handler.setLevel(self.level)
+            self.file_handler.setFormatter(self.log_format)
+            self.logger.addHandler(self.file_handler)
     
     def update_session_key(self, new_session_key: str):
         """Update session key and reconfigure the logger."""
