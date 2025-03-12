@@ -4,10 +4,13 @@ import os
 import datetime
 import json
 
+# Subject
+subject = "subject_1_standard.json"
+
 # Create the data directory if it doesn't exist
 data_dir = os.path.join("Go-Nogo", "Validation")
 os.makedirs(data_dir, exist_ok=True)
-data_file = os.path.join(data_dir, "standard.json")
+data_file = os.path.join(data_dir, subject)
 
 # Initialize Pygame
 pygame.init()

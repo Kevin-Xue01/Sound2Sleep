@@ -8,6 +8,9 @@ import datetime
 import os
 import random
 
+# Subject
+subject = "subject_1_gamified.json"
+
 # Set spawn interval based on level
 if LEVEL == 1:
     SPAWN_INTERVAL = 2500
@@ -213,7 +216,7 @@ while True:
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
             date = datetime.datetime.now().strftime("%Y-%m-%d") 
-            filename = os.path.join(data_folder, f"gamified.json")
+            filename = os.path.join(data_folder, subject)
             with open(filename, "w") as json_file:
                 json.dump(trial_log, json_file, indent=4)
             pygame.quit()

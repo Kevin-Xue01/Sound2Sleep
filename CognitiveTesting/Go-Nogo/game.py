@@ -1,45 +1,41 @@
 import pygame
 import sys
-from go_no_settings import SCREEN_WIDTH, SCREEN_HEIGHT, SHURIKEN_SPAWN_POINT, FPS, NUM_TRIALS, LEVEL
 from spawner import spawn_shuriken
+from go_no_settings import SCREEN_WIDTH, SCREEN_HEIGHT, PHYSICAL_WIDTH, PHYSICAL_HEIGHT, FPS, NUM_TRIALS, TASK_TIME, SPAWN_INTERVAL, LEVEL
 from player import Player
 import json
 import datetime
 import os
 import random
 
-# Set spawn interval based on level
-if LEVEL == 1:
-    SPAWN_INTERVAL = 2500
-elif LEVEL == 2:
-    SPAWN_INTERVAL = 2000
-elif LEVEL == 3:
-    SPAWN_INTERVAL = 1750
-elif LEVEL == 4:
-    SPAWN_INTERVAL = 1500
-elif LEVEL == 5:
-    SPAWN_INTERVAL = 1250
-elif LEVEL == 6:
-    SPAWN_INTERVAL = 1000
-elif LEVEL == 7:
-    # Define the possible base spawn times once.
-    random_times = [300, 500, 750, 1000, 1500, 1750, 2000]
-    # Calculate the initial spawn interval with jitter.
-    SPAWN_INTERVAL = random.choice(random_times)
-
 last_spawn_time = pygame.time.get_ticks()
 spawn_count = 0  
 
 pygame.init()
 amount_of_trials = NUM_TRIALS
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+
+# Get display info to determine the current screen height.
+info = pygame.display.Info()
+physical_width = PHYSICAL_WIDTH
+physical_height = PHYSICAL_HEIGHT
+
+# Set the display mode to full screen with the calculated physical dimensions.
+screen = pygame.display.set_mode((physical_width, physical_height), pygame.FULLSCREEN)
 clock = pygame.time.Clock()
 
+# Create a game surface using your desired game resolution.
+game_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+
+# Calculate offsets to center the game surface on the physical display.
+offset_x = (physical_width - SCREEN_WIDTH) // 2
+offset_y = (physical_height - SCREEN_HEIGHT) // 2
+
 correct_counter = 0
+SHURIKEN_SPAWN_POINT = (SCREEN_HEIGHT//12, SCREEN_HEIGHT//2)  # Coordinates for a single spawn point
 
 # Load and scale background
 background = pygame.image.load('Go-Nogo/assets/sprites/bluegalaxy.png').convert()
-background = pygame.transform.scale(background, (SCREEN_WIDTH, SCREEN_HEIGHT))
+background = pygame.transform.scale(background, (physical_width, SCREEN_HEIGHT))
 
 # Load and scale path while maintaining aspect ratio
 path = pygame.image.load('Go-Nogo/assets/sprites/path.png').convert_alpha()
@@ -51,7 +47,6 @@ path = pygame.transform.scale(path, (TARGET_PATH_WIDTH, TARGET_PATH_HEIGHT))
 path_rect = path.get_rect(midleft=(SCREEN_WIDTH // 15, SCREEN_HEIGHT // 2))
 
 prompt = ''
-img = pygame.image.load('Go-Nogo/assets/sprites/hurt/1.png').convert_alpha()
 
 # Load hurt frames
 hurt_frames = [
@@ -137,6 +132,7 @@ INPUT_COOLDOWN = 50  # milliseconds
 
 # Global variable to store the outcome of the last input: "Correct" or "Incorrect"
 outcome = None
+input_received = False
 
 while True:
     current_time = pygame.time.get_ticks()
@@ -147,12 +143,11 @@ while True:
             print("Final Score:", score)
             pygame.quit()
             sys.exit()
-        elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN) and not any_flying:
-            # Deduplicate inputs using a cooldown
-            if current_time - last_input_time < INPUT_COOLDOWN:
-                continue
-            last_input_time = current_time
-
+        # Process input only if no shuriken is flying and input hasn't been received yet.
+        elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN) and not any_flying and not input_received:
+            # Mark that an input was received so further ones are ignored.
+            input_received = True
+            
             player.slash()
             closest_shuriken = None
             min_distance = float('inf')
@@ -195,6 +190,7 @@ while True:
                     'Time Spent (s)': (destruction_time - spawn_time) / 1000
                 })
 
+    # Spawn new shuriken if enough time has passed and no shurikens are on screen.
     if current_time - last_spawn_time > SPAWN_INTERVAL and len(shuriken_group) == 0:
         if spawn_count < amount_of_trials:  
             prompt = spawn_shuriken(shuriken_group, HEXAGON_POINTS, HEXAGON_CENTER, change_color=True, is_inhabitation=True)
@@ -204,9 +200,11 @@ while True:
             
             if LEVEL == 7:
                 SPAWN_INTERVAL = random.choice(random_times) 
+            # Reset input flag for the new trial.
+            input_received = False
         else:
             print("Final Score:", score)
-            #Save Data
+            # Save trial log data.
             data_folder = "Go-Nogo/data"
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
@@ -214,16 +212,15 @@ while True:
             filename = os.path.join(data_folder, f"go_no_go_{date}.json")
             with open(filename, "w") as json_file:
                 json.dump(trial_log, json_file, indent=4)
-                data_folder = "Go-Nogo/data"
-            #Save Score
+            # Save score.
             data_folder = "Go-Nogo/Score"
-            score = feedback_score / NUM_TRIALS * 100
+            score_percent = feedback_score / NUM_TRIALS * 100
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
             date = datetime.datetime.now().strftime("%Y-%m-%d") 
             filename = os.path.join(data_folder, f"{date}.json")
             with open(filename, "w") as json_file:
-                json.dump(score, json_file, indent=4)
+                json.dump(score_percent, json_file, indent=4)
             pygame.quit()
             sys.exit()
 
@@ -264,27 +261,25 @@ while True:
             })
             shuriken.kill()
 
-    # Draw background and path
-    screen.blit(background, (0, 0))
-    screen.blit(path, path_rect)
+    # --- Drawing Section ---
+    # Clear the game surface with transparency.
+    game_surface.fill((0, 0, 0, 0)) 
+    game_surface.blit(path, path_rect)
     
-    # --- Feedback Drawing: Both Numeric Score and Message ---
-    # If within FEEDBACK_DURATION, display both numeric feedback_score and feedback_message.
+    # Draw feedback (score and message).
     if current_time - feedback_timer < FEEDBACK_DURATION and outcome is not None:
-        # Determine the color based on outcome.
         if outcome == "Correct":
             feedback_color = (0, 255, 0)
         else:
             feedback_color = (255, 0, 0)
-        # Render numeric score (e.g., above)
         score_text = font_feedback.render(str(feedback_score), True, feedback_color)
-        screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, SCREEN_HEIGHT // 2 - SCREEN_HEIGHT // 6))
-        # Render feedback message (e.g., below the score)
+        game_surface.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2,
+                                       SCREEN_HEIGHT // 2 - SCREEN_HEIGHT // 6))
         message_text = font_feedback.render(feedback_message, True, feedback_color)
-        screen.blit(message_text, (SCREEN_WIDTH // 2 - message_text.get_width() // 2, SCREEN_HEIGHT // 2 - SCREEN_HEIGHT // 8))
+        game_surface.blit(message_text, (SCREEN_WIDTH // 2 - message_text.get_width() // 2,
+                                         SCREEN_HEIGHT // 2 - SCREEN_HEIGHT // 8))
     
-    # Draw glow effect if active
-    current_time = pygame.time.get_ticks()
+    # Draw glow effect.
     if glow_active:
         if current_time - glow_timer < GLOW_DURATION:
             GLOW_SIZE = SCREEN_HEIGHT // 4
@@ -300,18 +295,18 @@ while True:
             pygame.draw.circle(glow_surface, glow_color, (GLOW_SIZE // 2, GLOW_SIZE // 2), GLOW_RADIUS)
             glow_x = SCREEN_WIDTH // 2 - GLOW_SIZE // 2
             glow_y = SCREEN_HEIGHT // 2 - GLOW_SIZE // 2
-            screen.blit(glow_surface, (glow_x, glow_y))
+            game_surface.blit(glow_surface, (glow_x, glow_y))
         else:
             glow_active = False
 
-    # Update and draw sprites
-    player_group.update(prompt)                    
+    # Update and draw sprites onto game_surface.
+    player_group.update(prompt)
     shuriken_group.update()
     if not hurt_animation_active and not powerup_animation_active:
-        player_group.draw(screen)
-    shuriken_group.draw(screen)
-
-    # Hurt animation display
+        player_group.draw(game_surface)
+    shuriken_group.draw(game_surface)
+    
+    # Draw hurt animation if active.
     if hurt_animation_active:
         player_group.sprite.rect.y = SCREEN_HEIGHT // 2 - SCREEN_HEIGHT // 16
         if pygame.time.get_ticks() - hurt_animation_timer > HURT_ANIMATION_INTERVAL:
@@ -321,9 +316,9 @@ while True:
                 hurt_animation_active = False
                 hurt_frame_index = 0 
         if hurt_animation_active:
-            screen.blit(hurt_frames[hurt_frame_index], player.rect)
+            game_surface.blit(hurt_frames[hurt_frame_index], player.rect)
             
-    # Power-up animation display
+    # Draw power-up animation if active.
     if powerup_animation_active:
         if pygame.time.get_ticks() - powerup_animation_timer > POWERUP_ANIMATION_INTERVAL:
             powerup_frame_index += 1
@@ -332,8 +327,13 @@ while True:
                 powerup_animation_active = False
                 powerup_frame_index = 0 
         if powerup_animation_active:
-            screen.blit(powerup_frames[powerup_frame_index], player.rect)
+            game_surface.blit(powerup_frames[powerup_frame_index], player.rect)
             player_group.slashing = False  
 
+    # --- Final Blit ---
+    # Draw the full-screen background.
+    screen.blit(background, (0, 0))
+    # Blit the centered game surface onto the screen.
+    screen.blit(game_surface, (offset_x, offset_y))
+    
     pygame.display.flip()
-    clock.tick(FPS)
