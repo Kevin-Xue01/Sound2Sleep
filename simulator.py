@@ -9,12 +9,17 @@ from math import pi
 
 # data generation
 from collections import deque
+from math import pi
+from typing import Callable
 
 # visualization 
 import matplotlib.pyplot as plt
+import numpy as np
 
-from tqdm import tqdm # progress bar
-
+# phase estimator imports
+import scipy.signal
+import scipy.stats
+from tqdm import tqdm  # progress bar
 
 class Simulator():
     wavelet_freqs:list
@@ -238,6 +243,7 @@ def phase_hist(signal, stim_trigs, outpath, stim_freqs, fs = 256, lowcut = 0.5, 
     return stim_phases, mean_signal
 
     
+
 # modes = ['stationary', 'time-varying', 'eeg']
 modes = ['eeg']
 

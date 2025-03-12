@@ -1,11 +1,12 @@
-import xml.etree.ElementTree as ET
-import pandas as pd
 import os
+import xml.etree.ElementTree as ET
+
+import pandas as pd
 
 pd.set_option('display.max_columns', None)
 
-home_dir = os.path.expanduser("~")
-file_path = os.path.join(home_dir, 'Downloads', 'apple_health_export', 'export.xml')
+current_dir = os.path.dirname(os.path.abspath(__file__))
+file_path = os.path.join(current_dir, '..', 'data', 'kevin', 'export.xml')
 tree = ET.parse(file_path) 
 root = tree.getroot()
 record_list = [x.attrib for x in root.iter('Record')]
