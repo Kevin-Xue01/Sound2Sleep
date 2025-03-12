@@ -111,8 +111,8 @@ class DatastreamWorker(QObject):
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter > 64:
-                        self.error.emit('No data received for 64 consecutive attempts')
+                    if no_data_counter > 100:
+                        self.error.emit('No data received for 100 consecutive attempts')
                         self.running = False
 
             except Exception as ex:
@@ -577,14 +577,14 @@ class EEGApp(QWidget):
         self.on_connection_timeout()
         self.logger.info('Resetting stream step 1')
         subprocess.call('start bluemuse://stop?stopall', shell=True)
-        time.sleep(3)
+        time.sleep(4)
         self.lsl_reset_stream_step2()
 
 
     def lsl_reset_stream_step2(self):
         self.logger.info('Resetting stream step 2')
         subprocess.call('start bluemuse://start?startall', shell=True)
-        time.sleep(3)
+        time.sleep(4)
         self.lsl_reset_stream_step3()
 
     def lsl_reset_stream_step3(self):
@@ -594,7 +594,7 @@ class EEGApp(QWidget):
         if not reset_success:
             self.logger.info('LSL stream reset successful. Starting threads')
             self.reset_attempt_count += 1
-            if self.reset_attempt_count <= 3:
+            if self.reset_attempt_count <= 5:
                 self.logger.info('Resetting Attempt: ' + str(self.reset_attempt_count))
                 self.lsl_reset_stream_step1() 
             else:
@@ -606,12 +606,12 @@ class EEGApp(QWidget):
                         self.logger.info('Killing BlueMuse')
                         p.kill()
 
-                time.sleep(2)
+                time.sleep(4)
                 self.lsl_reset_stream_step1()
         else:
             self.reset_attempt_count = 0
             self.logger.info('LSL stream reset successful. Starting threads')
-            time.sleep(3)
+            time.sleep(4)
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
             self.on_connected()
 
@@ -637,10 +637,10 @@ class EEGApp(QWidget):
         subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
         subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
 
-        time.sleep(3)
+        time.sleep(4)
         while not self.lsl_reload():
-            self.logger.error(f"LSL streams not found, retrying in 3 seconds") 
-            time.sleep(3)
+            self.logger.error(f"LSL streams not found, retrying in 4 seconds") 
+            time.sleep(4)
         self.on_connected()
 
         if self.stream_inlet[MuseDataType.EEG] is not None:
