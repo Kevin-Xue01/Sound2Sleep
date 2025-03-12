@@ -90,7 +90,24 @@ class LSLSimulatorDataGenerator(QObject):
         if self.parent_app.simulator_output_type == SimulatorOutputType.PURE:
             return self.simulate_pure_sine()
         else:
-            return np.zeros((12, 4))
+            if self.parent_app.file_reader is not None:
+                # Get the current frame from the app's file reader
+                frame_data = self.parent_app.file_reader.read_frame(self.parent_app.current_frame)
+                eeg_data, timestamp_data = frame_data
+                # Increment the current frame for next time
+                self.parent_app.current_frame += 1
+                
+                # Check if we've reached the end of the file
+                if self.parent_app.current_frame >= self.parent_app.total_frames:
+                    # Loop back to the beginning
+                    self.parent_app.current_frame = 0
+                    
+                # Return the frame data if it exists
+                if eeg_data is not None:
+                    return eeg_data
+                    
+            # Return zeros if no data is available
+            return np.zeros((CHUNK_SIZE[self.muse_data_type], NUM_CHANNELS[self.muse_data_type]))
 
     def reset_phase(self):
         """Reset the time index and phase continuity"""
@@ -102,21 +119,29 @@ class LSLSimulatorDataGenerator(QObject):
         generated_signal = self.simulate_eeg_data()
         
         while self.parent_app.streaming:
-            print(generated_signal.shape)
-            # If there isn't enough data left for the next chunk, regenerate signal
-            if generated_signal.shape[0] < CHUNK_SIZE[self.muse_data_type]:
-                # Generate just enough new samples
-                needed_samples = CHUNK_SIZE[self.muse_data_type] - generated_signal.shape[0] + CHUNK_SIZE[self.muse_data_type]
-                new_signal = self.simulate_pure_sine(num_samples=needed_samples)
-                generated_signal = np.vstack((generated_signal, new_signal))
+            # Check if output type changed and regenerate signal if needed
+            current_output_type = self.parent_app.simulator_output_type
+            
+            # If there isn't enough data left for the next chunk, or output type changed, regenerate signal
+            if generated_signal.shape[0] < CHUNK_SIZE[self.muse_data_type] or current_output_type == SimulatorOutputType.PLAYBACK:
+                # For playback mode, always get the latest frame
+                if current_output_type == SimulatorOutputType.PLAYBACK:
+                    generated_signal = self.simulate_eeg_data()
+                else:  # For pure sine mode, generate more data
+                    needed_samples = CHUNK_SIZE[self.muse_data_type] - generated_signal.shape[0] + CHUNK_SIZE[self.muse_data_type]
+                    new_signal = self.simulate_pure_sine(num_samples=needed_samples)
+                    generated_signal = np.vstack((generated_signal, new_signal))
 
             # Slice the generated signal into chunks
             chunk = generated_signal[:CHUNK_SIZE[self.muse_data_type], ...]
 
             # Push the chunk to the LSL stream
             self.outlet.push_chunk(chunk.tolist())
+            
             # Remove the chunk from the signal so the next chunk can be pushed
             generated_signal = generated_signal[CHUNK_SIZE[self.muse_data_type]:, ...]  
+            
+            # Sleep for the duration of one chunk
             time.sleep(CHUNK_SIZE[self.muse_data_type] / SAMPLING_RATE[self.muse_data_type])
 
 class LSLSimulatorGUI(QMainWindow):
@@ -286,6 +311,7 @@ class LSLSimulatorGUI(QMainWindow):
             self.streaming = False
             self.stream_button.setText("Start Streaming")
             self.output_type_combo.setEnabled(True)
+            self.position_slider.setEnabled(True)
             if self.stream_thread.isRunning():
                 self.stream_thread.quit()
                 self.stream_thread.wait()
@@ -295,6 +321,7 @@ class LSLSimulatorGUI(QMainWindow):
             self.streaming = True
             self.stream_button.setText("Stop Streaming")
             self.output_type_combo.setEnabled(False)
+            self.position_slider.setEnabled(False)
             if not self.stream_thread.isRunning():
                 self.stream_thread.start()
             self.output_type_combo.setDisabled(True)
@@ -304,6 +331,11 @@ class LSLSimulatorGUI(QMainWindow):
             self.streaming = False
         self.simulator_output_type = list(SimulatorOutputType)[index]
         self.stacked_widget.setCurrentIndex(index)
+
+        if self.simulator_output_type == SimulatorOutputType.PLAYBACK:
+            self.stream_button.setEnabled(self.file_reader is not None)
+        else:
+            self.stream_button.setEnabled(True)
 
     def browse_session(self):
         """Open a dialog to select a session directory"""
@@ -320,24 +352,37 @@ class LSLSimulatorGUI(QMainWindow):
             
             has_frames = self.file_reader.get_total_frames() > 0
             self.position_slider.setEnabled(bool(has_frames))
-            
+            self.stream_button.setEnabled(has_frames)
+
             self.update_position_display()
     
     def position_slider_released(self):
-        """Handle position slider change by user"""
-        position = self.position_slider.value()
-        frame_index = int((position / 100) * self.file_reader.total_frames)
-        self.current_frame = min(frame_index, self.file_reader.total_frames - 1)
-        self.update_position_display()
+        """Handle the position slider being released by the user"""
+        if self.file_reader is not None and self.total_frames > 0:
+            # Get the percentage from the slider
+            percentage = self.position_slider.value()
+            
+            # Calculate the new frame position
+            self.current_frame = int((percentage / 100) * self.total_frames)
+            
+            # Update the display
+            self.update_position_display()
     
     def update_position_display(self):
-        if self.total_frames > 0:
-            self.position_label.setText(f"Progress: {(self.current_frame * 100 / self.total_frames):.2f} %")
-        else:
-            self.position_label.setText("Progress: - %")
+        if self.file_reader is not None and self.total_frames > 0:
+            # Calculate percentage progress
+            progress = (self.current_frame / self.total_frames) * 100
+            
+            # Update the label
+            self.position_label.setText(f"Progress: {progress:.1f}%")
+            
+            # Update the slider without triggering events
+            self.position_slider.blockSignals(True)
+            self.position_slider.setValue(int(progress))
+            self.position_slider.blockSignals(False)
     
     def update_ui(self):
-        if self.simulator_output_type == SimulatorOutputType.PLAYBACK and self.file_reader is not None:
+        if self.streaming and self.simulator_output_type == SimulatorOutputType.PLAYBACK and self.file_reader is not None:
             self.update_position_display()
 
     def closeEvent(self, event):
