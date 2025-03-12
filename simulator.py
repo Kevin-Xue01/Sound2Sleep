@@ -96,7 +96,7 @@ class Simulator():
         backoff = False
         stim_count = 0  
         last_stim_time = -np.inf
-        target_phase = 7 * np.pi / 4
+        target_phase = 6 * np.pi / 4
         
         step_len = int(real_time_step * self.fs)
         phase_list =   []
@@ -273,17 +273,6 @@ for mode in modes:
 all_stim_phases = np.concatenate(all_stim_phases)
 mean_phase = scipy.stats.circmean(all_stim_phases)
 std_phase = scipy.stats.circstd(all_stim_phases)
-
-
-# # plot histogram of phase
-# plt.figure(figsize=(8, 8))
-# ax = plt.subplot(111, polar=True)
-# ax.hist(all_stim_phases, bins=30, color='slateblue')
-# plt.title(f'TWave - multi-subject\nMean: {mean_phase:.2f}, Std: {std_phase:.2f}')
-# ax.set_xlabel('Phase')
-# ax.grid(True, alpha = 0.2)
-# plt.savefig(os.path.join('twave', 'all_phase_histogram.png'))
-# plt.close()
 
 # plot histogram of frequencies
 # plt.figure(figsize=(8, 8))
