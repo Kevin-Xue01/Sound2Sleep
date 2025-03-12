@@ -22,7 +22,7 @@ force_correct = False
 
 # Global variable for showing phase timer.
 showing_phase_start = None
-SHOWING_PHASE_DURATION = 10  # (For testing; adjust as needed)
+SHOWING_PHASE_DURATION = 30000  # (For testing; adjust as needed)
 
 # -------------------
 # Helper to load pairs from a saved JSON file for a given day offset.
