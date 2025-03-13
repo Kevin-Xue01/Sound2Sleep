@@ -475,8 +475,8 @@ class EEGApp(QWidget):
 
     def process_eeg_data(self):
         result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
-        self.logger.info(f"Result: {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
         if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
+            self.logger.info(f"Result: {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
             time_to_target = time_to_target - self.config.time_to_target_offset
             self.process_eeg_step_2(time_to_target)
 
@@ -486,10 +486,12 @@ class EEGApp(QWidget):
 
 
     def handle_acc_data(self, data: np.ndarray, timestamp: np.ndarray):
-        self.logger.debug('Not Implemented')
+        # self.logger.debug('Not Implemented')
+        pass
 
     def handle_ppg_data(self, data: np.ndarray, timestamp: np.ndarray):
-        self.logger.debug('Not Implemented')
+        # self.logger.debug('Not Implemented')
+        pass
 
     def handle_eeg_error(self, error_msg):
         self.logger.error(f"EEG Error: {error_msg}")
@@ -502,8 +504,10 @@ class EEGApp(QWidget):
         self.logger.error(f"PPG Error: {error_msg}")
 
     def switch_channel(self):
-        self.selected_channel_ind = np.argmin(np.sqrt(np.mean(self.plotter_eeg_data**2, axis=0)))
-        self.logger.warning(f"Channel Switched: {self.selected_channel_ind}")
+        selected_channel_ind = np.argmin(np.sqrt(np.mean(self.plotter_eeg_data**2, axis=0)))
+        if selected_channel_ind != self.selected_channel_ind:
+            self.selected_channel_ind = selected_channel_ind
+            self.logger.warning(f"Channel Switched: {self.selected_channel_ind}")
 
     def get_hl_ratio(self, selected_channel_data):
         lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
