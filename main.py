@@ -132,6 +132,7 @@ class EEGApp(QWidget):
         self.recording_elapsed_time = 0  # Elapsed time in seconds
         self.reset_attempt_count = 0
         
+        self.last_stim = 0.0
         self.processor_elapsed_time = 0.0
         self.target_phase = self.config.target_phase
         self.second_stim_start = nan
