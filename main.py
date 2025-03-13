@@ -206,6 +206,21 @@ class EEGApp(QWidget):
         self.plotter_timestamps = np.ndarray((DISPLAY_WINDOW_LEN_N,), dtype=np.float64, buffer=self.plotter_shm.buf[DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4:])
         
         self.plotter_shm_counter = 0
+        self.plot_wavelets(self.wavelet_freqs, self.trunc_wavelets, SAMPLING_RATE[MuseDataType.EEG])
+
+    def plot_wavelets(self, frequencies, wavelets, sampling_rate):
+        plt.figure(figsize=(10, 6))
+        time = np.arange(len(wavelets[0])) / sampling_rate
+        
+        for f, wavelet in zip(frequencies, wavelets):
+            print(type(wavelet))
+            plt.plot(time, wavelet.real, label=f"{f:.2f} Hz")
+        
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.title("Morlet Wavelets at Different Frequencies")
+        plt.legend()
+        plt.show()
 
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
@@ -294,7 +309,7 @@ class EEGApp(QWidget):
         self.experiment_label = QLabel("Experiment Mode:")
         self.experiment_dropdown = QComboBox()
         self.experiment_dropdown.addItems([mode.value for mode in ExperimentMode])
-        self.experiment_dropdown.setCurrentIndex(0)  # Default to first mode (Disabled)
+        self.experiment_dropdown.setCurrentIndex([mode.value for mode in ExperimentMode].index(self.config.experiment_mode.value))  # Default to first mode (Disabled)
         self.experiment_dropdown.currentIndexChanged.connect(self.update_experiment_mode)
 
         experiment_layout.addWidget(self.experiment_label)
@@ -345,7 +360,6 @@ class EEGApp(QWidget):
                 self.stop_bluemuse()
 
     def on_connected(self):
-        self.app_state = AppState.CONNECTED
         self.connection_label.setText("Connected")
         self.connection_button.setText("Disconnect")
         self.connection_button.setEnabled(True)
@@ -353,6 +367,10 @@ class EEGApp(QWidget):
         self.experiment_dropdown.setEnabled(True)
         self.param_config_editor.setEnabled(True)
         self.connection_timeout_error_label.hide()
+        self.app_state = AppState.RECORDING
+        self.record_button.setText("Stop Recording")
+        self.recording_elapsed_time = 0  # Reset elapsed time on start
+        self.elapsed_time_timer.start(1000)  # Update every second
 
     def on_disconnected(self):
         self.app_state = AppState.DISCONNECTED
@@ -369,7 +387,6 @@ class EEGApp(QWidget):
             self.record_button.setText("Stop Recording")
             self.recording_elapsed_time = 0  # Reset elapsed time on start
             self.elapsed_time_timer.start(1000)  # Update every second
-            self.file_writer = FileWriter(self.config._session_key)
 
         elif self.app_state == AppState.RECORDING:
             self.app_state = AppState.CONNECTED
@@ -429,6 +446,9 @@ class EEGApp(QWidget):
     
 
     def handle_eeg_data(self, data: np.ndarray, timestamp: np.ndarray):
+        if np.isnan(data).any():
+            self.logger.critical(f"NaN found in data: {data.tolist()}")
+
         self.eeg_timestamp = np.concatenate([self.eeg_timestamp, timestamp])
         self.eeg_timestamp = self.eeg_timestamp[-DISPLAY_WINDOW_LEN_N:]
         self.eeg_data = np.vstack([self.eeg_data, data]) if self.eeg_data is not None else data
@@ -439,10 +459,14 @@ class EEGApp(QWidget):
         if len(self.eeg_timestamp) >= DISPLAY_WINDOW_LEN_N: 
 
             result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
+            self.logger.info(f"Result: {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
             if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
                 time_to_target = time_to_target - self.config.time_to_target_offset
                 self.process_eeg_step_2(time_to_target)
-                self.file_writer.write_stim(self.processor_elapsed_time + time_to_target)
+
+                stim_time = self.processor_elapsed_time + time_to_target
+                if isnan(stim_time): self.logger.critical(f"Stim Time is NaN. EEG Timestamp: {self.eeg_timestamp[-1]}")
+                self.file_writer.write_stim(stim_time)
 
         self.file_writer.write_chunk(data, timestamp)
 
@@ -474,6 +498,7 @@ class EEGApp(QWidget):
 
     def switch_channel(self):
         self.selected_channel_ind = np.argmin(np.sqrt(np.mean(self.eeg_data**2, axis=0)))
+        self.logger.warning(f"Channel Switched: {self.selected_channel_ind}")
 
     def get_hl_ratio(self, selected_channel_data):
         lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
@@ -492,10 +517,10 @@ class EEGApp(QWidget):
     def estimate_phase(self, selected_channel): 
         conv_vals = [np.dot(selected_channel, w) for w in self.trunc_wavelets]
         max_idx = np.argmax(np.abs(conv_vals))
-        amp = conv_vals[max_idx] / 2
+        # amp = conv_vals[max_idx] / 2
         freq = self.wavelet_freqs[max_idx]
         phase = np.angle(conv_vals[max_idx]) % (2 * pi)
-        
+        amp = np.nanmax(np.abs(selected_channel[self.processing_window_len_n // 2:]))
         return phase, freq, amp
     
     def process_eeg_step_1(self):
