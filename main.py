@@ -110,7 +110,7 @@ class DatastreamWorker(QObject):
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter > 100:
+                    if no_data_counter > 60:
                         self.error.emit(f'No {self.muse_data_type} data received for 100 consecutive attempts')
                         self.running = False
 
