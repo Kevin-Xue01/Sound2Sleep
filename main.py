@@ -194,34 +194,26 @@ class EEGApp(QWidget):
         self.wavelet_freqs = np.linspace(self.config.truncated_wavelet.low, self.config.truncated_wavelet.high, self.config.truncated_wavelet.n)
         trunc_wavelet_len = self.processing_window_len_n * 2 # double the length of the signal
         self.trunc_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = self.config.truncated_wavelet.w)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
-        # plot_wavelets(self.wavelet_freqs, self.trunc_wavelets, SAMPLING_RATE[MuseDataType.EEG])
         self.selected_channel_ind = 1 # AF7
         self.switch_channel_counter = 0
         self.switch_channel_counter_max = int(self.config.switch_channel_period_s * SAMPLING_RATE[MuseDataType.EEG] / CHUNK_SIZE[MuseDataType.EEG])
 
+        self.rolling_avg_len = 10
+        self.eeg_rolling_avg = 0.0  # Rolling average for selected channel across chunks
+        self.rolling_avg_buffer = np.zeros(self.rolling_avg_len)  # Buffer to store mean values of past chunks
+        self.rolling_avg_index = 0  # Index to track position in circular buffer
+        self.rolling_avg_sum = 0.0  # Scalar sum of the rolling window for efficiency
+
         self.init_ui()
+
+        self.init_phase = True  # Track whether we're in the initialization phase
+        self.init_data_count = 0  # Counter for how many chunks have been received
+        self.init_data_count_max = DISPLAY_WINDOW_LEN_N / CHUNK_SIZE[MuseDataType.EEG]
 
         self.plotter_shm = shared_memory.SharedMemory(name=EEG_PLOTTING_SHARED_MEMORY, create=True, size=DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4 + DISPLAY_WINDOW_LEN_N * 8)  # float32 EEG + float64 timestamps
         self.plotter_eeg_data = np.ndarray((DISPLAY_WINDOW_LEN_N, NUM_CHANNELS[MuseDataType.EEG]), dtype=np.float32, buffer=self.plotter_shm.buf[:DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4])
         self.plotter_timestamps = np.ndarray((DISPLAY_WINDOW_LEN_N,), dtype=np.float64, buffer=self.plotter_shm.buf[DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4:])
         
-        self.plotter_shm_counter = 0
-        self.plot_wavelets(self.wavelet_freqs, self.trunc_wavelets, SAMPLING_RATE[MuseDataType.EEG])
-
-    def plot_wavelets(self, frequencies, wavelets, sampling_rate):
-        plt.figure(figsize=(10, 6))
-        time = np.arange(len(wavelets[0])) / sampling_rate
-        
-        for f, wavelet in zip(frequencies, wavelets):
-            print(type(wavelet))
-            plt.plot(time, wavelet.real, label=f"{f:.2f} Hz")
-        
-        plt.xlabel("Time (s)")
-        plt.ylabel("Amplitude")
-        plt.title("Morlet Wavelets at Different Frequencies")
-        plt.legend()
-        plt.show()
-
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
         width, height = int(screen.width() * 0.9), int(screen.height() * 0.9)
@@ -254,29 +246,6 @@ class EEGApp(QWidget):
         self.config_panel_error_label.hide()
         config_panel_layout.addWidget(self.config_panel_error_label)
         
-        # matplotlib.use('QtAgg')
-        # sns.set_theme(style="whitegrid")
-        # sns.despine(left=True)
-
-        # self.fig, self.axes = plt.subplots(1, 1, figsize=[15, 6], sharex=True)
-        # self.lines = []
-
-        # self.impedances = np.zeros(self.eeg_nchan)
-
-        # for ii in range(self.eeg_nchan):
-        #     line, = self.axes.plot(np.arange(-DISPLAY_WINDOW_LEN_S, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])[::2], np.zeros(DISPLAY_WINDOW_LEN_N)[::2] - ii, lw=1)
-        #     self.lines.append(line)
-
-        # self.axes.set_ylim(-self.eeg_nchan + 0.5, 0.5)
-        # ticks = np.arange(0, -self.eeg_nchan, -1)
-
-        # self.axes.set_xlabel('Time (s)')
-        # self.axes.xaxis.grid(False)
-        # self.axes.set_yticks(ticks)
-
-        # self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-
-        # self.eeg_plot_widget = FigureCanvas(self.fig)
         control_panel_widget = QWidget()
         control_panel_layout = QVBoxLayout(control_panel_widget)
         
@@ -445,40 +414,75 @@ class EEGApp(QWidget):
         return eeg_ok
     
 
-    def handle_eeg_data(self, data: np.ndarray, timestamp: np.ndarray):
-        if np.isnan(data).any():
-            self.logger.critical(f"NaN found in data: {data.tolist()}")
+    # def handle_eeg_data(self, data: np.ndarray, timestamp: np.ndarray):
+    #     if np.isnan(data).any():
+    #         self.logger.critical(f"NaN found in data: {data.tolist()}")
 
-        self.eeg_timestamp = np.concatenate([self.eeg_timestamp, timestamp])
-        self.eeg_timestamp = self.eeg_timestamp[-DISPLAY_WINDOW_LEN_N:]
-        self.eeg_data = np.vstack([self.eeg_data, data]) if self.eeg_data is not None else data
-        self.eeg_data = self.eeg_data[-DISPLAY_WINDOW_LEN_N:]
-        if self.plotter_shm_counter <= DISPLAY_WINDOW_LEN_N:
-            self.plotter_shm_counter += CHUNK_SIZE[MuseDataType.EEG]
+    #     selected_channel_mean = np.mean(data[:, self.selected_channel_ind])
+    #     oldest_value = self.rolling_avg_buffer[self.rolling_avg_index]
+    #     self.rolling_avg_sum += selected_channel_mean - oldest_value
+    #     self.rolling_avg_buffer[self.rolling_avg_index] = selected_channel_mean
+    #     self.rolling_avg_index = (self.rolling_avg_index + 1) % self.rolling_avg_window_len
+    #     self.eeg_rolling_avg = self.rolling_avg_sum / self.rolling_avg_window_len
+    #     data[:, self.selected_channel_ind] -= self.eeg_rolling_avg
 
-        if len(self.eeg_timestamp) >= DISPLAY_WINDOW_LEN_N: 
+    #     self.eeg_timestamp = np.concatenate([self.eeg_timestamp, timestamp])[-DISPLAY_WINDOW_LEN_N:]
+    #     self.eeg_data = np.vstack([self.eeg_data, data]) if self.eeg_data is not None else data
+    #     self.eeg_data = self.eeg_data[-DISPLAY_WINDOW_LEN_N:]
 
-            result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
-            self.logger.info(f"Result: {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
-            if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
-                time_to_target = time_to_target - self.config.time_to_target_offset
-                self.process_eeg_step_2(time_to_target)
+    #     if len(self.eeg_timestamp) >= DISPLAY_WINDOW_LEN_N: 
 
-                stim_time = self.processor_elapsed_time + time_to_target
-                if isnan(stim_time): self.logger.critical(f"Stim Time is NaN. EEG Timestamp: {self.eeg_timestamp[-1]}")
-                self.file_writer.write_stim(stim_time)
+    #         result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
+    #         self.logger.info(f"Result: {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
+    #         if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
+    #             time_to_target = time_to_target - self.config.time_to_target_offset
+    #             self.process_eeg_step_2(time_to_target)
 
-        self.file_writer.write_chunk(data, timestamp)
+    #             stim_time = self.processor_elapsed_time + time_to_target
+    #             if isnan(stim_time): self.logger.critical(f"Stim Time is NaN. EEG Timestamp: {self.eeg_timestamp[-1]}")
+    #             self.file_writer.write_stim(stim_time)
 
-        #     plot_data = self.eeg_data - self.eeg_data.mean(axis=0)
-        #     for ii in range(4):
-        #         self.lines[ii].set_xdata(self.eeg_timestamp[::2] - self.eeg_timestamp[-1])
-        #         self.lines[ii].set_ydata(plot_data[::2, ii] / 100 - ii)
-        #         self.impedances = np.std(plot_data, axis=0)
+    #     self.file_writer.write_chunk(data, timestamp)
+    def handle_eeg_data(self, eeg_chunk: np.ndarray, timestamp_chunk: np.ndarray):
+        self.plotter_eeg_data[:-CHUNK_SIZE[MuseDataType.EEG]] = self.plotter_eeg_data[CHUNK_SIZE[MuseDataType.EEG]:]
+        self.plotter_timestamps[:-CHUNK_SIZE[MuseDataType.EEG]] = self.plotter_timestamps[CHUNK_SIZE[MuseDataType.EEG]:]
 
-        #     self.axes.set_yticklabels([f'{label} - {impedance:2f}' for label, impedance in zip(CHANNEL_NAMES[MuseDataType.EEG], self.impedances)])
-        #     self.axes.set_xlim(-DISPLAY_WINDOW_LEN_S, 0)
-        #     self.eeg_plot_widget.draw()
+        self.plotter_eeg_data[-CHUNK_SIZE[MuseDataType.EEG]:] = eeg_chunk
+        self.plotter_timestamps[-CHUNK_SIZE[MuseDataType.EEG]:] = timestamp_chunk
+
+        if self.init_phase:
+            self.init_data_count += 1
+            if self.init_data_count >= self.init_data_count_max:
+                self.init_phase = False
+                print("Initialization complete. Processing EEG data.")
+            return
+
+        self.switch_channel_counter += 1
+        if self.switch_channel_counter == self.switch_channel_counter_max:
+            self.switch_channel()
+            self.switch_channel_counter = 0
+
+        selected_channel_mean = np.mean(eeg_chunk[:, self.selected_channel_ind])
+        oldest_value = self.rolling_avg_buffer[self.rolling_avg_index]
+        self.rolling_avg_sum += selected_channel_mean - oldest_value
+        self.rolling_avg_buffer[self.rolling_avg_index] = selected_channel_mean
+        self.rolling_avg_index = (self.rolling_avg_index + 1) % self.rolling_avg_len
+        self.eeg_rolling_avg = self.rolling_avg_sum / self.rolling_avg_len
+
+        self.process_eeg_data()
+        self.file_writer.write_chunk(eeg_chunk, timestamp_chunk)
+
+    def process_eeg_data(self):
+        result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
+        self.logger.info(f"Result: {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
+        if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
+            time_to_target = time_to_target - self.config.time_to_target_offset
+            self.process_eeg_step_2(time_to_target)
+
+            stim_time = self.processor_elapsed_time + time_to_target
+            if isnan(stim_time): self.logger.critical(f"Stim Time is NaN. EEG Timestamp: {self.plotter_timestamps[-1]}")
+            self.file_writer.write_stim(stim_time)
+
 
     def handle_acc_data(self, data: np.ndarray, timestamp: np.ndarray):
         self.logger.debug('Not Implemented')
@@ -497,7 +501,7 @@ class EEGApp(QWidget):
         self.logger.error(f"PPG Error: {error_msg}")
 
     def switch_channel(self):
-        self.selected_channel_ind = np.argmin(np.sqrt(np.mean(self.eeg_data**2, axis=0)))
+        self.selected_channel_ind = np.argmin(np.sqrt(np.mean(self.plotter_eeg_data**2, axis=0)))
         self.logger.warning(f"Channel Switched: {self.selected_channel_ind}")
 
     def get_hl_ratio(self, selected_channel_data):
@@ -524,16 +528,12 @@ class EEGApp(QWidget):
         return phase, freq, amp
     
     def process_eeg_step_1(self):
-        self.switch_channel_counter += 1
-        if self.switch_channel_counter == self.switch_channel_counter_max:
-            self.switch_channel()
-            self.switch_channel_counter = 0
-        if self.second_stim_end < self.eeg_timestamp[-1]:
+        if self.second_stim_end < self.plotter_timestamps[-1]:
             self.second_stim_start = nan
             self.second_stim_end = nan
 
-        phase, freq, amp = self.estimate_phase(self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind])
-        hl_ratio = self.get_hl_ratio(self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind])
+        phase, freq, amp = self.estimate_phase(self.plotter_eeg_data[-self.processing_window_len_n:, self.selected_channel_ind] - self.eeg_rolling_avg)
+        hl_ratio = self.get_hl_ratio(self.plotter_eeg_data[-self.processing_window_len_n:, self.selected_channel_ind] - self.eeg_rolling_avg)
         self.amp_buffer[:-1] = self.amp_buffer[1:]
         self.amp_buffer[-1] = amp
         amp_buffer_mean = self.amp_buffer.mean()
@@ -541,7 +541,7 @@ class EEGApp(QWidget):
         self.hl_ratio_buffer[:-1] = self.hl_ratio_buffer[1:]
         self.hl_ratio_buffer[-1] = hl_ratio
         hl_ratio_buffer_mean = self.hl_ratio_buffer.mean()
-        self.processor_elapsed_time = self.eeg_timestamp[-1]
+        self.processor_elapsed_time = self.plotter_timestamps[-1]
 
         if self.config.experiment_mode == ExperimentMode.DISABLED:
             self.logger.info(f"Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
@@ -716,23 +716,6 @@ class EEGApp(QWidget):
     def closeEvent(self, event):
         self.plotter_shm.close()
         self.plotter_shm.unlink()
-
-# def plot_wavelets(wavelet_freqs, truncated_wavelets, sampling_rate):
-#     """Plots the real and imaginary parts of the truncated wavelets."""
-#     fig, axes = plt.subplots(len(wavelet_freqs), 1, figsize=(10, 2 * len(wavelet_freqs)))
-#     time = np.arange(len(truncated_wavelets[0])) / sampling_rate
-    
-#     for i, (freq, wavelet) in enumerate(zip(wavelet_freqs, truncated_wavelets)):
-#         ax = axes[i] if len(wavelet_freqs) > 1 else axes
-#         ax.plot(time, wavelet.real, label='Real Part', color='b')
-#         ax.plot(time, wavelet.imag, label='Imaginary Part', color='r', linestyle='dashed')
-#         ax.set_title(f'Wavelet at {freq:.2f} Hz')
-#         ax.set_xlabel('Time (s)')
-#         ax.set_ylabel('Amplitude')
-#         ax.legend()
-    
-#     plt.tight_layout()
-#     plt.show()
 
 # def plotter():
 #     total_samples = SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S
