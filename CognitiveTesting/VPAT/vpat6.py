@@ -194,7 +194,6 @@ def display_matched_pairs(target_surface):
         target_surface.blit(left_icon, left_rect)
         target_surface.blit(right_icon, right_rect)
 
-
 # -------------------
 # Initialize Pygame and set up display and surfaces
 pygame.init()
@@ -359,6 +358,30 @@ while running:
         font = pygame.font.SysFont(None, int(SCREEN_HEIGHT * 0.05))
         timer_text = font.render(f"Time left: {remaining} s", True, (255, 0, 0))
         game_surface.blit(timer_text, (SCREEN_WIDTH // 2 - int(SCREEN_WIDTH * 0.0625), int(SCREEN_HEIGHT * 0.0833)))
+
+        # ---- Draw navigation arrows ----
+        arrow_width = int(SCREEN_WIDTH * 0.05)
+        arrow_height = int(SCREEN_HEIGHT * 0.05)
+        margin = int(SCREEN_WIDTH * 0.025)
+        left_arrow_rect = pygame.Rect(margin, SCREEN_HEIGHT - 2*arrow_height - margin, arrow_width, arrow_height)
+        right_arrow_rect = pygame.Rect(SCREEN_WIDTH - arrow_width - margin, SCREEN_HEIGHT - 2*arrow_height - margin, arrow_width, arrow_height)
+
+        # Left arrow (triangle pointing left)
+        left_arrow_points = [
+            (left_arrow_rect.right, left_arrow_rect.top),
+            (left_arrow_rect.left, left_arrow_rect.centery),
+            (left_arrow_rect.right, left_arrow_rect.bottom)
+        ]
+        pygame.draw.polygon(game_surface, (255, 255, 255), left_arrow_points)
+
+        # Right arrow (triangle pointing right)
+        right_arrow_points = [
+            (right_arrow_rect.left, right_arrow_rect.top),
+            (right_arrow_rect.right, right_arrow_rect.centery),
+            (right_arrow_rect.left, right_arrow_rect.bottom)
+        ]
+        pygame.draw.polygon(game_surface, (255, 255, 255), right_arrow_points)
+
         if elapsed >= SHOWING_PHASE_DURATION:
             game_state = "matching_game"
             showing_phase_start = None
@@ -440,17 +463,26 @@ while running:
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
-
-        # Touch events (simulate with mouse button down)
+        
         if event.type == pygame.MOUSEBUTTONDOWN:
             pos = event.pos
             # Convert physical coordinates to game_surface coordinates.
             game_pos = (pos[0] - offset_x, pos[1] - offset_y)
+            
             if game_state == "showing_pairs":
-                if game_pos[0] < SCREEN_WIDTH // 2:
+                arrow_width = int(SCREEN_WIDTH * 0.1)
+                arrow_height = int(SCREEN_HEIGHT * 0.1)
+                margin = int(SCREEN_WIDTH * 0.025)
+                left_arrow_rect = pygame.Rect(margin, SCREEN_HEIGHT - arrow_height - margin, arrow_width, arrow_height)
+                right_arrow_rect = pygame.Rect(SCREEN_WIDTH - arrow_width - margin, SCREEN_HEIGHT - arrow_height - margin, arrow_width, arrow_height)
+                
+                if left_arrow_rect.collidepoint(game_pos):
                     pair_index = (pair_index - 1) % len(pairs)
-                else:
+                elif right_arrow_rect.collidepoint(game_pos):
                     pair_index = (pair_index + 1) % len(pairs)
+            
+            # (Rest of your event handling code remains unchanged)
+
             elif game_state == "matching_game" and animation_state == "idle":
                 if NUM_CHOICES == 3:
                     grid_cols, grid_rows = 3, 1

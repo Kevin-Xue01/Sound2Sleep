@@ -8,14 +8,14 @@ import datetime
 import os
 import random
 
-subject = "subject_1_gamified.py"
+subject = "subject_1_gamified.json"
 LEVEL = 6
 
 last_spawn_time = pygame.time.get_ticks()
 spawn_count = 0  
 
 pygame.init()
-amount_of_trials = 2
+amount_of_trials = 30
 
 # Get display info to determine the current screen height.
 info = pygame.display.Info()

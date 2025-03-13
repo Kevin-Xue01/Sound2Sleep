@@ -8,6 +8,69 @@ import datetime
 import os
 import random
 
+# ------------------------
+# New SlashSprite Class
+# ------------------------
+class SlashSprite(pygame.sprite.Sprite):
+    def __init__(self, start_pos, target_sprite, direction, speed=15):
+        super().__init__()
+        # Load the appropriate slash image from assets/slash folder based on the direction.
+        self.image = pygame.image.load(f'Go-Nogo/assets/sprites/slash/{direction}.png').convert_alpha()
+        target_size = target_sprite.image.get_size()
+        self.image = pygame.transform.scale(self.image, target_size)
+        self.rect = self.image.get_rect(center=start_pos)
+        self.target_sprite = target_sprite
+        self.target_pos = pygame.math.Vector2(target_sprite.rect.center)
+        self.position = pygame.math.Vector2(start_pos)
+        # Calculate the normalized velocity toward the target.
+        direction_vector = self.target_pos - self.position
+        if direction_vector.length() != 0:
+            self.velocity = direction_vector.normalize() * speed
+        else:
+            self.velocity = pygame.math.Vector2(0, 0)
+
+    def update(self):
+        global score, outcome, feedback_score, correct_counter, feedback_message, feedback_timer, glow_active, glow_timer, trial_log, spawn_time, hurt_animation_active, hurt_frame_index, hurt_animation_timer
+        # Move toward the target.
+        self.position += self.velocity
+        self.rect.center = self.position
+        # If the slash is close enough to the target, trigger destruction.
+        if self.position.distance_to(self.target_pos) < self.velocity.length():
+            destruction_time = input_press_time
+            if self.target_sprite.type == "Go":
+                score["Go correct"] += 1
+                self.target_sprite.slash()  # Start the destroy (shrinking) animation
+                outcome = "Correct"
+                feedback_score += 1
+                correct_counter += 1
+                feedback_message = "Great!"
+                if feedback_score >= 5 and feedback_score < 10:
+                    feedback_message = "Amazing!"
+                elif feedback_score >= 10:
+                    feedback_message = "Unbelievable!"
+            else:
+                score["Dontgo incorrect"] += 1
+                self.target_sprite.slash()
+                hurt_animation_active = True
+                hurt_frame_index = 0
+                hurt_animation_timer = pygame.time.get_ticks()
+                outcome = "Incorrect"
+                feedback_score = feedback_score - 1 if feedback_score > 0 else 0
+                feedback_message = "Try Again!"
+            feedback_timer = pygame.time.get_ticks()
+            glow_active = True
+            glow_timer = pygame.time.get_ticks()
+            trial_log.append({
+                "Spawn Time (s)": spawn_time / 1000,
+                "Destruction Time (s)": destruction_time / 1000,
+                "Prompt": self.target_sprite.type,
+                "Outcome": outcome,
+                'Time Spent (s)': (destruction_time - spawn_time) / 1000
+            })
+            self.kill()
+
+# ------------------------
+
 last_spawn_time = pygame.time.get_ticks()
 spawn_count = 0  
 
@@ -171,6 +234,7 @@ POWERUP_ANIMATION_INTERVAL = 150  # milliseconds
 # Sprite groups
 shuriken_group = pygame.sprite.Group()
 player_group = pygame.sprite.GroupSingle()
+slash_group = pygame.sprite.Group()  # New group for flying slash sprites
 
 # Initialize player 
 player = Player(
@@ -241,53 +305,25 @@ while True:
             print("Final Score:", score)
             pygame.quit()
             sys.exit()
-        # Process input only if no shuriken is flying and input hasn't been received yet.
-        elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN) and not any_flying and not input_received:
-            # Mark that an input was received so further ones are ignored.
-            input_received = True
-            
-            player.slash()
-            closest_shuriken = None
-            min_distance = float('inf')
-            for shuriken in shuriken_group:
-                distance = pygame.math.Vector2(player.rect.center).distance_to(shuriken.rect.center)
-                if distance < min_distance:
-                    min_distance = distance
-                    closest_shuriken = shuriken
-
-            if closest_shuriken:
-                destruction_time = pygame.time.get_ticks()
-                if closest_shuriken.type == "Go":
-                    score["Go correct"] += 1
-                    closest_shuriken.slash() 
-                    outcome = "Correct"
-                    feedback_score += 1 
-                    correct_counter += 1 
-                    feedback_message = "Great!"
-                    if feedback_score >= 5 and feedback_score < 10:
-                        feedback_message = "Amazing!"
-                    elif feedback_score >= 10:
-                        feedback_message = "Unbelievable!"
-                else:
-                    score["Dontgo incorrect"] += 1
-                    closest_shuriken.slash()  
-                    hurt_animation_active = True
-                    hurt_frame_index = 0
-                    hurt_animation_timer = pygame.time.get_ticks()
-                    outcome = "Incorrect"
-                    feedback_score = feedback_score - 1 if feedback_score > 0 else 0 
-                    feedback_message = "Try Again!"
-                feedback_timer = pygame.time.get_ticks()
-                glow_active = True
-                glow_timer = pygame.time.get_ticks()
-                trial_log.append({
-                    "Spawn Time (s)": spawn_time / 1000,
-                    "Destruction Time (s)": destruction_time / 1000,
-                    "Prompt": closest_shuriken.type,
-                    "Outcome": outcome,
-                    'Time Spent (s)': (destruction_time - spawn_time) / 1000
-                })
-
+        elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN):
+            # Process input only if no shuriken is flying and no input has been processed for this trial.
+            if not any_flying and not input_received:
+                input_received = True
+                global input_press_time
+                input_press_time = pygame.time.get_ticks()
+                player.slash()
+                # Find the closest shuriken/heart to the player.
+                closest_shuriken = None
+                min_distance = float('inf')
+                for shuriken in shuriken_group:
+                    distance = pygame.math.Vector2(player.rect.center).distance_to(shuriken.rect.center)
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_shuriken = shuriken
+                if closest_shuriken:
+                    # Create a flying slash sprite.
+                    slash_sprite = SlashSprite(player.rect.center, closest_shuriken, prompt)
+                    slash_group.add(slash_sprite)
     # Spawn new shuriken if enough time has passed and no shurikens are on screen.
     if current_time - last_spawn_time > SPAWN_INTERVAL and len(shuriken_group) == 0:
         if spawn_count < amount_of_trials:  
@@ -325,7 +361,7 @@ while True:
     for shuriken in shuriken_group:
         shuriken.update()
         if shuriken.rect.colliderect(player_hitbox):
-            destruction_time = pygame.time.get_ticks()
+            destruction_time = input_press_time
             if shuriken.type == "Go":
                 outcome = "Incorrect"
                 score["Go incorrect"] += 1  
@@ -400,9 +436,11 @@ while True:
     # Update and draw sprites onto game_surface.
     player_group.update(prompt)
     shuriken_group.update()
+    slash_group.update()
     if not hurt_animation_active and not powerup_animation_active:
         player_group.draw(game_surface)
     shuriken_group.draw(game_surface)
+    slash_group.draw(game_surface)
     
     # Draw hurt animation if active.
     if hurt_animation_active:
@@ -426,12 +464,10 @@ while True:
                 powerup_frame_index = 0 
         if powerup_animation_active:
             game_surface.blit(powerup_frames[powerup_frame_index], player.rect)
-            player_group.slashing = False  
+            player_group.sprite.slashing = False  
 
     # --- Final Blit ---
-    # Draw the full-screen background.
     screen.blit(background, (0, 0))
-    # Blit the centered game surface onto the screen.
     screen.blit(game_surface, (offset_x, offset_y))
     
     pygame.display.flip()
