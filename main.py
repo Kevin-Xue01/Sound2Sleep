@@ -100,7 +100,7 @@ class DatastreamWorker(QObject):
             time.sleep(DELAYS[self.muse_data_type])
 
             try:
-                data, timestamps = self.parent_app.stream_inlet[self.muse_data_type].pull_chunk(timeout=DELAYS[self.muse_data_type], max_samples=CHUNK_SIZE[self.muse_data_type])
+                data, timestamps = self.parent_app.stream_inlet[self.muse_data_type].pull_chunk(timeout=0.5*DELAYS[self.muse_data_type], max_samples=CHUNK_SIZE[self.muse_data_type])
                 if timestamps and len(timestamps) == CHUNK_SIZE[self.muse_data_type]:
                     # timestamps = (np.arange(CHUNK_SIZE[MuseDataType.EEG], dtype=np.float64) - CHUNK_SIZE[MuseDataType.EEG]) / np.float64(SAMPLING_RATE[MuseDataType.EEG])  + np.float64(time.time())
                     timestamps = TIMESTAMPS[self.muse_data_type] + np.float64(time.time())
@@ -110,7 +110,7 @@ class DatastreamWorker(QObject):
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter > 60:
+                    if no_data_counter > 30:
                         self.error.emit(f'No {self.muse_data_type} data received for 100 consecutive attempts')
                         self.running = False
 
