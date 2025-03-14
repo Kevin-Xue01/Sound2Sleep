@@ -175,26 +175,12 @@ class EEGApp(QWidget):
         self.acc_worker.moveToThread(self.acc_thread)
         self.ppg_worker.moveToThread(self.ppg_thread)
 
-        # Connect signals & slots
-        self.eeg_thread.started.connect(self.eeg_worker.run)
-        self.eeg_worker.finished.connect(self.eeg_thread.quit)
-        self.eeg_worker.results_ready.connect(self.handle_eeg_data)
-        self.eeg_worker.error.connect(self.handle_eeg_error)
-        
-        self.acc_thread.started.connect(self.acc_worker.run)
-        self.acc_worker.finished.connect(self.acc_thread.quit)
-        self.acc_worker.results_ready.connect(self.handle_acc_data)
-        self.acc_worker.error.connect(self.handle_acc_error)    
-        
-        self.ppg_thread.started.connect(self.ppg_worker.run)
-        self.ppg_worker.finished.connect(self.ppg_thread.quit)
-        self.ppg_worker.results_ready.connect(self.handle_ppg_data)
-        self.ppg_worker.error.connect(self.handle_ppg_error)
+        self._connect_worker_signals()
 
         self.eeg_worker.set_app(self)
         self.acc_worker.set_app(self)
         self.ppg_worker.set_app(self)
-
+        
         self.processing_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config.processing_window_len_s)
 
         self.amp_buffer = np.zeros(self.config.amp_buffer_len)
@@ -227,7 +213,13 @@ class EEGApp(QWidget):
         self.plotter_shm = shared_memory.SharedMemory(name=EEG_PLOTTING_SHARED_MEMORY, create=True, size=DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4 + DISPLAY_WINDOW_LEN_N * 8)  # float32 EEG + float64 timestamps
         self.plotter_eeg_data = np.ndarray((DISPLAY_WINDOW_LEN_N, NUM_CHANNELS[MuseDataType.EEG]), dtype=np.float32, buffer=self.plotter_shm.buf[:DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4])
         self.plotter_timestamps = np.ndarray((DISPLAY_WINDOW_LEN_N,), dtype=np.float64, buffer=self.plotter_shm.buf[DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4:])
-        
+    
+    def _connect_worker_signals(self):
+        self.eeg_thread.started.connect(self.eeg_worker.run)
+        self.eeg_worker.finished.connect(self.eeg_thread.quit)
+        self.eeg_worker.results_ready.connect(self.handle_eeg_data)
+        self.eeg_worker.error.connect(self.handle_eeg_error)
+
     def init_ui(self):
         screen = QApplication.primaryScreen().geometry()
         width, height = int(screen.width() * 0.9), int(screen.height() * 0.9)
@@ -495,9 +487,24 @@ class EEGApp(QWidget):
         pass
 
     def handle_eeg_error(self, error_msg):
+        """Better handling of EEG stream errors."""
+        # Make sure worker is stopped
         self.eeg_worker.running = False
+        
+        # Log the error
         self.logger.error(f"EEG Error: {error_msg}")
-        QTimer.singleShot(2000, self.lsl_reset_stream_step1)
+        
+        # Prevent multiple reset attempts at once
+        if not hasattr(self, '_reset_in_progress') or not self._reset_in_progress:
+            self._reset_in_progress = True
+            QTimer.singleShot(2000, self._perform_lsl_reset)
+
+    def _perform_lsl_reset(self):
+        """Dedicated method to handle LSL resets."""
+        try:
+            self.lsl_reset_stream_step1()
+        finally:
+            self._reset_in_progress = False
 
     def handle_acc_error(self, error_msg):
         self.logger.error(f"ACC Error: {error_msg}")
@@ -644,11 +651,13 @@ class EEGApp(QWidget):
         reset_success = self.lsl_reload()
 
         if not reset_success:
-            self.logger.warning('LSL stream reset unsuccessful. Starting threads')
+            self.logger.warning('LSL stream reset unsuccessful')
             self.reset_attempt_count += 1
             if self.reset_attempt_count <= 5:
                 self.logger.error('Resetting Attempt: ' + str(self.reset_attempt_count))
-                self.lsl_reset_stream_step1() 
+                if not hasattr(self, '_reset_in_progress') or not self._reset_in_progress:
+                    self._reset_in_progress = True
+                    self._perform_lsl_reset()
             else:
                 self.reset_attempt_count = 0
 
@@ -657,8 +666,9 @@ class EEGApp(QWidget):
                         self.logger.critical('Killing BlueMuse')
                         p.kill()
 
-                time.sleep(4)
-                self.lsl_reset_stream_step1()
+                if not hasattr(self, '_reset_in_progress') or not self._reset_in_progress:
+                    self._reset_in_progress = True
+                    QTimer.singleShot(3000, self._perform_lsl_reset())
         else:
             self.reset_attempt_count = 0
             self.logger.warning('LSL stream reset successful. Starting threads')
@@ -666,32 +676,14 @@ class EEGApp(QWidget):
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
             self.on_connected()
 
-            # self.eeg_worker = DatastreamWorker(self.config, MuseDataType.EEG)
+            self._disconnect_worker_signals()
+            self._recreate_workers()
+            self._connect_worker_signals()
 
-            # self.eeg_thread = QThread()
-
-            # self.eeg_worker.moveToThread(self.eeg_thread)
-
-            self.eeg_thread.started.connect(self.eeg_worker.run)
-            self.eeg_worker.finished.connect(self.eeg_thread.quit)
-            self.eeg_worker.results_ready.connect(self.handle_eeg_data)
-            self.eeg_worker.error.connect(self.handle_eeg_error)
-            
-            self.eeg_worker.set_app(self)
-
-            self.eeg_worker.running = True
             if self.stream_inlet[MuseDataType.EEG] is not None:
                 if not self.eeg_thread.isRunning():
                     self.eeg_thread.start()
             
-            # if self.stream_inlet[MuseDataType.ACC] is not None:
-            #     if not self.acc_thread.isRunning():
-            #         self.acc_thread.start()
-            
-            # if self.stream_inlet[MuseDataType.PPG] is not None:
-            #     if not self.ppg_thread.isRunning():
-            #         self.ppg_thread.start()
-        
     def start_bluemuse(self):
         subprocess.call('start bluemuse:', shell=True)
         subprocess.call('start bluemuse://setting?key=primary_timestamp_format!value=BLUEMUSE', shell=True)
@@ -752,9 +744,72 @@ class EEGApp(QWidget):
         self.eeg_thread.quit()
         self.eeg_thread.wait()
 
+    def _disconnect_worker_signals(self):
+        """Safely disconnect all signals between threads and workers."""
+        try:
+            # Disconnect thread started signals
+            if self.eeg_thread.isRunning():
+                try:
+                    self.eeg_thread.started.disconnect()
+                except Exception as e:
+                    self.logger.critical(traceback.format_exc())
+            
+            # Disconnect worker signals
+            try:
+                self.eeg_worker.finished.disconnect()
+                self.eeg_worker.results_ready.disconnect()
+                self.eeg_worker.error.disconnect()
+            except TypeError:
+                self.logger.critical(traceback.format_exc())
+        except Exception as ex:
+            self.logger.error(f"Error disconnecting signals: {str(ex)}")
+
+    def _recreate_workers(self):
+        """Create fresh worker instances."""
+        # Stop existing workers gracefully if they're running
+        if hasattr(self, 'eeg_worker'):
+            self.eeg_worker.stop()
+        
+        # Create fresh instances
+        self.eeg_worker = DatastreamWorker(self.config, MuseDataType.EEG)
+        self.eeg_worker.set_app(self)
+
+    def cleanup_threads(self):
+        """Properly clean up all threads and workers."""
+        # Stop all workers
+        if hasattr(self, 'eeg_worker'):
+            self.eeg_worker.running = False
+        if hasattr(self, 'acc_worker'):
+            self.acc_worker.running = False
+        if hasattr(self, 'ppg_worker'):
+            self.ppg_worker.running = False
+        
+        # Wait for threads to finish with timeout
+        threads = [self.eeg_thread, self.acc_thread, self.ppg_thread]
+        for thread in threads:
+            if thread.isRunning():
+                thread.quit()
+                if not thread.wait(3000):  # 3 second timeout
+                    thread.terminate()
+                    self.logger.warning(f"Had to terminate thread forcefully")
+
     def closeEvent(self, event):
-        self.plotter_shm.close()
-        self.plotter_shm.unlink()
+        self.cleanup_threads()
+
+        # Close LSL streams
+        try:
+            for stream_type, _stream_inlet in self.stream_inlet.items():
+                if _stream_inlet is not None:
+                    _stream_inlet.close_stream()
+        except Exception as ex:
+            self.logger.critical(str(ex))
+        
+        # Close shared memory
+        if hasattr(self, 'plotter_shm'):
+            self.plotter_shm.close()
+            self.plotter_shm.unlink()
+        
+        event.accept()
 
 # def plotter():
 #     total_samples = SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S
