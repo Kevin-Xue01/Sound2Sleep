@@ -67,6 +67,7 @@ from utils import (
     SessionConfig,
 )
 
+LAG_THRESHOLD = 3 * DELAYS[MuseDataType.EEG]
 
 class DatastreamWorker(QObject):
     results_ready = pyqtSignal(np.ndarray, np.ndarray)  # Signal that will emit results once processing is done
@@ -102,10 +103,9 @@ class DatastreamWorker(QObject):
 
             try:
                 data, timestamps = self.parent_app.stream_inlet[self.muse_data_type].pull_chunk(timeout=DELAYS[self.muse_data_type], max_samples=CHUNK_SIZE[self.muse_data_type])
-                print(f"{self.muse_data_type}: {np.isnan(np.array(data)).any()}")
-                print(f"{self.muse_data_type}: {np.isnan(np.array(timestamps)).any()}")
+
                 if timestamps and len(timestamps) == CHUNK_SIZE[self.muse_data_type]:
-                    if self.last_timestamp is not None and timestamps[0] - 2 * DELAYS[MuseDataType.EEG] > self.last_timestamp:
+                    if self.last_timestamp is not None and timestamps[0] -  LAG_THRESHOLD > self.last_timestamp:
                         self.running = False
                         error_msg = f'Gap in {self.muse_data_type} data. Last timestamp: {self.last_timestamp}, Current timestamp: {timestamps[0]}'
                         continue
@@ -117,9 +117,9 @@ class DatastreamWorker(QObject):
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter >= 3:
+                    if no_data_counter >= 10:
                         self.running = False
-                        error_msg = f'No {self.muse_data_type} data received for 3 consecutive attempts'
+                        error_msg = f'No {self.muse_data_type} data received for 10 consecutive attempts'
                         continue
 
             except Exception as ex:
@@ -408,20 +408,7 @@ class EEGApp(QWidget):
         except Exception as ex:
             self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
 
-    def lsl_reload(self):
-        eeg_ok = False
-        
-        for stream in MuseDataType:
-            self.stream_info[stream] = resolve_byprop('type', stream.value, timeout=LSL_SCAN_TIMEOUT)
-
-            if self.stream_info[stream]:
-                self.stream_info[stream] = self.stream_info[stream][0]
-                self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
-                self.logger.info(f'{stream.name} OK.')
-                if stream == MuseDataType.EEG: eeg_ok = True
-            else:
-                self.logger.warning(f'{stream.name} not found.')
-        return eeg_ok
+    
     
 
     # def handle_eeg_data(self, data: np.ndarray, timestamp: np.ndarray):
@@ -613,9 +600,30 @@ class EEGApp(QWidget):
     def randomize_phase(self):
         self.target_phase = random.uniform(0.0, 2*np.pi)
     
+    def lsl_reload(self):
+        eeg_ok = False
+        
+        for stream in MuseDataType:
+            self.stream_info[stream] = resolve_byprop('type', stream.value, timeout=LSL_SCAN_TIMEOUT)
+
+            if self.stream_info[stream]:
+                self.stream_info[stream] = self.stream_info[stream][0]
+                self.stream_inlet[stream] = StreamInlet(self.stream_info[stream])
+                self.logger.info(f'{stream.name} OK.')
+                if stream == MuseDataType.EEG: eeg_ok = True
+            else:
+                self.logger.warning(f'{stream.name} not found.')
+        return eeg_ok
+    
     def lsl_reset_stream_step1(self):
         self.on_connection_timeout()
         self.logger.error('Resetting stream step 1')
+        try:
+            for stream_type, _stream_inlet in self.stream_inlet.items():
+                if stream_type == MuseDataType.EEG and _stream_inlet is not None:
+                    _stream_inlet.close_stream()
+        except Exception as ex:
+            self.logger.critical(str(ex))
         subprocess.call('start bluemuse://stop?stopall', shell=True)
         time.sleep(4)
         self.lsl_reset_stream_step2()
@@ -641,7 +649,6 @@ class EEGApp(QWidget):
                 self.reset_attempt_count = 0
 
                 for p in psutil.process_iter(['name']):
-                    print(p.info)
                     if p.info['name'] == 'BlueMuse.exe':
                         self.logger.critical('Killing BlueMuse')
                         p.kill()
@@ -659,13 +666,13 @@ class EEGApp(QWidget):
                 if not self.eeg_thread.isRunning():
                     self.eeg_thread.start()
             
-            if self.stream_inlet[MuseDataType.ACC] is not None:
-                if not self.acc_thread.isRunning():
-                    self.acc_thread.start()
+            # if self.stream_inlet[MuseDataType.ACC] is not None:
+            #     if not self.acc_thread.isRunning():
+            #         self.acc_thread.start()
             
-            if self.stream_inlet[MuseDataType.PPG] is not None:
-                if not self.ppg_thread.isRunning():
-                    self.ppg_thread.start()
+            # if self.stream_inlet[MuseDataType.PPG] is not None:
+            #     if not self.ppg_thread.isRunning():
+            #         self.ppg_thread.start()
         
     def start_bluemuse(self):
         subprocess.call('start bluemuse:', shell=True)
@@ -687,35 +694,30 @@ class EEGApp(QWidget):
             if not self.eeg_thread.isRunning():
                 self.eeg_thread.start()
         
-        if self.stream_inlet[MuseDataType.ACC] is not None:
-            if not self.acc_thread.isRunning():
-                self.acc_thread.start()
+        # if self.stream_inlet[MuseDataType.ACC] is not None:
+        #     if not self.acc_thread.isRunning():
+        #         self.acc_thread.start()
         
-        if self.stream_inlet[MuseDataType.PPG] is not None:
-            if not self.ppg_thread.isRunning():
-                self.ppg_thread.start()
+        # if self.stream_inlet[MuseDataType.PPG] is not None:
+        #     if not self.ppg_thread.isRunning():
+        #         self.ppg_thread.start()
         
     def stop_bluemuse(self):
-
         self.eeg_worker.running = False
         self.acc_worker.running = False
         self.ppg_worker.running = False
 
-        if self.eeg_thread.isRunning():
-            self.eeg_thread.quit()
-            self.eeg_thread.wait()
+        # if self.acc_thread.isRunning():
+        #     self.acc_thread.quit()
+        #     self.acc_thread.wait()
         
-        if self.acc_thread.isRunning():
-            self.acc_thread.quit()
-            self.acc_thread.wait()
-        
-        if self.ppg_thread.isRunning():
-            self.ppg_thread.quit()
-            self.ppg_thread.wait()
+        # if self.ppg_thread.isRunning():
+        #     self.ppg_thread.quit()
+        #     self.ppg_thread.wait()
 
         try:
-            for _stream_inlet in self.stream_inlet.values():
-                if _stream_inlet is not None:
+            for stream_type, _stream_inlet in self.stream_inlet.items():
+                if stream_type == MuseDataType.EEG and _stream_inlet is not None:
                     _stream_inlet.close_stream()
         except Exception as ex:
             self.logger.critical(str(ex))
@@ -728,6 +730,8 @@ class EEGApp(QWidget):
                 self.logger.critical('Killing BlueMuse')
                 p.kill()
         self.on_disconnected()
+        self.eeg_thread.quit()
+        self.eeg_thread.wait()
 
     def closeEvent(self, event):
         self.plotter_shm.close()
