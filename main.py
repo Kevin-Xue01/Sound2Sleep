@@ -99,12 +99,16 @@ class DatastreamWorker(QObject):
         no_data_counter = 0
         error_msg = ""
         while self.running:
-            time.sleep(DELAYS[self.muse_data_type])
+            time.sleep(0.9*DELAYS[self.muse_data_type])
 
             try:
                 data, timestamps = self.parent_app.stream_inlet[self.muse_data_type].pull_chunk(timeout=DELAYS[self.muse_data_type], max_samples=CHUNK_SIZE[self.muse_data_type])
-
+                # if np.isnan(data).any() or np.isnan(timestamps).any():
+                #     self.running = False
+                #     error_msg = f'NaN found in {self.muse_data_type} data. Data: {data.tolist()}, Timestamps: {timestamps.tolist()}'
+                #     continue
                 if timestamps and len(timestamps) == CHUNK_SIZE[self.muse_data_type]:
+                    # print(timestamps, data)
                     if self.last_timestamp is not None and timestamps[0] -  LAG_THRESHOLD > self.last_timestamp:
                         self.running = False
                         error_msg = f'Gap in {self.muse_data_type} data. Last timestamp: {self.last_timestamp}, Current timestamp: {timestamps[0]}'
@@ -441,7 +445,7 @@ class EEGApp(QWidget):
 
     #     self.file_writer.write_chunk(data, timestamp)
     def handle_eeg_data(self, eeg_chunk: np.ndarray, timestamp_chunk: np.ndarray):
-        self.logger.info("Heartbeat")
+        self.logger.debug("Heartbeat")
         self.plotter_eeg_data[:-CHUNK_SIZE[MuseDataType.EEG]] = self.plotter_eeg_data[CHUNK_SIZE[MuseDataType.EEG]:]
         self.plotter_timestamps[:-CHUNK_SIZE[MuseDataType.EEG]] = self.plotter_timestamps[CHUNK_SIZE[MuseDataType.EEG]:]
 
@@ -640,7 +644,7 @@ class EEGApp(QWidget):
         reset_success = self.lsl_reload()
 
         if not reset_success:
-            self.logger.warning('LSL stream reset successful. Starting threads')
+            self.logger.warning('LSL stream reset unsuccessful. Starting threads')
             self.reset_attempt_count += 1
             if self.reset_attempt_count <= 5:
                 self.logger.error('Resetting Attempt: ' + str(self.reset_attempt_count))
@@ -662,11 +666,11 @@ class EEGApp(QWidget):
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
             self.on_connected()
 
-            self.eeg_worker = DatastreamWorker(self.config, MuseDataType.EEG)
+            # self.eeg_worker = DatastreamWorker(self.config, MuseDataType.EEG)
 
-            self.eeg_thread = QThread()
+            # self.eeg_thread = QThread()
 
-            self.eeg_worker.moveToThread(self.eeg_thread)
+            # self.eeg_worker.moveToThread(self.eeg_thread)
 
             self.eeg_thread.started.connect(self.eeg_worker.run)
             self.eeg_worker.finished.connect(self.eeg_thread.quit)
@@ -675,6 +679,7 @@ class EEGApp(QWidget):
             
             self.eeg_worker.set_app(self)
 
+            self.eeg_worker.running = True
             if self.stream_inlet[MuseDataType.EEG] is not None:
                 if not self.eeg_thread.isRunning():
                     self.eeg_thread.start()
@@ -702,7 +707,8 @@ class EEGApp(QWidget):
             self.logger.error(f"LSL streams not found, retrying in 4 seconds") 
             time.sleep(4)
         self.on_connected()
-
+        self.eeg_worker.running = True
+        
         if self.stream_inlet[MuseDataType.EEG] is not None:
             if not self.eeg_thread.isRunning():
                 self.eeg_thread.start()
@@ -750,48 +756,48 @@ class EEGApp(QWidget):
         self.plotter_shm.close()
         self.plotter_shm.unlink()
 
-def plotter():
-    total_samples = SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S
-    shm_data = shared_memory.SharedMemory(name=EEG_PLOTTING_SHARED_MEMORY)
-    data_array = np.ndarray((DISPLAY_WINDOW_LEN_N, NUM_CHANNELS[MuseDataType.EEG]), dtype=np.float32, buffer=shm_data.buf[:DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4])
-    timestamps = np.ndarray((DISPLAY_WINDOW_LEN_N,), dtype=np.float64, buffer=shm_data.buf[DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4:])
-    # data_array = np.ndarray((TOTAL_SAMPLES, NUM_CHANNELS), dtype=np.float32, buffer=shm_data.buf[:TOTAL_SAMPLES * NUM_CHANNELS * 4])
-    # timestamps = np.ndarray((TOTAL_SAMPLES,), dtype=np.float64, buffer=shm_data.buf[TOTAL_SAMPLES * NUM_CHANNELS * 4:])
+# def plotter():
+#     total_samples = SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S
+#     shm_data = shared_memory.SharedMemory(name=EEG_PLOTTING_SHARED_MEMORY)
+#     data_array = np.ndarray((DISPLAY_WINDOW_LEN_N, NUM_CHANNELS[MuseDataType.EEG]), dtype=np.float32, buffer=shm_data.buf[:DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4])
+#     timestamps = np.ndarray((DISPLAY_WINDOW_LEN_N,), dtype=np.float64, buffer=shm_data.buf[DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4:])
+#     # data_array = np.ndarray((TOTAL_SAMPLES, NUM_CHANNELS), dtype=np.float32, buffer=shm_data.buf[:TOTAL_SAMPLES * NUM_CHANNELS * 4])
+#     # timestamps = np.ndarray((TOTAL_SAMPLES,), dtype=np.float64, buffer=shm_data.buf[TOTAL_SAMPLES * NUM_CHANNELS * 4:])
     
-    plt.ion()
-    fig, ax = plt.subplots()
-    lines = []
-    impedances = np.zeros(NUM_CHANNELS)
-    time_axis = np.arange(-DISPLAY_WINDOW_LEN_S, 0, 1.0 / SAMPLING_RATE[MuseDataType.EEG])[::2]
+#     plt.ion()
+#     fig, ax = plt.subplots()
+#     lines = []
+#     impedances = np.zeros(NUM_CHANNELS)
+#     time_axis = np.arange(-DISPLAY_WINDOW_LEN_S, 0, 1.0 / SAMPLING_RATE[MuseDataType.EEG])[::2]
     
-    for ii in range(NUM_CHANNELS):
-        line, = ax.plot(time_axis, np.zeros(DISPLAY_WINDOW_LEN_N // 2) - ii, lw=1)
-        lines.append(line)
+#     for ii in range(NUM_CHANNELS):
+#         line, = ax.plot(time_axis, np.zeros(DISPLAY_WINDOW_LEN_N // 2) - ii, lw=1)
+#         lines.append(line)
     
-    ax.set_ylim(-NUM_CHANNELS, 0.0)
-    ax.set_xlabel('Time (s)')
-    ax.set_yticks(np.arange(0, -NUM_CHANNELS, -1))
-    ax.xaxis.grid(False)
+#     ax.set_ylim(-NUM_CHANNELS, 0.0)
+#     ax.set_xlabel('Time (s)')
+#     ax.set_yticks(np.arange(0, -NUM_CHANNELS, -1))
+#     ax.xaxis.grid(False)
     
-    try:
-        while True:
-            latest_time = timestamps[-1]
-            time_axis = timestamps[::2] - latest_time  # Convert to seconds relative to latest timestamp
-            plot_data = data_array - data_array.mean(axis=0)
-            impedances = np.std(data_array, axis=0)  # Recalculate impedances
-            ax.set_yticklabels([f'{label} - {impedance:.2f}' for label, impedance in zip(CHANNEL_NAMES, impedances)])
+#     try:
+#         while True:
+#             latest_time = timestamps[-1]
+#             time_axis = timestamps[::2] - latest_time  # Convert to seconds relative to latest timestamp
+#             plot_data = data_array - data_array.mean(axis=0)
+#             impedances = np.std(data_array, axis=0)  # Recalculate impedances
+#             ax.set_yticklabels([f'{label} - {impedance:.2f}' for label, impedance in zip(CHANNEL_NAMES, impedances)])
             
-            for i, line in enumerate(lines):
-                # norm_data = data_array[:, i] - np.mean(data_array[:, i])  # Normalize to mean 0
-                line.set_xdata(time_axis)
-                line.set_ydata(plot_data[::2] / 100 - i)  # Offset each channel
+#             for i, line in enumerate(lines):
+#                 # norm_data = data_array[:, i] - np.mean(data_array[:, i])  # Normalize to mean 0
+#                 line.set_xdata(time_axis)
+#                 line.set_ydata(plot_data[::2] / 100 - i)  # Offset each channel
             
-            plt.pause(0.01)  # Update plot
-    except KeyboardInterrupt:
-        pass
-    finally:
-        shm_data.close()
-        shm_data.unlink()
+#             plt.pause(0.01)  # Update plot
+#     except KeyboardInterrupt:
+#         pass
+#     finally:
+#         shm_data.close()
+#         shm_data.unlink()
 
 if __name__ == "__main__":
     if sys.platform.startswith("win"):
@@ -801,8 +807,8 @@ if __name__ == "__main__":
         ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
 
     try:
-        plotter_process = Process(target=plotter)
-        plotter_process.start()
+        # plotter_process = Process(target=plotter)
+        # plotter_process.start()
         app = QApplication(sys.argv)
         window = EEGApp()
         window.show()
