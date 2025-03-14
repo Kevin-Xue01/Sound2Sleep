@@ -150,6 +150,8 @@ class EEGApp(QWidget):
         self.target_phase = self.config.target_phase
         self.second_stim_start = nan
         self.second_stim_end = nan
+
+        self._reset_in_progress = False
         
         self.stream_info: dict[MuseDataType, Union[StreamInfo, None]] = {
             MuseDataType.EEG: None,
