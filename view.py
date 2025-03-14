@@ -112,7 +112,7 @@ class LSLViewer():
         self.scale = scale
         self.dejitter = dejitter
         self.inlet = StreamInlet(stream, max_chunklen=LSL_EEG_CHUNK)
-        self.filt = True
+        self.filt = False
         self.subsample = VIEW_SUBSAMPLE
 
         info = self.inlet.info()
@@ -207,7 +207,7 @@ class LSLViewer():
                                                      self.times[-1])
                             self.lines[ii].set_ydata(plot_data[::self.subsample, ii] /
                                                      self.scale - ii)
-                            impedances = np.std(plot_data, axis=0)
+                            impedances = np.mean(plot_data, axis=0)
 
                         ticks_labels = ['%s - %.2f' % (self.ch_names[ii],
                                                        impedances[ii])

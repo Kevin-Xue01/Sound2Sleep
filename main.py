@@ -79,6 +79,7 @@ class DatastreamWorker(QObject):
         self.muse_data_type = muse_data_type
         self.running = False
         self.parent_app = None
+        self.last_timestamp = None
 
     def set_app(self, app: 'EEGApp'):
         """Set reference to main app to access necessary data."""
@@ -100,24 +101,31 @@ class DatastreamWorker(QObject):
             time.sleep(DELAYS[self.muse_data_type])
 
             try:
-                data, timestamps = self.parent_app.stream_inlet[self.muse_data_type].pull_chunk(timeout=0.5*DELAYS[self.muse_data_type], max_samples=CHUNK_SIZE[self.muse_data_type])
+                data, timestamps = self.parent_app.stream_inlet[self.muse_data_type].pull_chunk(timeout=DELAYS[self.muse_data_type], max_samples=CHUNK_SIZE[self.muse_data_type])
                 if timestamps and len(timestamps) == CHUNK_SIZE[self.muse_data_type]:
+                    if self.last_timestamp is not None and timestamps[0] - 3*DELAYS[MuseDataType.EEG] > self.last_timestamp:
+                        self.running = False
+                        continue
                     # timestamps = (np.arange(CHUNK_SIZE[MuseDataType.EEG], dtype=np.float64) - CHUNK_SIZE[MuseDataType.EEG]) / np.float64(SAMPLING_RATE[MuseDataType.EEG])  + np.float64(time.time())
                     timestamps = TIMESTAMPS[self.muse_data_type] + np.float64(time.time())
+                    self.last_timestamp = timestamps[-1]
                     data = np.array(data).astype(np.float32)
 
                     self.results_ready.emit(data, timestamps)
                 else:
                     no_data_counter += 1
 
-                    if no_data_counter > 30:
-                        self.error.emit(f'No {self.muse_data_type} data received for 100 consecutive attempts')
+                    if no_data_counter >= 3:
+                        # self.error.emit(f'No {self.muse_data_type} data received for 100 consecutive attempts')
                         self.running = False
+                        continue
 
             except Exception as ex:
-                self.error(traceback.format_exception(type(ex), ex, ex.__traceback__))
+                # self.error(traceback.format_exception(type(ex), ex, ex.__traceback__))
+                # self.error.emit("Worker Stopped Unexpectedly")
+                self.running = False
 
-        self.finished.emit()
+        self.error.emit(f'Gap in {self.muse_data_type} data. Last timestamp: {self.last_timestamp}, Current timestamp: {timestamps[0]}')
 
 
 class EEGApp(QWidget):
@@ -445,6 +453,7 @@ class EEGApp(QWidget):
 
     #     self.file_writer.write_chunk(data, timestamp)
     def handle_eeg_data(self, eeg_chunk: np.ndarray, timestamp_chunk: np.ndarray):
+        self.logger.info("Heartbeat")
         self.plotter_eeg_data[:-CHUNK_SIZE[MuseDataType.EEG]] = self.plotter_eeg_data[CHUNK_SIZE[MuseDataType.EEG]:]
         self.plotter_timestamps[:-CHUNK_SIZE[MuseDataType.EEG]] = self.plotter_timestamps[CHUNK_SIZE[MuseDataType.EEG]:]
 
@@ -494,6 +503,7 @@ class EEGApp(QWidget):
         pass
 
     def handle_eeg_error(self, error_msg):
+        self.eeg_worker.running = False
         self.logger.error(f"EEG Error: {error_msg}")
         QTimer.singleShot(2000, self.lsl_reset_stream_step1)
 
@@ -686,9 +696,9 @@ class EEGApp(QWidget):
         
     def stop_bluemuse(self):
 
-        self.eeg_worker.stop()
-        self.acc_worker.stop()
-        self.ppg_worker.stop()
+        self.eeg_worker.running = False
+        self.acc_worker.running = False
+        self.ppg_worker.running = False
 
         if self.eeg_thread.isRunning():
             self.eeg_thread.quit()
