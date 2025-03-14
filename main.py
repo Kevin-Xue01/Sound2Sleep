@@ -102,6 +102,8 @@ class DatastreamWorker(QObject):
 
             try:
                 data, timestamps = self.parent_app.stream_inlet[self.muse_data_type].pull_chunk(timeout=DELAYS[self.muse_data_type], max_samples=CHUNK_SIZE[self.muse_data_type])
+                print(f"{self.muse_data_type}: {np.isnan(np.array(data)).any()}")
+                print(f"{self.muse_data_type}: {np.isnan(np.array(timestamps)).any()}")
                 if timestamps and len(timestamps) == CHUNK_SIZE[self.muse_data_type]:
                     if self.last_timestamp is not None and timestamps[0] - 2 * DELAYS[MuseDataType.EEG] > self.last_timestamp:
                         self.running = False
