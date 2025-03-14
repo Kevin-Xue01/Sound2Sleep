@@ -374,9 +374,6 @@ class EEGApp(QWidget):
         except Exception as ex:
             self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
 
-    
-    
-
     # def handle_eeg_data(self, data: np.ndarray, timestamp: np.ndarray):
     #     if np.isnan(data).any():
     #         self.logger.critical(f"NaN found in data: {data.tolist()}")
@@ -421,19 +418,19 @@ class EEGApp(QWidget):
                 print("Initialization complete. Processing EEG data.")
             return
 
-        self.switch_channel_counter += 1
-        if self.switch_channel_counter == self.switch_channel_counter_max:
-            self.switch_channel()
-            self.switch_channel_counter = 0
+        # self.switch_channel_counter += 1
+        # if self.switch_channel_counter == self.switch_channel_counter_max:
+        #     self.switch_channel()
+        #     self.switch_channel_counter = 0
 
-        selected_channel_mean = np.mean(eeg_chunk[:, self.selected_channel_ind])
-        oldest_value = self.rolling_avg_buffer[self.rolling_avg_index]
-        self.rolling_avg_sum += selected_channel_mean - oldest_value
-        self.rolling_avg_buffer[self.rolling_avg_index] = selected_channel_mean
-        self.rolling_avg_index = (self.rolling_avg_index + 1) % self.rolling_avg_len
-        self.eeg_rolling_avg = self.rolling_avg_sum / self.rolling_avg_len
+        # selected_channel_mean = np.mean(eeg_chunk[:, self.selected_channel_ind])
+        # oldest_value = self.rolling_avg_buffer[self.rolling_avg_index]
+        # self.rolling_avg_sum += selected_channel_mean - oldest_value
+        # self.rolling_avg_buffer[self.rolling_avg_index] = selected_channel_mean
+        # self.rolling_avg_index = (self.rolling_avg_index + 1) % self.rolling_avg_len
+        # self.eeg_rolling_avg = self.rolling_avg_sum / self.rolling_avg_len
 
-        self.process_eeg_data()
+        # self.process_eeg_data()
         self.file_writer.write_chunk(eeg_chunk, timestamp_chunk)
 
     def process_eeg_data(self):
@@ -765,8 +762,8 @@ if __name__ == "__main__":
         ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
 
     try:
-        plotter_process = Process(target=plotter)
-        plotter_process.start()
+        # plotter_process = Process(target=plotter)
+        # plotter_process.start()
         app = QApplication(sys.argv)
         window = EEGApp()
         window.show()
