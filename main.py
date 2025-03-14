@@ -737,46 +737,48 @@ class EEGApp(QWidget):
         self.plotter_shm.close()
         self.plotter_shm.unlink()
 
-# def plotter():
-#     total_samples = SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S
-#     shm_data = shared_memory.SharedMemory(name=SHM_NAME)
-#     data_array = np.ndarray((TOTAL_SAMPLES, NUM_CHANNELS), dtype=np.float32, buffer=shm_data.buf[:TOTAL_SAMPLES * NUM_CHANNELS * 4])
-#     timestamps = np.ndarray((TOTAL_SAMPLES,), dtype=np.float64, buffer=shm_data.buf[TOTAL_SAMPLES * NUM_CHANNELS * 4:])
+def plotter():
+    total_samples = SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S
+    shm_data = shared_memory.SharedMemory(name=EEG_PLOTTING_SHARED_MEMORY)
+    data_array = np.ndarray((DISPLAY_WINDOW_LEN_N, NUM_CHANNELS[MuseDataType.EEG]), dtype=np.float32, buffer=shm_data.buf[:DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4])
+    timestamps = np.ndarray((DISPLAY_WINDOW_LEN_N,), dtype=np.float64, buffer=shm_data.buf[DISPLAY_WINDOW_LEN_N * NUM_CHANNELS[MuseDataType.EEG] * 4:])
+    # data_array = np.ndarray((TOTAL_SAMPLES, NUM_CHANNELS), dtype=np.float32, buffer=shm_data.buf[:TOTAL_SAMPLES * NUM_CHANNELS * 4])
+    # timestamps = np.ndarray((TOTAL_SAMPLES,), dtype=np.float64, buffer=shm_data.buf[TOTAL_SAMPLES * NUM_CHANNELS * 4:])
     
-#     plt.ion()
-#     fig, ax = plt.subplots()
-#     lines = []
-#     impedances = np.zeros(NUM_CHANNELS)
-#     time_axis = np.arange(-WINDOW_SIZE, 0, 1.0 / SAMPLE_RATE)[::2]
+    plt.ion()
+    fig, ax = plt.subplots()
+    lines = []
+    impedances = np.zeros(NUM_CHANNELS)
+    time_axis = np.arange(-DISPLAY_WINDOW_LEN_S, 0, 1.0 / SAMPLING_RATE[MuseDataType.EEG])[::2]
     
-#     for ii in range(NUM_CHANNELS):
-#         line, = ax.plot(time_axis, np.zeros(TOTAL_SAMPLES // 2) - ii, lw=1)
-#         lines.append(line)
+    for ii in range(NUM_CHANNELS):
+        line, = ax.plot(time_axis, np.zeros(DISPLAY_WINDOW_LEN_N // 2) - ii, lw=1)
+        lines.append(line)
     
-#     ax.set_ylim(-NUM_CHANNELS, 0.0)
-#     ax.set_xlabel('Time (s)')
-#     ax.set_yticks(np.arange(0, -NUM_CHANNELS, -1))
-#     ax.xaxis.grid(False)
+    ax.set_ylim(-NUM_CHANNELS, 0.0)
+    ax.set_xlabel('Time (s)')
+    ax.set_yticks(np.arange(0, -NUM_CHANNELS, -1))
+    ax.xaxis.grid(False)
     
-#     try:
-#         while True:
-#             latest_time = timestamps[-1]
-#             time_axis = timestamps[::2] - latest_time  # Convert to seconds relative to latest timestamp
+    try:
+        while True:
+            latest_time = timestamps[-1]
+            time_axis = timestamps[::2] - latest_time  # Convert to seconds relative to latest timestamp
+            plot_data = data_array - data_array.mean(axis=0)
+            impedances = np.std(data_array, axis=0)  # Recalculate impedances
+            ax.set_yticklabels([f'{label} - {impedance:.2f}' for label, impedance in zip(CHANNEL_NAMES, impedances)])
             
-#             impedances = np.std(data_array, axis=0)  # Recalculate impedances
-#             ax.set_yticklabels([f'{label} - {impedance:.2f}' for label, impedance in zip(CHANNEL_NAMES, impedances)])
+            for i, line in enumerate(lines):
+                # norm_data = data_array[:, i] - np.mean(data_array[:, i])  # Normalize to mean 0
+                line.set_xdata(time_axis)
+                line.set_ydata(plot_data[::2] / 100 - i)  # Offset each channel
             
-#             for i, line in enumerate(lines):
-#                 norm_data = data_array[:, i] - np.mean(data_array[:, i])  # Normalize to mean 0
-#                 line.set_xdata(time_axis)
-#                 line.set_ydata(norm_data[::2] / 3 - i)  # Offset each channel
-            
-#             plt.pause(0.01)  # Update plot
-#     except KeyboardInterrupt:
-#         pass
-#     finally:
-#         shm_data.close()
-#         shm_data.unlink()
+            plt.pause(0.01)  # Update plot
+    except KeyboardInterrupt:
+        pass
+    finally:
+        shm_data.close()
+        shm_data.unlink()
 
 if __name__ == "__main__":
     if sys.platform.startswith("win"):
@@ -786,7 +788,8 @@ if __name__ == "__main__":
         ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
 
     try:
-        # plotter_process = Process(target=)
+        plotter_process = Process(target=plotter)
+        plotter_process.start()
         app = QApplication(sys.argv)
         window = EEGApp()
         window.show()
