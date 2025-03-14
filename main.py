@@ -116,7 +116,7 @@ class DatastreamWorker(QObject):
             except Exception as ex:
                 self.error.emit(traceback.format_exc())
 
-        self.finished.emit(f'{self.muse_data_type} thread finished running')
+        self.finished.emit()
 
 
 class EEGApp(QWidget):
