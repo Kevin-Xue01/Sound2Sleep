@@ -96,17 +96,17 @@ class DatastreamWorker(QObject):
     def run(self):
         self.running = True
         no_data_counter = 0
-
+        error_msg = ""
         while self.running:
             time.sleep(DELAYS[self.muse_data_type])
 
             try:
                 data, timestamps = self.parent_app.stream_inlet[self.muse_data_type].pull_chunk(timeout=DELAYS[self.muse_data_type], max_samples=CHUNK_SIZE[self.muse_data_type])
                 if timestamps and len(timestamps) == CHUNK_SIZE[self.muse_data_type]:
-                    if self.last_timestamp is not None and timestamps[0] - 3*DELAYS[MuseDataType.EEG] > self.last_timestamp:
+                    if self.last_timestamp is not None and timestamps[0] - 2 * DELAYS[MuseDataType.EEG] > self.last_timestamp:
                         self.running = False
+                        error_msg = f'Gap in {self.muse_data_type} data. Last timestamp: {self.last_timestamp}, Current timestamp: {timestamps[0]}'
                         continue
-                    # timestamps = (np.arange(CHUNK_SIZE[MuseDataType.EEG], dtype=np.float64) - CHUNK_SIZE[MuseDataType.EEG]) / np.float64(SAMPLING_RATE[MuseDataType.EEG])  + np.float64(time.time())
                     timestamps = TIMESTAMPS[self.muse_data_type] + np.float64(time.time())
                     self.last_timestamp = timestamps[-1]
                     data = np.array(data).astype(np.float32)
@@ -116,16 +116,15 @@ class DatastreamWorker(QObject):
                     no_data_counter += 1
 
                     if no_data_counter >= 3:
-                        # self.error.emit(f'No {self.muse_data_type} data received for 100 consecutive attempts')
                         self.running = False
+                        error_msg = f'No {self.muse_data_type} data received for 3 consecutive attempts'
                         continue
 
             except Exception as ex:
-                # self.error(traceback.format_exception(type(ex), ex, ex.__traceback__))
-                # self.error.emit("Worker Stopped Unexpectedly")
                 self.running = False
+                error_msg = traceback.format_exception(type(ex), ex, ex.__traceback__)
 
-        self.error.emit(f'Gap in {self.muse_data_type} data. Last timestamp: {self.last_timestamp}, Current timestamp: {timestamps[0]}')
+        self.error.emit(error_msg)
 
 
 class EEGApp(QWidget):
@@ -358,6 +357,7 @@ class EEGApp(QWidget):
         self.record_button.setText("Start Recording")
         self.elapsed_time_label.setText("Elapsed Time: 0s")
         self.recording_elapsed_time = 0  # Reset elapsed time
+        self.elapsed_time_timer.stop()
     
     def on_toggle_record_button(self):
         if self.app_state == AppState.CONNECTED:
@@ -370,7 +370,6 @@ class EEGApp(QWidget):
             self.app_state = AppState.CONNECTED
             self.record_button.setText("Start Recording")
             self.elapsed_time_timer.stop()  # Stop the timer
-            self.elapsed_time_label.setText(f"Elapsed Time: {self.recording_elapsed_time}s")
 
     def on_connection_timeout(self):
         self.connection_timeout_error_label.setText("Connection Timeout")
