@@ -662,6 +662,19 @@ class EEGApp(QWidget):
             subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
             self.on_connected()
 
+            self.eeg_worker = DatastreamWorker(self.config, MuseDataType.EEG)
+
+            self.eeg_thread = QThread()
+
+            self.eeg_worker.moveToThread(self.eeg_thread)
+
+            self.eeg_thread.started.connect(self.eeg_worker.run)
+            self.eeg_worker.finished.connect(self.eeg_thread.quit)
+            self.eeg_worker.results_ready.connect(self.handle_eeg_data)
+            self.eeg_worker.error.connect(self.handle_eeg_error)
+            
+            self.eeg_worker.set_app(self)
+
             if self.stream_inlet[MuseDataType.EEG] is not None:
                 if not self.eeg_thread.isRunning():
                     self.eeg_thread.start()
