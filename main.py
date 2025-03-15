@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import traceback
+from collections import deque
 from datetime import datetime, timedelta
 from functools import partial
 from math import ceil, floor, isnan, nan, pi
@@ -47,6 +48,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from scipy.signal import butter, filtfilt
 
 # from muselsl.constants import LSL_SCAN_TIMEOUT
 from utils import (
@@ -757,26 +759,39 @@ class EEGApp(QWidget):
 #         shm_data.close()
 #         shm_data.unlink()
 
+# === EEG Processing Worker (Multiprocessing) ===
 def process_eeg(data_queue, result_queue):
-    """Worker function for EEG signal processing."""
-    import scipy.signal as sp
+    """Worker function for EEG signal processing using a 2-second sliding window."""
+    fs = 256  # Assume 256 Hz sampling rate
+    window_size = fs * 2  # 2 seconds worth of data
+    num_channels = 4  # Assume 4-channel EEG
 
-    # Bandpass filter parameters (1-40 Hz for EEG)
-    fs = 256  # Assume LSL stream has 256Hz sampling rate
-    b, a = sp.butter(4, [1, 40], btype='bandpass', fs=fs)
+    # Sliding buffer for 2s window
+    timestamps_buffer = deque(maxlen=window_size)
+    eeg_buffer = deque(maxlen=window_size)
+
+    # Bandpass filter (1-40 Hz)
+    b, a = butter(4, [1, 40], btype='bandpass', fs=fs)
 
     while True:
         timestamps, eeg_data = data_queue.get()
         if timestamps is None:  # Stop signal
             break
-        
-        # Apply bandpass filter
-        filtered_data = sp.filtfilt(b, a, eeg_data, axis=0)
 
-        result_queue.put((timestamps, filtered_data))
+        # Append new data to the buffer
+        timestamps_buffer.extend(timestamps)
+        eeg_buffer.extend(eeg_data)
 
+        # Process only when we have a full 2s window
+        if len(eeg_buffer) == window_size:
+            eeg_array = np.array(eeg_buffer)  # Convert to NumPy array
+            filtered_data = filtfilt(b, a, eeg_array, axis=0)  # Apply filter
+
+            result_queue.put((timestamps_buffer[-12:], filtered_data[-12:]))  # Send last chunk for display
+
+# === Real-Time EEG GUI (PyQt5 + pyqtgraph) ===
 class EEGViewer(QMainWindow):
-    def __init__(self, result_queue: Queue):
+    def __init__(self, result_queue):
         super().__init__()
         self.setWindowTitle("Real-Time EEG")
         self.graph = pg.PlotWidget()
