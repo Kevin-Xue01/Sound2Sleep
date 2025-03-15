@@ -370,12 +370,12 @@ class EEGApp(QWidget):
     def play_audio(self, delay):
         QTimer.singleShot(delay * 1000, self.audio.run)
 
-    def screenoff(self):
-        ''' Darken the screen by starting the blank screensaver '''
-        try:
-            subprocess.call(['C:\Windows\System32\scrnsave.scr', '/start'])
-        except Exception as ex:
-            self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
+    # def screenoff(self):
+    #     ''' Darken the screen by starting the blank screensaver '''
+    #     try:
+    #         subprocess.call(['C:\Windows\System32\scrnsave.scr', '/start'])
+    #     except Exception as ex:
+    #         self.logger.critical(traceback.format_exception(type(ex), ex, ex.__traceback__))
 
     # def handle_eeg_data(self, data: np.ndarray, timestamp: np.ndarray):
     #     if np.isnan(data).any():
