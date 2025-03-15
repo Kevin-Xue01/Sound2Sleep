@@ -804,10 +804,20 @@ class LSLReceiver(Thread):
         self.running = True
         self.muse_data_type = muse_data_type
 
+        subprocess.call('start bluemuse:', shell=True)
+        subprocess.call('start bluemuse://setting?key=primary_timestamp_format!value=BLUEMUSE', shell=True)
+        subprocess.call('start bluemuse://setting?key=channel_data_type!value=float32', shell=True)
+        subprocess.call('start bluemuse://setting?key=eeg_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=accelerometer_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=gyroscope_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://setting?key=ppg_enabled!value=true', shell=True)
+        subprocess.call('start bluemuse://start?streamfirst=true', shell=True)
+
+        time.sleep(4)
         self.stream_info = resolve_byprop('type', self.muse_data_type.value, timeout=LSL_SCAN_TIMEOUT)
 
         if self.stream_info:
-            self.stream_info = self.stream_info[self.muse_data_type][0]
+            self.stream_info = self.stream_info[0]
             self.stream_inlet = StreamInlet(self.stream_info)
         else:
             raise Exception()
