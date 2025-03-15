@@ -420,14 +420,14 @@ class CLASAlgo():
             raise (NotImplementedError('Unknown mode'))
 
         ### determine if we're locked on ###
-        est_phase = (np.arange(self.quadrature_sp) / self.fs) * freq * 2 * pi
-        est_phase = est_phase - est_phase[-1] + phase
-        est_sig = np.cos(est_phase)
-        est_sig = est_sig / np.trapz(np.abs(est_sig)) * est_sig.size
+        est_phase = (np.arange(self.quadrature_sp) / self.fs) * freq * 2 * pi # create time vector based on the number of samples and the sampling frequency (angular)
+        est_phase = est_phase - est_phase[-1] + phase # shift time vector to match the phase
+        est_sig = np.cos(est_phase) # cosine signal with the estimated phase
+        est_sig = est_sig / np.trapz(np.abs(est_sig)) * est_sig.size # normalize estimated signal
 
         # normalize the signal
         #normsig = cdata / np.sqrt(np.mean(np.square(cdata)))
-        normsig = cdata[-self.quadrature_sp:] / np.trapz(np.abs(cdata[-self.quadrature_sp:])) * cdata.size
-        quadrature = np.trapz(normsig * est_sig) / cdata.size
+        normsig = cdata[-self.quadrature_sp:] / np.trapz(np.abs(cdata[-self.quadrature_sp:])) * cdata.size # normalized measured signal
+        quadrature = np.trapz(normsig * est_sig) / cdata.size # compute quadrature
 
         return phase, freq, amp, quadrature, hl_ratio

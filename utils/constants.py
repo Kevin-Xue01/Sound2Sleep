@@ -95,20 +95,6 @@ class EEGProcessorOutput(Enum):
     FUTURE = auto()
     FUTURE2 = auto()
 
-class EEGSimulatorBand(Enum):
-    DELTA = 'Delta'
-    THETA = 'Theta'
-    ALPHA = 'Alpha'
-    BETA = 'Beta'
-    GAMMA = 'Gamma'
-
-class EEGSimulatorSignalParam(Enum):
-    PERCENT = 'Percent'
-    CENTER_FREQUENCY = 'Center Frequency'
-    BANDWIDTH = 'Bandwidth'
-    RANGE = 'Range'
-    COLOR = 'Color'
-
 DISPLAY_WINDOW_LEN_S = 5.0
 LSL_SCAN_TIMEOUT = 10.5
 DISPLAY_WINDOW_LEN_N = int(SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S)

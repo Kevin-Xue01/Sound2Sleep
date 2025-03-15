@@ -64,6 +64,7 @@ class FileReader:
         os.makedirs(directory, exist_ok=True)
         self.timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_timestamp.bin")
         self.data_file_path = os.path.join(directory, f"{self.muse_data_type.name}_data.bin")
+        self.stim_timestamp = os.path.join(directory, f"{self.muse_data_type.name}_stim_timestamp.txt")
         
         # Define expected shapes and dtypes
         self.data_shape = (CHUNK_SIZE[MuseDataType.EEG], len(CHANNEL_NAMES[MuseDataType.EEG]))
@@ -135,6 +136,15 @@ class FileReader:
                 break
             
             yield eeg_data, timestamp
+
+    def read_stim_timestamp(self):
+        # Load data, forcing errors='coerce' to convert invalid values to NaN
+        data = np.genfromtxt(self.stim_timestamp, dtype=np.float64, invalid_raise=False)
+        # Filter out NaN values
+        return data[~np.isnan(data)]
+    
+    def get_total_frames(self):
+        return self.total_frames
     
     def close(self):
         if hasattr(self, 'data_file') and self.data_file:
