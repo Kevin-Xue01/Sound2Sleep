@@ -7,6 +7,11 @@ import json
 import datetime
 import os
 import random
+# Add the root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))  # Going up two levels to the root
+
+from dropbox_uploader import upload_to_dropbox
+
 
 # ------------------------
 # New SlashSprite Class
@@ -195,11 +200,12 @@ correct_counter = 0
 SHURIKEN_SPAWN_POINT = (SCREEN_HEIGHT//12, SCREEN_HEIGHT//2)  # Coordinates for a single spawn point
 
 # Load and scale background
-background = pygame.image.load('Go-Nogo/assets/sprites/bluegalaxy.png').convert()
-background = pygame.transform.scale(background, (physical_width, SCREEN_HEIGHT))
+background = pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/bluegalaxy.png').convert()
+background = pygame.transform.scale(background, (SCREEN_WIDTH, SCREEN_HEIGHT))
+
 
 # Load and scale path while maintaining aspect ratio
-path = pygame.image.load('Go-Nogo/assets/sprites/path.png').convert_alpha()
+path = pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/path.png').convert_alpha()
 original_width, original_height = path.get_size()
 TARGET_PATH_HEIGHT = SCREEN_HEIGHT  # Adjust as needed
 aspect_ratio = original_width / original_height
@@ -211,9 +217,9 @@ prompt = ''
 
 # Load hurt frames
 hurt_frames = [
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/hurt/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/hurt/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/hurt/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/hurt/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
 ]
 hurt_frame_index = 0
 hurt_animation_active = False
@@ -222,9 +228,9 @@ HURT_ANIMATION_INTERVAL = 150  # milliseconds
 
 # Load power-up frames
 powerup_frames = [
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/powerup/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/powerup/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
-    pygame.transform.scale(pygame.image.load('Go-Nogo/assets/sprites/powerup/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/powerup/1.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/powerup/2.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10)),
+    pygame.transform.scale(pygame.image.load('CognitiveTesting/Go-Nogo/assets/sprites/powerup/3.png').convert_alpha(), (SCREEN_HEIGHT//9, SCREEN_HEIGHT//10))
 ]
 powerup_frame_index = 0
 powerup_animation_active = False
@@ -238,13 +244,13 @@ slash_group = pygame.sprite.Group()  # New group for flying slash sprites
 
 # Initialize player 
 player = Player(
-    idle_folder='Go-Nogo/assets/sprites/player_idle', 
-    bottom_left='Go-Nogo/assets/sprites/BottomLeft',
-    bottom_right='Go-Nogo/assets/sprites/BottomRight',
-    top_left='Go-Nogo/assets/sprites/TopLeft',
-    top_right='Go-Nogo/assets/sprites/TopRight',
-    left='Go-Nogo/assets/sprites/Left',
-    right='Go-Nogo/assets/sprites/Right', 
+    idle_folder='CognitiveTesting/Go-Nogo/assets/sprites/player_idle', 
+    bottom_left='CognitiveTesting/Go-Nogo/assets/sprites/BottomLeft',
+    bottom_right='CognitiveTesting/Go-Nogo/assets/sprites/BottomRight',
+    top_left='CognitiveTesting/Go-Nogo/assets/sprites/TopLeft',
+    top_right='CognitiveTesting/Go-Nogo/assets/sprites/TopRight',
+    left='CognitiveTesting/Go-Nogo/assets/sprites/Left',
+    right='CognitiveTesting/Go-Nogo/assets/sprites/Right', 
     position=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
 )
 player_group.add(player)
@@ -338,16 +344,17 @@ while True:
             input_received = False
         else:
             print("Final Score:", score)
-            # Save trial log data.
-            data_folder = "Go-Nogo/data"
+            #Save Data
+            data_folder = "CognitiveTesting/Go-Nogo/data"
+
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
-            date = datetime.datetime.now().strftime("%Y-%m-%d") 
-            filename = os.path.join(data_folder, f"go_no_go_{date}.json")
-            with open(filename, "w") as json_file:
+            date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") 
+            filenameData = os.path.join(data_folder, f"go_no_go_data{date}.json")
+            with open(filenameData, "w") as json_file:
                 json.dump(trial_log, json_file, indent=4)
-            # Save score.
-            data_folder = "Go-Nogo/Score"
+            #Save Score
+            data_folder = "CognitiveTesting/Go-Nogo/Score"
             score_percent = feedback_score / NUM_TRIALS * 100
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
@@ -355,6 +362,7 @@ while True:
             filename = os.path.join(data_folder, f"{date}.json")
             with open(filename, "w") as json_file:
                 json.dump(score_percent, json_file, indent=4)
+
             pygame.quit()
             sys.exit()
 
