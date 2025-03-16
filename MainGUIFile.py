@@ -4,20 +4,18 @@ import json
 import random
 import subprocess
 from datetime import datetime, timedelta
-
-from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
-    QPushButton, QFrame, QStackedWidget, QSizePolicy, QTextEdit, QScrollArea
-)
-from PyQt5.QtGui import QFont, QPixmap
-from PyQt5.QtCore import Qt
-
 import io
 import matplotlib
 matplotlib.use("Agg")  # For headless use, if needed
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from sleep_staging_functions import generate_sleep_figure, SleepStageReportPage
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
+    QPushButton, QFrame, QStackedWidget, QSizePolicy, QTextEdit, QScrollArea
+)
+from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtCore import Qt
 
 RANKING_DIR = "gui_data/"
 if not os.path.exists(RANKING_DIR):
@@ -59,9 +57,6 @@ class SleepStudyApp(QWidget):
         return SleepStageReportPage(self)
 
     def show_sleep_stage_report(self):
-        """
-        Switch to the Sleep Stage Report page, refresh the report, and go full screen.
-        """
         self.sleep_stage_report_page.generate_and_display_report()
         self.stacked_widget.setCurrentWidget(self.sleep_stage_report_page)
         self.showFullScreen()
@@ -134,7 +129,6 @@ class SleepStudyApp(QWidget):
         sleepiness_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
         sleepiness_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.game_launch_page))
         center_layout.addWidget(sleepiness_button)
-        # Button to show the Sleep Stage Report (full screen)
         report_button = QPushButton("View Sleep Stage Report")
         report_button.setFont(QFont("Arial", 14))
         report_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
@@ -436,7 +430,6 @@ class SleepStudyApp(QWidget):
         if today_rankings is None:
             today_rankings = {}
 
-        # ----- Ninja Swipe Table (Go-No-Go) -----
         ninja_label = QLabel("Ninja Swipe")
         ninja_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
         ninja_label.setStyleSheet("color: white;")
@@ -527,7 +520,6 @@ class SleepStudyApp(QWidget):
         spacer.setStyleSheet("background-color: transparent;")
         main_layout.addWidget(spacer)
 
-        # ----- Can you Memorize Table (VPAT) -----
         memorize_label = QLabel("Can you Memorize")
         memorize_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
         memorize_label.setStyleSheet("color: white;")
