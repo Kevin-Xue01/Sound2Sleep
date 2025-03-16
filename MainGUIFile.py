@@ -35,6 +35,8 @@ class SleepStudyApp(QWidget):
         main_layout.addWidget(self.stacked_widget)
         self.setLayout(main_layout)
 
+    # --------------------- UI Page Creation Functions --------------------- #
+
     def create_header(self):
         top_layout = QHBoxLayout()
         # Left side: logo and text
@@ -42,7 +44,7 @@ class SleepStudyApp(QWidget):
         logo_label = QLabel()
         logo_pixmap = QPixmap("/Users/seandmello/Downloads/The_Hospital_for_Sick_Children_Logo.svg.png")
         if not logo_pixmap.isNull():
-            logo_label.setPixmap(logo_pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio))
+            logo_label.setPixmap(logo_pixmap.scaled(50,50,Qt.AspectRatioMode.KeepAspectRatio))
         left_layout.addWidget(logo_label)
         text_layout = QVBoxLayout()
         lab_label = QLabel("Ibrahim Lab")
@@ -54,7 +56,7 @@ class SleepStudyApp(QWidget):
         text_layout.addWidget(lab_label)
         text_layout.addWidget(study_label)
         left_layout.addLayout(text_layout)
-        left_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        left_layout.setAlignment(Qt.AlignVCenter)
         top_layout.addLayout(left_layout)
         top_layout.addStretch()
         # Right side: status and stop button
@@ -87,10 +89,10 @@ class SleepStudyApp(QWidget):
         separator.setStyleSheet("background-color: white; height: 2px;")
         layout.addWidget(separator)
         center_layout = QVBoxLayout()
-        center_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        center_layout.setAlignment(Qt.AlignCenter)
         title_label = QLabel("Night 1 of 2")
         title_label.setFont(QFont("Arial", 24, QFont.Weight.Bold))
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setAlignment(Qt.AlignCenter)
         center_layout.addWidget(title_label)
         start_button = QPushButton("Start setup for sleep")
         start_button.setFont(QFont("Arial", 16))
@@ -116,14 +118,14 @@ class SleepStudyApp(QWidget):
         separator.setStyleSheet("background-color: white; height: 2px;")
         layout.addWidget(separator)
         center_layout = QVBoxLayout()
-        center_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        center_layout.setAlignment(Qt.AlignCenter)
         title_label = QLabel("Put on your headband")
         title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setAlignment(Qt.AlignCenter)
         center_layout.addWidget(title_label)
         subtitle_label = QLabel("Adjust until you're comfortable and we have a good signal")
-        subtitle_label.setFont(QFont("Arial", 16))  # Increased subtitle font
-        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle_label.setFont(QFont("Arial", 16))
+        subtitle_label.setAlignment(Qt.AlignCenter)
         center_layout.addWidget(subtitle_label)
         ready_button = QPushButton("I'm ready to sleep!")
         ready_button.setFont(QFont("Arial", 16))
@@ -144,14 +146,14 @@ class SleepStudyApp(QWidget):
         separator.setStyleSheet("background-color: white; height: 2px;")
         layout.addWidget(separator)
         center_layout = QVBoxLayout()
-        center_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        center_layout.setAlignment(Qt.AlignCenter)
         title_label = QLabel("Recording Data")
         title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setAlignment(Qt.AlignCenter)
         center_layout.addWidget(title_label)
         subtitle_label = QLabel("Good night!")
-        subtitle_label.setFont(QFont("Arial", 16))  # Increased subtitle font
-        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle_label.setFont(QFont("Arial", 16))
+        subtitle_label.setAlignment(Qt.AlignCenter)
         center_layout.addWidget(subtitle_label)
         done_button = QPushButton("End")
         done_button.setFont(QFont("Arial", 16))
@@ -172,12 +174,12 @@ class SleepStudyApp(QWidget):
         separator.setStyleSheet("background-color: white; height: 2px;")
         layout.addWidget(separator)
         good_morning_label = QLabel("Good morning!")
-        good_morning_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))  # Increased font
-        good_morning_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        good_morning_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
+        good_morning_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(good_morning_label)
         question_label = QLabel("How are you feeling right now?")
-        question_label.setFont(QFont("Arial", 26, QFont.Weight.Bold))  # Increased font
-        question_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        question_label.setFont(QFont("Arial", 26, QFont.Weight.Bold))
+        question_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(question_label)
         mood_layout = QHBoxLayout()
         moods = ["😠", "☹️", "😐", "🙂", "😄"]
@@ -194,7 +196,7 @@ class SleepStudyApp(QWidget):
     def create_morning_sleepiness_test(self):
         morning_sleepiness_test_widget = QWidget()
         layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setAlignment(Qt.AlignTop)
         layout.addLayout(self.create_header())
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
@@ -202,14 +204,14 @@ class SleepStudyApp(QWidget):
         separator.setStyleSheet("background-color: white; height: 2px;")
         layout.addWidget(separator)
         center_layout = QVBoxLayout()
-        center_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        center_layout.setAlignment(Qt.AlignCenter)
         good_morning_label = QLabel("Good morning!")
         good_morning_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
-        good_morning_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        good_morning_label.setAlignment(Qt.AlignCenter)
         good_morning_label.setStyleSheet("color: white;")
         sleep_test_label = QLabel("Let's test how sleepy you are!")
         sleep_test_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
-        sleep_test_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sleep_test_label.setAlignment(Qt.AlignCenter)
         sleep_test_label.setStyleSheet("color: white;")
         test_button = QPushButton("Do the sleepiness test")
         test_button.setFont(QFont("Arial", 16))
@@ -226,7 +228,7 @@ class SleepStudyApp(QWidget):
     def create_game_launcher(self):
         game_launcher_widget = QWidget()
         layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setAlignment(Qt.AlignTop)
         layout.addLayout(self.create_header())
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
@@ -234,7 +236,7 @@ class SleepStudyApp(QWidget):
         separator.setStyleSheet("background-color: white; height: 2px;")
         layout.addWidget(separator)
         center_layout = QVBoxLayout()
-        center_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        center_layout.setAlignment(Qt.AlignCenter)
         launch_game1_button = QPushButton("Launch Game 1")
         launch_game1_button.setFont(QFont("Arial", 16))
         launch_game1_button.setStyleSheet("background-color: purple; color: white; padding: 10px; border-radius: 10px;")
@@ -289,16 +291,13 @@ class SleepStudyApp(QWidget):
         scoreboard_widget = QWidget()
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
-        # Large header for the entire page (increased to 48pt)
         header_label = QLabel("Scoreboard")
         header_label.setFont(QFont("Arial", 48, QFont.Weight.Bold))
         header_label.setStyleSheet("color: white;")
         header_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(header_label)
-        # Container where update_scoreboard() will add the two tables.
         self.score_container = QVBoxLayout()
         layout.addLayout(self.score_container)
-        # Back button to exit full screen and return home
         back_button = QPushButton("Back to Home")
         back_button.setFont(QFont("Arial", 18))
         back_button.setStyleSheet("background-color: gray; color: white; padding: 10px; border-radius: 5px;")
@@ -311,9 +310,7 @@ class SleepStudyApp(QWidget):
         self.showNormal()
         self.stacked_widget.setCurrentWidget(self.main_page)
 
-    # ---------------------------
-    # Helper functions for scoreboard
-    # ---------------------------
+    # --------------------------- Ranking Helper Functions --------------------------- #
     def generate_scoreboard_table(self, user_score, competitor_names, forced_competitor):
         """
         Generates a scoreboard table for one game.
@@ -331,13 +328,11 @@ class SleepStudyApp(QWidget):
             user_rank = 2
         else:
             user_rank = 3
-        # With 30% chance, force the forced_competitor above the user if available.
         force_flag = False
         if forced_competitor in competitor_names and random.random() < 0.3:
             force_flag = True
             if user_rank == 0:
                 user_rank = 1
-        # Compute scores for each rank relative to user_score.
         score_by_rank = {}
         score_by_rank[user_rank] = user_score
         current = user_score
@@ -348,12 +343,10 @@ class SleepStudyApp(QWidget):
         for pos in range(user_rank + 1, total_entries):
             current -= random.uniform(1, 10)
             score_by_rank[pos] = current
-        # Build entries; assign "You" at the user's position.
         entries = {}
         entries[user_rank] = ("You", user_score)
         available_positions = [pos for pos in range(total_entries) if pos != user_rank]
         names_copy = competitor_names.copy()
-        # Force the specified competitor if needed.
         if force_flag:
             possible_positions = [p for p in available_positions if p < user_rank]
             if possible_positions:
@@ -361,13 +354,11 @@ class SleepStudyApp(QWidget):
                 entries[best_pos] = (forced_competitor, score_by_rank[best_pos])
                 names_copy.remove(forced_competitor)
                 available_positions.remove(best_pos)
-        # Assign remaining competitor names randomly.
         random.shuffle(available_positions)
         for name in names_copy:
             if available_positions:
                 pos = available_positions.pop(0)
                 entries[pos] = (name, score_by_rank[pos])
-        # Build sorted list and ranking dictionary (convert to 1-indexed rank).
         sorted_entries = []
         ranking_dict = {}
         for pos in sorted(entries.keys()):
@@ -377,22 +368,48 @@ class SleepStudyApp(QWidget):
         return sorted_entries, ranking_dict
 
     def load_previous_rankings(self):
-        """Load previous rankings from a JSON file (if available)."""
-        if os.path.exists("previous_rankings.json"):
+        """Load yesterday's ranking file if available, otherwise return an empty dictionary."""
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        file_path = f"rankings_{yesterday}.json"
+        if os.path.exists(file_path):
             try:
-                with open("previous_rankings.json", "r") as f:
+                with open(file_path, "r") as f:
                     return json.load(f)
             except Exception as e:
-                print(f"Error loading previous rankings: {e}")
+                print(f"Error loading previous rankings from {file_path}: {e}")
         return {}
 
-    def save_current_rankings(self, rankings_dict):
-        """Save current rankings to a JSON file for use in tomorrow's comparisons."""
+    def get_today_rankings(self):
+        """Load today's ranking file if it exists; otherwise return None and the expected file path."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        file_path = f"rankings_{today}.json"
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, "r") as f:
+                    return json.load(f), file_path
+            except Exception as e:
+                print(f"Error loading today's rankings from {file_path}: {e}")
+        return None, file_path
+
+    def save_today_rankings(self, rankings_dict, file_path):
+        """Save the given rankings dictionary to the specified file path."""
         try:
-            with open("previous_rankings.json", "w") as f:
+            with open(file_path, "w") as f:
                 json.dump(rankings_dict, f)
         except Exception as e:
-            print(f"Error saving current rankings: {e}")
+            print(f"Error saving today's rankings to {file_path}: {e}")
+
+    def get_score(self, file_path):
+        if not file_path:
+            return 0
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, "r") as f:
+                    data = json.load(f)
+                return data.get("score", 0) if isinstance(data, dict) else float(data)
+            except Exception as e:
+                print(f"Error reading score from {file_path}: {e}")
+        return 0
 
     def get_latest_score(self, directory):
         """Check for today's score file; if missing, use yesterday's; if neither exists, return None."""
@@ -408,25 +425,28 @@ class SleepStudyApp(QWidget):
             return None
 
     def update_scoreboard(self):
-        """Rebuilds the scoreboard page with two tables – one for Ninja Swipe (Go-No-Go) and one for Can you Memorize (VPAT) – and computes ranking changes."""
-        # Clear any existing layout in score_container.
+        """Rebuilds the scoreboard page with two tables – one for Ninja Swipe (Go-No-Go) and one for Can you Memorize (VPAT) – 
+        using yesterday's rankings for change comparison and today's rankings for current display.
+        Once today's rankings are generated, they are saved so they remain constant throughout the day."""
         while self.score_container.count():
             item = self.score_container.takeAt(0)
             widget = item.widget()
             if widget:
                 widget.deleteLater()
         main_layout = QVBoxLayout()
-        # Load previous rankings if available.
         prev_rankings = self.load_previous_rankings()  # keys: "ninja_swipe" and "can_you_memorize"
-        
+        today_rankings, ranking_file = self.get_today_rankings()
+        if today_rankings is None:
+            today_rankings = {}
+
         # ----- Ninja Swipe Table (Go-No-Go) -----
         ninja_label = QLabel("Ninja Swipe")
         ninja_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
         ninja_label.setStyleSheet("color: white;")
         ninja_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(ninja_label)
-        
-        # Get user's score for Go-No-Go.
+
+        competitor_names_ninja = ["Brandon", "Olivia", "Jamal", "Ray", "Diana"]
         user_score_ninja = self.get_latest_score("CognitiveTesting/Go-Nogo/Score/")
         if user_score_ninja is None:
             msg = QLabel("Don't Forget to Take the Test!")
@@ -435,10 +455,19 @@ class SleepStudyApp(QWidget):
             msg.setAlignment(Qt.AlignCenter)
             main_layout.addWidget(msg)
         else:
+            if "ninja_swipe" in today_rankings:
+                ranking_dict_ninja = today_rankings["ninja_swipe"]
+                sorted_entries_ninja, _ = self.generate_scoreboard_table(user_score_ninja, competitor_names_ninja, forced_competitor="Brandon")
+                sorted_entries_ninja.sort(key=lambda entry: ranking_dict_ninja.get(entry[0], 9999))
+            else:
+                sorted_entries_ninja, ranking_dict_ninja = self.generate_scoreboard_table(user_score_ninja, competitor_names_ninja, forced_competitor="Brandon")
+                today_rankings["ninja_swipe"] = ranking_dict_ninja
+                self.save_today_rankings(today_rankings, ranking_file)
+
             grid_ninja = QGridLayout()
             grid_ninja.setHorizontalSpacing(5)
             grid_ninja.setContentsMargins(0,0,0,0)
-            header_font = QFont("Arial", 24, QFont.Weight.Bold)  # Increased header font
+            header_font = QFont("Arial", 24, QFont.Weight.Bold)
             headers = ["Rank", "Name", "Score", "Ranking Position Change"]
             for col, text in enumerate(headers):
                 label = QLabel(text)
@@ -446,13 +475,8 @@ class SleepStudyApp(QWidget):
                 label.setStyleSheet("color: white;")
                 label.setAlignment(Qt.AlignCenter)
                 grid_ninja.addWidget(label, 0, col)
-            
-            competitor_names_ninja = ["Brandon", "Olivia", "Jamal", "Ray", "Diana"]
-            ninja_entries, ninja_rankings = self.generate_scoreboard_table(user_score_ninja, competitor_names_ninja, forced_competitor="Brandon")
-            
-            for row, (name, score) in enumerate(ninja_entries, start=1):
-                current_rank = ninja_rankings.get(name, row)
-                # For 1st, 2nd, and 3rd, display enlarged medal circles.
+            for row, (name, score) in enumerate(sorted_entries_ninja, start=1):
+                current_rank = ranking_dict_ninja.get(name, row)
                 if current_rank == 1:
                     rank_html = ('<div style="display:inline-block; background-color: gold; border-radius:50%; '
                                  'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
@@ -470,23 +494,22 @@ class SleepStudyApp(QWidget):
                 rank_label = QLabel(rank_html)
                 rank_label.setAlignment(Qt.AlignCenter)
                 rank_label.setTextFormat(Qt.RichText)
-                if current_rank not in [1, 2, 3]:
+                if current_rank not in [1,2,3]:
                     rank_label.setStyleSheet("color:white;")
                 grid_ninja.addWidget(rank_label, row, 0)
-                
+
                 name_label = QLabel(name)
                 name_label.setAlignment(Qt.AlignCenter)
-                name_label.setFont(QFont("Arial", 24))  # Increased row font
+                name_label.setFont(QFont("Arial", 24))
                 name_label.setStyleSheet("color:white;")
                 grid_ninja.addWidget(name_label, row, 1)
-                
+
                 score_label = QLabel(f"{score:.2f}")
                 score_label.setAlignment(Qt.AlignCenter)
-                score_label.setFont(QFont("Arial", 24))  # Increased row font
+                score_label.setFont(QFont("Arial", 24))
                 score_label.setStyleSheet("color:white;")
                 grid_ninja.addWidget(score_label, row, 2)
-                
-                # Compute ranking change.
+
                 prev_ninja = prev_rankings.get("ninja_swipe", {})
                 prev_rank = prev_ninja.get(name, current_rank)
                 diff = prev_rank - current_rank
@@ -500,22 +523,21 @@ class SleepStudyApp(QWidget):
                 change_label.setAlignment(Qt.AlignCenter)
                 change_label.setTextFormat(Qt.RichText)
                 grid_ninja.addWidget(change_label, row, 3)
-            
             main_layout.addLayout(grid_ninja)
 
         spacer = QFrame()
-        spacer.setFixedHeight(150)  # Adjust the height for desired spacing
-        spacer.setStyleSheet("background-color: transparent;")  # Ensure it's invisible
+        spacer.setFixedHeight(150)
+        spacer.setStyleSheet("background-color: transparent;")
         main_layout.addWidget(spacer)
 
-        
         # ----- Can you Memorize Table (VPAT) -----
         memorize_label = QLabel("Can you Memorize")
         memorize_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
         memorize_label.setStyleSheet("color: white;")
         memorize_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(memorize_label)
-        
+
+        competitor_names_memorize = ["James", "Alice", "Bob", "Charlie", "Diana"]
         user_score_memorize = self.get_latest_score("CognitiveTesting/VPAT/Score/")
         if user_score_memorize is None:
             msg = QLabel("Don't Forget to Take the Test!")
@@ -524,6 +546,15 @@ class SleepStudyApp(QWidget):
             msg.setAlignment(Qt.AlignCenter)
             main_layout.addWidget(msg)
         else:
+            if "can_you_memorize" in today_rankings:
+                ranking_dict_memorize = today_rankings["can_you_memorize"]
+                sorted_entries_memorize, _ = self.generate_scoreboard_table(user_score_memorize, competitor_names_memorize, forced_competitor="James")
+                sorted_entries_memorize.sort(key=lambda entry: ranking_dict_memorize.get(entry[0], 9999))
+            else:
+                sorted_entries_memorize, ranking_dict_memorize = self.generate_scoreboard_table(user_score_memorize, competitor_names_memorize, forced_competitor="James")
+                today_rankings["can_you_memorize"] = ranking_dict_memorize
+                self.save_today_rankings(today_rankings, ranking_file)
+
             grid_memorize = QGridLayout()
             grid_memorize.setHorizontalSpacing(5)
             grid_memorize.setContentsMargins(0,0,0,0)
@@ -533,12 +564,8 @@ class SleepStudyApp(QWidget):
                 label.setStyleSheet("color: white;")
                 label.setAlignment(Qt.AlignCenter)
                 grid_memorize.addWidget(label, 0, col)
-            
-            competitor_names_memorize = ["James", "Alice", "Bob", "Charlie", "Diana"]
-            memorize_entries, memorize_rankings = self.generate_scoreboard_table(user_score_memorize, competitor_names_memorize, forced_competitor="James")
-            
-            for row, (name, score) in enumerate(memorize_entries, start=1):
-                current_rank = memorize_rankings.get(name, row)
+            for row, (name, score) in enumerate(sorted_entries_memorize, start=1):
+                current_rank = ranking_dict_memorize.get(name, row)
                 if current_rank == 1:
                     rank_html = ('<div style="display:inline-block; background-color: gold; border-radius:50%; '
                                  'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
@@ -556,22 +583,22 @@ class SleepStudyApp(QWidget):
                 rank_label = QLabel(rank_html)
                 rank_label.setAlignment(Qt.AlignCenter)
                 rank_label.setTextFormat(Qt.RichText)
-                if current_rank not in [1, 2, 3]:
+                if current_rank not in [1,2,3]:
                     rank_label.setStyleSheet("color:white;")
                 grid_memorize.addWidget(rank_label, row, 0)
-                
+
                 name_label = QLabel(name)
                 name_label.setAlignment(Qt.AlignCenter)
                 name_label.setFont(QFont("Arial", 24))
                 name_label.setStyleSheet("color:white;")
                 grid_memorize.addWidget(name_label, row, 1)
-                
+
                 score_label = QLabel(f"{score:.2f}")
                 score_label.setAlignment(Qt.AlignCenter)
                 score_label.setFont(QFont("Arial", 24))
                 score_label.setStyleSheet("color:white;")
                 grid_memorize.addWidget(score_label, row, 2)
-                                
+
                 prev_memorize = prev_rankings.get("can_you_memorize", {})
                 prev_rank = prev_memorize.get(name, current_rank)
                 diff = prev_rank - current_rank
@@ -585,25 +612,13 @@ class SleepStudyApp(QWidget):
                 change_label.setAlignment(Qt.AlignCenter)
                 change_label.setTextFormat(Qt.RichText)
                 grid_memorize.addWidget(change_label, row, 3)
-            
+
             main_layout.addLayout(grid_memorize)
-        
-        # Save current rankings for tomorrow's comparison.
-        current_rankings = {
-            "ninja_swipe": self.generate_scoreboard_table(user_score_ninja, ["Brandon", "Olivia", "Jamal", "Ray", "Diana"], forced_competitor="Brandon")[1] if user_score_ninja is not None else {},
-            "can_you_memorize": self.generate_scoreboard_table(user_score_memorize, ["James", "Alice", "Bob", "Charlie", "Diana"], forced_competitor="James")[1] if user_score_memorize is not None else {}
-        }
-        self.save_current_rankings(current_rankings)
-        
+
+        self.save_today_rankings(today_rankings, ranking_file)
         self.score_container.addLayout(main_layout)
 
-    def find_first_score_file(self, directory, prefix):
-        # This function is kept for legacy purposes.
-        if not os.path.exists(directory):
-            return None
-        files = sorted([f for f in os.listdir(directory) if f.startswith(prefix) and f.endswith(".json")])
-        return os.path.join(directory, files[0]) if files else None
-
+    # --------------------------- File Handling Functions --------------------------- #
     def get_score(self, file_path):
         if not file_path:
             return 0
@@ -615,6 +630,19 @@ class SleepStudyApp(QWidget):
             except Exception as e:
                 print(f"Error reading score from {file_path}: {e}")
         return 0
+
+    def get_latest_score(self, directory):
+        """Check for today's score file; if missing, use yesterday's; if neither exists, return None."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        file_today = os.path.join(directory, f"{today}.json")
+        file_yesterday = os.path.join(directory, f"{yesterday}.json")
+        if os.path.exists(file_today):
+            return self.get_score(file_today)
+        elif os.path.exists(file_yesterday):
+            return self.get_score(file_yesterday)
+        else:
+            return None
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
