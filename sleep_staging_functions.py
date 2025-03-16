@@ -110,13 +110,10 @@ def generate_sleep_figure():
     else:
         sleep_score = 0
 
-    # 5. Map the original stage codes for the hypnogram
-    # Mapping: 0 (Wake) -> 4, 4 (REM) -> 3, 1 (N1) -> 2, 2 (N2) -> 1, 3 (N3) -> 0
     stage_map = {0: 4, 4: 3, 1: 2, 2: 1, 3: 0}
     hypno_mapped = np.array([stage_map[s] for s in hypno_pred])
     epochs = np.arange(len(hypno_mapped))
 
-    # Dictionary of colors for each stage
     hypno_colors = {
         4: "#FFC179",  # Awake
         3: "#F195AC",  # REM
@@ -163,35 +160,27 @@ def generate_sleep_figure():
     ax0.text(0.5, -0.15, stage_text, ha='center', va='top', fontsize=11,
              color='white', transform=ax0.transAxes)
 
-    # Insert total sleep time text in the center of the donut
     ax0.text(0, 0, f"Total Sleep Time:\n{total_sleep_str}", 
              ha='center', va='center', fontsize=12, color='white', fontweight='bold')
-    
-    # Add arrows and labels for sleep categories
-    gap_deg = 5  # Space between wedges
 
-    # REM (Dreaming) - Use the REM slice
+    gap_deg = 5 
+
     wedge_REM = wedges[1]  
     theta_rem_start = wedge_REM.theta1 + gap_deg/2
     theta_rem_end   = wedge_REM.theta2 - 2*gap_deg/2
     add_group_arc(ax0, theta_rem_start, theta_rem_end, "Dreaming", arrow_color='#959FEB', r_arrow=1.05)
 
-    # Light Sleep (N1 + N2)
     wedge_N1 = wedges[2]
     wedge_N2 = wedges[3]
     theta_ls_start = min(wedge_N1.theta1, wedge_N2.theta1) + gap_deg/2
     theta_ls_end   = max(wedge_N1.theta2, wedge_N2.theta2) - 2*gap_deg/2
     add_group_arc(ax0, theta_ls_start, theta_ls_end, "Light Sleep", arrow_color='#959FEB', r_arrow=1.05, is_ls=True)
 
-    # Deep Sleep (N3)
     wedge_N3 = wedges[4]
     theta_deep_start = wedge_N3.theta1 + gap_deg/2
     theta_deep_end   = wedge_N3.theta2 - 2*gap_deg/2
     add_group_arc(ax0, theta_deep_start, theta_deep_end, "Deep Sleep", arrow_color='#959FEB', r_arrow=1.05, is_deep=True)   
 
-
-    # --- Smoothed Hypnogram (ax1) ---
-    # Calculate a rolling average (manual moving average)
     window = 5
     smooth_hypno = np.empty_like(hypno_mapped, dtype=float)
     half_window = window // 2
@@ -200,20 +189,18 @@ def generate_sleep_figure():
         end = min(len(hypno_mapped), i + half_window + 1)
         smooth_hypno[i] = np.mean(hypno_mapped[start:end])
 
-    # Instead of plotting a single blue line, plot segments with color determined by rounded value.
     for i in range(len(epochs)-1):
-        # Use the left endpoint's smoothed value to determine color:
         stage_val = int(np.rint(smooth_hypno[i]))
         color = hypno_colors.get(stage_val, "blue")
         ax1.plot(epochs[i:i+2], smooth_hypno[i:i+2], color=color, linewidth=2)
 
-    # Draw reference lines for stage boundaries
     for row in range(1, 5):
         ax1.hlines(row, 0, len(epochs), color="white", linewidth=1, alpha=0.1)
 
-    # Show left and bottom spines only
     ax1.spines["left"].set_visible(True)
+    ax1.spines["left"].set_color("white")
     ax1.spines["bottom"].set_visible(True)
+    ax1.spines["bottom"].set_color("white")
     ax1.spines["right"].set_visible(False)
     ax1.spines["top"].set_visible(False)
 
@@ -221,7 +208,6 @@ def generate_sleep_figure():
     ax1.set_yticklabels(["Awake", "REM", "N1", "N2", "N3"], color='white')
     ax1.set_ylim(-0.5, 4.5)
 
-    # X-axis ticks: every 60 epochs (30 minutes). Only label on whole hours.
     xticks = np.arange(0, len(epochs)+1, 60)
     xtick_labels = [f"{int((t*0.5)//60)}h" if (t % 120 == 0) else "" for t in xticks]
     ax1.set_xticks(xticks)
@@ -230,7 +216,6 @@ def generate_sleep_figure():
 
     ax1.grid(False)
 
-    # Add a legend under the hypnogram (if desired)
     legend_handles = [
         Patch(facecolor=hypno_colors[4], label="Awake"),
         Patch(facecolor=hypno_colors[3], label="REM"),
@@ -240,7 +225,7 @@ def generate_sleep_figure():
     ]
     ax1.legend(handles=legend_handles, loc='upper center', bbox_to_anchor=(0.5, -0.1),
                ncol=5, frameon=False)
-    # Change text color to white
+
     for text in ax1.get_legend().get_texts():
         text.set_color("white")
 
