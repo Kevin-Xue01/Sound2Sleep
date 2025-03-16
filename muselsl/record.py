@@ -1,17 +1,25 @@
+import os
+import sys
+from pathlib import Path
+from time import gmtime, strftime, time
+from typing import List, Optional, Union
+
 import bleak
 import numpy as np
 import pandas as pd
-import os
-import sys
-from typing import Union, List, Optional
-from pathlib import Path
 from pylsl import StreamInlet, resolve_byprop
 from sklearn.linear_model import LinearRegression
-from time import time, strftime, gmtime
-from .stream import find_muse
+
 from . import backends
+from .constants import (
+    LSL_ACC_CHUNK,
+    LSL_EEG_CHUNK,
+    LSL_GYRO_CHUNK,
+    LSL_PPG_CHUNK,
+    LSL_SCAN_TIMEOUT,
+)
 from .muse import Muse
-from .constants import LSL_SCAN_TIMEOUT, LSL_EEG_CHUNK, LSL_PPG_CHUNK, LSL_ACC_CHUNK, LSL_GYRO_CHUNK
+from .stream import find_muse
 
 # Records a fixed duration of EEG data from an LSL stream into a CSV file
 
@@ -209,8 +217,8 @@ def record_direct(duration,
     timestamps = []
 
     def save_eeg(new_samples, new_timestamps):
-        eeg_samples.append(new_samples)
-        timestamps.append(new_timestamps)
+        eeg_samples.append(new_samples) # (5, 12)
+        timestamps.append(new_timestamps) # (12,)
 
     muse = Muse(address, save_eeg, backend=backend)
     if not muse.connect():

@@ -8,6 +8,8 @@ import seaborn as sns
 from pylsl import StreamInlet, resolve_byprop
 from scipy.signal import firwin, lfilter, lfilter_zi
 
+from muselsl.record import record_direct
+
 MUSE_NB_EEG_CHANNELS = 5
 MUSE_SAMPLING_EEG_RATE = 256
 LSL_EEG_CHUNK = 12
@@ -246,4 +248,5 @@ class LSLViewer():
     def stop(self, close_event):
         self.started = False
 
-view(window=5, scale=100, refresh=0.2, figure="15x6", version=1, backend='TkAgg')
+record_direct(1000, None, filename=None, backend='auto', interface=None, name=None)
+
