@@ -488,7 +488,28 @@ class EEGApp(QWidget):
         hl_ratio = np.mean(power_hf) / np.mean(power_lf)
         hl_ratio = np.log10(hl_ratio)
         return hl_ratio
-    
+
+    def predict_sleep_stage(self, selected_channel_data, sfreq=256):
+        """
+        Predicts the sleep stage based on a window of EEG data.
+        The window should correspond to a 30-second segment of EEG data.
+        """
+        # Ensure the window is 30 seconds worth of data (if not, pad with zeros)
+        target_length = sfreq * 30  # 30 seconds worth of samples
+        if len(selected_channel_data) < target_length:
+            selected_channel_data = np.pad(selected_channel_data, (0, target_length - len(selected_channel_data)), 'constant')
+
+        # Convert the EEG data into an MNE Raw object for sleep staging
+        info = mne.create_info(["EEG"], sfreq=sfreq, ch_types=["eeg"])
+        raw_epoch = mne.io.RawArray(selected_channel_data[np.newaxis, :], info)
+
+        # Perform sleep staging using YASA
+        ls = yasa.SleepStaging(raw_epoch, eeg_name="EEG")
+        hypno_pred = ls.predict()
+
+        # Return the predicted sleep stage for this 30-second window
+        return hypno_pred[0]
+
     def estimate_phase(self, selected_channel): 
         conv_vals = [np.dot(selected_channel, w) for w in self.trunc_wavelets]
         max_idx = np.argmax(np.abs(conv_vals))
@@ -509,6 +530,7 @@ class EEGApp(QWidget):
 
         phase, freq, amp = self.estimate_phase(self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind])
         hl_ratio = self.get_hl_ratio(self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind])
+        predicted_phase = self.predict_sleep_stage_from_epoch((self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind]))
         self.amp_buffer[:-1] = self.amp_buffer[1:]
         self.amp_buffer[-1] = amp
         amp_buffer_mean = self.amp_buffer.mean()
@@ -535,6 +557,9 @@ class EEGApp(QWidget):
 
             if hl_ratio_buffer_mean > self.config.hl_ratio_buffer_mean_max or hl_ratio > self.config.hl_ratio_latest_max:
                 return EEGProcessorOutput.HL_RATIO, 0, phase, freq, amp, amp_buffer_mean
+
+            if predicted_phase == N1 or predicted_phase == W or predicted_phase == R:
+                return EEGProcessorOutput.STAGE, 0, phase, freq, amp, amp_buffer_mean
 
         # if we are waiting for 2nd stim, but before the backoff window, only use phase targeting
         if self.processor_elapsed_time < self.second_stim_start: # self.second_stim_start could be nan (in which case, the condition will be False)
