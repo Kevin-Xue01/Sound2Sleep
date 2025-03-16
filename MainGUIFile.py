@@ -124,6 +124,7 @@ class SleepStudyApp(QWidget):
         stop_button = QPushButton("Press to STOP")
         stop_button.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         stop_button.setStyleSheet("background-color: #8B4513; color: white; padding: 10px; border-radius: 10px;")
+        stop_button.clicked.connect(QApplication.instance().quit)
         top_layout.addWidget(stop_button)
         # Fix the header height so it remains small
         header_widget.setFixedHeight(80)
