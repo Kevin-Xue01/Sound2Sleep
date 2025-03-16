@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.use("Agg")  # For headless use, if needed
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from sleep_staging_functions import generate_sleep_figure, SleepStageReportPage
+from sleep_staging_functions import generate_sleep_figure, SleepStageReportPage, generate_and_display_report
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QPushButton, QFrame, QStackedWidget, QSizePolicy, QTextEdit, QScrollArea
@@ -356,55 +356,18 @@ class SleepStudyApp(QWidget):
 
     # --------------------------- Ranking Helper Functions --------------------------- #
     def generate_scoreboard_table(self, user_score, competitor_names, forced_competitor):
-        total_entries = 6
-        r = random.random()
-        if r < 1/3:
-            user_rank = 0
-        elif r < 2/3:
-            user_rank = 1
-        elif r < 2/3 + 1/6:
-            user_rank = 2
-        else:
-            user_rank = 3
-        force_flag = False
-        if forced_competitor in competitor_names and random.random() < 0.3:
-            force_flag = True
-            if user_rank == 0:
-                user_rank = 1
-        score_by_rank = {}
-        score_by_rank[user_rank] = user_score
-        current = user_score
-        for pos in range(user_rank - 1, -1, -1):
-            current += random.uniform(1, 10)
-            if current > 100: current = 100
-            score_by_rank[pos] = current
-        current = user_score
-        for pos in range(user_rank + 1, total_entries):
-            current -= random.uniform(1, 10)
-            if current > 100: current = 100
-            score_by_rank[pos] = current
-        entries = {}
-        entries[user_rank] = ("You", user_score)
-        available_positions = [pos for pos in range(total_entries) if pos != user_rank]
-        names_copy = competitor_names.copy()
-        if force_flag:
-            possible_positions = [p for p in available_positions if p < user_rank]
-            if possible_positions:
-                best_pos = min(possible_positions)
-                entries[best_pos] = (forced_competitor, score_by_rank[best_pos])
-                names_copy.remove(forced_competitor)
-                available_positions.remove(best_pos)
-        random.shuffle(available_positions)
-        for name in names_copy:
-            if available_positions:
-                pos = available_positions.pop(0)
-                entries[pos] = (name, score_by_rank[pos])
-        sorted_entries = []
-        ranking_dict = {}
-        for pos in sorted(entries.keys()):
-            entry = entries[pos]
-            sorted_entries.append(entry)
-            ranking_dict[entry[0]] = pos + 1
+        entries = [("You", user_score)]
+
+        for name in competitor_names:
+            if name == forced_competitor and random.random() < 0.3:
+                comp_score = random.uniform(user_score + 0.1, 100)
+            else:
+                comp_score = random.uniform(0, user_score - 0.1) if user_score > 0.1 else 0
+            entries.append((name, comp_score))
+
+        sorted_entries = sorted(entries, key=lambda x: x[1], reverse=True)
+
+        ranking_dict = {entry[0]: i + 1 for i, entry in enumerate(sorted_entries)}
         return sorted_entries, ranking_dict
 
     def load_previous_rankings(self):
@@ -454,7 +417,7 @@ class SleepStudyApp(QWidget):
         ninja_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(ninja_label)
 
-        competitor_names_ninja = ["Brandon", "Olivia", "Jamal", "Ray", "Diana"]
+        competitor_names_ninja = ["James", "Alice", "Bob", "Charlie", "Diana"]
         user_score_ninja = self.get_latest_score("CognitiveTesting/Go-Nogo/Score/")
         if user_score_ninja is None:
             msg = QLabel("Don't Forget to Take the Test!")
@@ -466,7 +429,6 @@ class SleepStudyApp(QWidget):
             if "ninja_swipe" in today_rankings:
                 ranking_dict_ninja = today_rankings["ninja_swipe"]
                 sorted_entries_ninja, _ = self.generate_scoreboard_table(user_score_ninja, competitor_names_ninja, forced_competitor="Brandon")
-                sorted_entries_ninja.sort(key=lambda entry: ranking_dict_ninja.get(entry[0], 9999))
             else:
                 sorted_entries_ninja, ranking_dict_ninja = self.generate_scoreboard_table(user_score_ninja, competitor_names_ninja, forced_competitor="Brandon")
                 today_rankings["ninja_swipe"] = ranking_dict_ninja
@@ -556,7 +518,6 @@ class SleepStudyApp(QWidget):
             if "can_you_memorize" in today_rankings:
                 ranking_dict_memorize = today_rankings["can_you_memorize"]
                 sorted_entries_memorize, _ = self.generate_scoreboard_table(user_score_memorize, competitor_names_memorize, forced_competitor="James")
-                sorted_entries_memorize.sort(key=lambda entry: ranking_dict_memorize.get(entry[0], 9999))
             else:
                 sorted_entries_memorize, ranking_dict_memorize = self.generate_scoreboard_table(user_score_memorize, competitor_names_memorize, forced_competitor="James")
                 today_rankings["can_you_memorize"] = ranking_dict_memorize
