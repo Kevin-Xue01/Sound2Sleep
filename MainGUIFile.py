@@ -269,7 +269,6 @@ class SleepStudyApp(QWidget):
         return game_launcher_widget
 
     def launch_game(self, script_path):
-        """Launch a game with calibration handling."""
         go_nogo_calibration_file = os.path.join("CognitiveTesting", "Go-Nogo", "calibration.txt")
         if script_path.endswith("game.py") and not os.path.exists(go_nogo_calibration_file):
             calibration_script = os.path.abspath(os.path.join("CognitiveTesting", "Go-Nogo", "calibration.py"))
@@ -281,13 +280,11 @@ class SleepStudyApp(QWidget):
         subprocess.Popen([sys.executable, os.path.abspath(script_path)])
 
     def show_scoreboard(self):
-        """Update scoreboard content, show the scoreboard page in full screen."""
         self.update_scoreboard()
         self.stacked_widget.setCurrentWidget(self.scoreboard_page)
         self.showFullScreen()
 
     def create_scoreboard_page(self):
-        """Creates the scoreboard page with a header and container for our two tables."""
         scoreboard_widget = QWidget()
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
@@ -310,14 +307,7 @@ class SleepStudyApp(QWidget):
         self.showNormal()
         self.stacked_widget.setCurrentWidget(self.main_page)
 
-    # --------------------------- Ranking Helper Functions --------------------------- #
     def generate_scoreboard_table(self, user_score, competitor_names, forced_competitor):
-        """
-        Generates a scoreboard table for one game.
-        Returns a sorted list of entries (tuples of (name, score)) and a ranking dictionary mapping name to rank (1-indexed).
-        The user ("You") is placed among 6 total entries (user + 5 competitors) based on weighted probabilities.
-        With 30% chance the forced_competitor is placed above the user.
-        """
         total_entries = 6
         r = random.random()
         if r < 1/3:
@@ -368,7 +358,6 @@ class SleepStudyApp(QWidget):
         return sorted_entries, ranking_dict
 
     def load_previous_rankings(self):
-        """Load yesterday's ranking file if available, otherwise return an empty dictionary."""
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         file_path = f"rankings_{yesterday}.json"
         if os.path.exists(file_path):
@@ -380,7 +369,6 @@ class SleepStudyApp(QWidget):
         return {}
 
     def get_today_rankings(self):
-        """Load today's ranking file if it exists; otherwise return None and the expected file path."""
         today = datetime.now().strftime("%Y-%m-%d")
         file_path = f"rankings_{today}.json"
         if os.path.exists(file_path):
@@ -392,7 +380,6 @@ class SleepStudyApp(QWidget):
         return None, file_path
 
     def save_today_rankings(self, rankings_dict, file_path):
-        """Save the given rankings dictionary to the specified file path."""
         try:
             with open(file_path, "w") as f:
                 json.dump(rankings_dict, f)
@@ -412,7 +399,6 @@ class SleepStudyApp(QWidget):
         return 0
 
     def get_latest_score(self, directory):
-        """Check for today's score file; if missing, use yesterday's; if neither exists, return None."""
         today = datetime.now().strftime("%Y-%m-%d")
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         file_today = os.path.join(directory, f"{today}.json")
@@ -425,21 +411,17 @@ class SleepStudyApp(QWidget):
             return None
 
     def update_scoreboard(self):
-        """Rebuilds the scoreboard page with two tables – one for Ninja Swipe (Go-No-Go) and one for Can you Memorize (VPAT) – 
-        using yesterday's rankings for change comparison and today's rankings for current display.
-        Once today's rankings are generated, they are saved so they remain constant throughout the day."""
         while self.score_container.count():
             item = self.score_container.takeAt(0)
             widget = item.widget()
             if widget:
                 widget.deleteLater()
         main_layout = QVBoxLayout()
-        prev_rankings = self.load_previous_rankings()  # keys: "ninja_swipe" and "can_you_memorize"
+        prev_rankings = self.load_previous_rankings()  
         today_rankings, ranking_file = self.get_today_rankings()
         if today_rankings is None:
             today_rankings = {}
 
-        # ----- Ninja Swipe Table (Go-No-Go) -----
         ninja_label = QLabel("Ninja Swipe")
         ninja_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
         ninja_label.setStyleSheet("color: white;")
@@ -530,7 +512,6 @@ class SleepStudyApp(QWidget):
         spacer.setStyleSheet("background-color: transparent;")
         main_layout.addWidget(spacer)
 
-        # ----- Can you Memorize Table (VPAT) -----
         memorize_label = QLabel("Can you Memorize")
         memorize_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
         memorize_label.setStyleSheet("color: white;")
@@ -618,7 +599,6 @@ class SleepStudyApp(QWidget):
         self.save_today_rankings(today_rankings, ranking_file)
         self.score_container.addLayout(main_layout)
 
-    # --------------------------- File Handling Functions --------------------------- #
     def get_score(self, file_path):
         if not file_path:
             return 0
@@ -632,7 +612,6 @@ class SleepStudyApp(QWidget):
         return 0
 
     def get_latest_score(self, directory):
-        """Check for today's score file; if missing, use yesterday's; if neither exists, return None."""
         today = datetime.now().strftime("%Y-%m-%d")
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         file_today = os.path.join(directory, f"{today}.json")
