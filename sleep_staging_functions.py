@@ -17,6 +17,39 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtCore import Qt
 
+from matplotlib.patches import Arc, FancyArrowPatch
+
+def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=1.05, is_ls=False, is_deep=False):
+    """ Adds an arc and an arrow to label sleep categories. """
+    arc = Arc((0, 0), width=2*r_arrow, height=2*r_arrow,
+              angle=0, theta1=theta_start, theta2=theta_end, lw=2, color=arrow_color)
+    ax.add_patch(arc)
+
+    mid_angle = (theta_start + theta_end) / 2.0
+    mid_rad = np.deg2rad(mid_angle)
+    if is_ls:
+        x_text = (r_arrow + 0.15) * np.cos(mid_rad)
+        y_text = (r_arrow + 0.15) * np.sin(mid_rad)
+    elif is_deep:
+        x_text = (r_arrow + 0.4) * np.cos(mid_rad)
+        y_text = (r_arrow + 0.4) * np.sin(mid_rad)
+    else:
+        x_text = (r_arrow + 0.3) * np.cos(mid_rad)
+        y_text = (r_arrow + 0.3) * np.sin(mid_rad)
+    ax.text(x_text, y_text, group_label, ha='center', va='center',
+            fontsize=12, color='white', fontweight='bold')
+
+    # Add an arrow at the end of the arc
+    end_rad = np.deg2rad(theta_end)
+    x_end = r_arrow * np.cos(end_rad)
+    y_end = r_arrow * np.sin(end_rad)
+    dx = 0.1 * (-np.sin(end_rad))
+    dy = 0.1 * (np.cos(end_rad))
+    arrow = FancyArrowPatch((x_end, y_end), (x_end + dx, y_end + dy),
+                            arrowstyle='-|>', mutation_scale=12,
+                            color=arrow_color, lw=2, shrinkA=0, shrinkB=0)
+    ax.add_patch(arrow)
+
 def generate_sleep_figure():
     # 1. Download EDF file and load data
     data_dir = "./sleep_data"
@@ -133,6 +166,29 @@ def generate_sleep_figure():
     # Insert total sleep time text in the center of the donut
     ax0.text(0, 0, f"Total Sleep Time:\n{total_sleep_str}", 
              ha='center', va='center', fontsize=12, color='white', fontweight='bold')
+    
+    # Add arrows and labels for sleep categories
+    gap_deg = 5  # Space between wedges
+
+    # REM (Dreaming) - Use the REM slice
+    wedge_REM = wedges[1]  
+    theta_rem_start = wedge_REM.theta1 + gap_deg/2
+    theta_rem_end   = wedge_REM.theta2 - 2*gap_deg/2
+    add_group_arc(ax0, theta_rem_start, theta_rem_end, "Dreaming", arrow_color='#959FEB', r_arrow=1.05)
+
+    # Light Sleep (N1 + N2)
+    wedge_N1 = wedges[2]
+    wedge_N2 = wedges[3]
+    theta_ls_start = min(wedge_N1.theta1, wedge_N2.theta1) + gap_deg/2
+    theta_ls_end   = max(wedge_N1.theta2, wedge_N2.theta2) - 2*gap_deg/2
+    add_group_arc(ax0, theta_ls_start, theta_ls_end, "Light Sleep", arrow_color='#959FEB', r_arrow=1.05, is_ls=True)
+
+    # Deep Sleep (N3)
+    wedge_N3 = wedges[4]
+    theta_deep_start = wedge_N3.theta1 + gap_deg/2
+    theta_deep_end   = wedge_N3.theta2 - 2*gap_deg/2
+    add_group_arc(ax0, theta_deep_start, theta_deep_end, "Deep Sleep", arrow_color='#959FEB', r_arrow=1.05, is_deep=True)   
+
 
     # --- Smoothed Hypnogram (ax1) ---
     # Calculate a rolling average (manual moving average)
