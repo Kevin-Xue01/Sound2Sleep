@@ -376,10 +376,12 @@ class SleepStudyApp(QWidget):
         current = user_score
         for pos in range(user_rank - 1, -1, -1):
             current += random.uniform(1, 10)
+            if current > 100: current = 100
             score_by_rank[pos] = current
         current = user_score
         for pos in range(user_rank + 1, total_entries):
             current -= random.uniform(1, 10)
+            if current > 100: current = 100
             score_by_rank[pos] = current
         entries = {}
         entries[user_rank] = ("You", user_score)
