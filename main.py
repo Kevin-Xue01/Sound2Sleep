@@ -409,7 +409,7 @@ class EEGApp(QWidget):
 
     #     self.file_writer.write_chunk(data, timestamp)
     def handle_eeg_data(self, eeg_chunk: np.ndarray, timestamp_chunk: np.ndarray):
-        self.logger.debug("Heartbeat")
+        self.logger.debug(f"Start EEG Handle: {time.time()}")
         self.plotter_eeg_data[:-CHUNK_SIZE[MuseDataType.EEG]] = self.plotter_eeg_data[CHUNK_SIZE[MuseDataType.EEG]:]
         self.plotter_timestamps[:-CHUNK_SIZE[MuseDataType.EEG]] = self.plotter_timestamps[CHUNK_SIZE[MuseDataType.EEG]:]
 
@@ -423,20 +423,21 @@ class EEGApp(QWidget):
                 print("Initialization complete. Processing EEG data.")
             return
 
-        # self.switch_channel_counter += 1
-        # if self.switch_channel_counter == self.switch_channel_counter_max:
-        #     self.switch_channel()
-        #     self.switch_channel_counter = 0
+        self.switch_channel_counter += 1
+        if self.switch_channel_counter == self.switch_channel_counter_max:
+            self.switch_channel()
+            self.switch_channel_counter = 0
 
-        # selected_channel_mean = np.mean(eeg_chunk[:, self.selected_channel_ind])
-        # oldest_value = self.rolling_avg_buffer[self.rolling_avg_index]
-        # self.rolling_avg_sum += selected_channel_mean - oldest_value
-        # self.rolling_avg_buffer[self.rolling_avg_index] = selected_channel_mean
-        # self.rolling_avg_index = (self.rolling_avg_index + 1) % self.rolling_avg_len
-        # self.eeg_rolling_avg = self.rolling_avg_sum / self.rolling_avg_len
+        selected_channel_mean = np.mean(eeg_chunk[:, self.selected_channel_ind])
+        oldest_value = self.rolling_avg_buffer[self.rolling_avg_index]
+        self.rolling_avg_sum += selected_channel_mean - oldest_value
+        self.rolling_avg_buffer[self.rolling_avg_index] = selected_channel_mean
+        self.rolling_avg_index = (self.rolling_avg_index + 1) % self.rolling_avg_len
+        self.eeg_rolling_avg = self.rolling_avg_sum / self.rolling_avg_len
 
-        # self.process_eeg_data()
+        self.process_eeg_data()
         self.file_writer.write_chunk(eeg_chunk, timestamp_chunk)
+        self.logger.debug(f"End EEG Handle: {time.time()}")
 
     def process_eeg_data(self):
         result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
