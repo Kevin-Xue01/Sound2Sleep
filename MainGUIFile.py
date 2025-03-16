@@ -26,6 +26,7 @@ from data_collection_gui import HeadbandConnectionWidget
 RANKING_DIR = "gui_data/"
 if not os.path.exists(RANKING_DIR):
     os.makedirs(RANKING_DIR)
+    
 
 class SleepStudyApp(QWidget):
     def __init__(self):
@@ -766,6 +767,7 @@ class SleepStudyApp(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setStyleSheet("QLabel { color: white; }")
     window = SleepStudyApp()
     window.show()
     sys.exit(app.exec())

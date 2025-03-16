@@ -28,6 +28,7 @@ class StatusWidget(QWidget):
 
         self.text = QLabel(self.get_text())
         self.text.setFont(QFont("Arial", 16))
+        self.text.setStyleSheet("color: white;")  # Set display text to white
         layout.addWidget(self.bullet)
         layout.addWidget(self.text)
         self.setLayout(layout)
