@@ -1,14 +1,24 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QFrame, QStackedWidget
+import os
+import json
+import random
+import subprocess
+from datetime import datetime, timedelta
+
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
+    QPushButton, QFrame, QStackedWidget, QSizePolicy, QTextEdit, QScrollArea
+)
 from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtCore import Qt
-import subprocess
-import os
-from datetime import datetime, timedelta
-import random
-import json
 
-# Ensure the gui_data directory exists
+import io
+import matplotlib
+matplotlib.use("Agg")  # For headless use, if needed
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from sleep_staging_functions import generate_sleep_figure, SleepStageReportPage
+
 RANKING_DIR = "gui_data/"
 if not os.path.exists(RANKING_DIR):
     os.makedirs(RANKING_DIR)
@@ -28,6 +38,10 @@ class SleepStudyApp(QWidget):
         self.game_launch_page = self.create_game_launcher()
         self.scoreboard_page = self.create_scoreboard_page()
 
+        # Create our new Sleep Stage Report page
+        self.sleep_stage_report_page = self.create_sleep_stage_report_page()
+
+        # Add pages to the stacked widget
         self.stacked_widget.addWidget(self.main_page)
         self.stacked_widget.addWidget(self.setup_page)
         self.stacked_widget.addWidget(self.data_collection_page)
@@ -35,10 +49,22 @@ class SleepStudyApp(QWidget):
         self.stacked_widget.addWidget(self.morning_sleepiness_page)
         self.stacked_widget.addWidget(self.game_launch_page)
         self.stacked_widget.addWidget(self.scoreboard_page)
+        self.stacked_widget.addWidget(self.sleep_stage_report_page)
 
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.stacked_widget)
         self.setLayout(main_layout)
+
+    def create_sleep_stage_report_page(self):
+        return SleepStageReportPage(self)
+
+    def show_sleep_stage_report(self):
+        """
+        Switch to the Sleep Stage Report page, refresh the report, and go full screen.
+        """
+        self.sleep_stage_report_page.generate_and_display_report()
+        self.stacked_widget.setCurrentWidget(self.sleep_stage_report_page)
+        self.showFullScreen()
 
     # --------------------- UI Page Creation Functions --------------------- #
     def create_header(self):
@@ -48,7 +74,7 @@ class SleepStudyApp(QWidget):
         logo_label = QLabel()
         logo_pixmap = QPixmap("/Users/seandmello/Downloads/The_Hospital_for_Sick_Children_Logo.svg.png")
         if not logo_pixmap.isNull():
-            logo_label.setPixmap(logo_pixmap.scaled(50,50,Qt.AspectRatioMode.KeepAspectRatio))
+            logo_label.setPixmap(logo_pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio))
         left_layout.addWidget(logo_label)
         text_layout = QVBoxLayout()
         lab_label = QLabel("Ibrahim Lab")
@@ -108,6 +134,12 @@ class SleepStudyApp(QWidget):
         sleepiness_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
         sleepiness_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.game_launch_page))
         center_layout.addWidget(sleepiness_button)
+        # Button to show the Sleep Stage Report (full screen)
+        report_button = QPushButton("View Sleep Stage Report")
+        report_button.setFont(QFont("Arial", 14))
+        report_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
+        report_button.clicked.connect(self.show_sleep_stage_report)
+        center_layout.addWidget(report_button)
         layout.addLayout(center_layout)
         main_widget.setLayout(layout)
         return main_widget
@@ -281,10 +313,8 @@ class SleepStudyApp(QWidget):
         if calibration_script:
             calibration_process = subprocess.Popen([sys.executable, calibration_script])
             calibration_process.wait()
-        # Always use the project root as the working directory.
         project_root = os.path.dirname(os.path.abspath(__file__))
-        # Instead of using os.path.abspath(script_path), use the given script_path.
-        subprocess.Popen([sys.executable, script_path], cwd=project_root)
+        subprocess.Popen([sys.executable, os.path.abspath(script_path)], cwd=project_root)
 
     def show_scoreboard(self):
         self.update_scoreboard()
@@ -393,30 +423,6 @@ class SleepStudyApp(QWidget):
                 json.dump(rankings_dict, f)
         except Exception as e:
             print(f"Error saving today's rankings to {file_path}: {e}")
-
-    def get_score(self, file_path):
-        if not file_path:
-            return 0
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, "r") as f:
-                    data = json.load(f)
-                return data.get("score", 0) if isinstance(data, dict) else float(data)
-            except Exception as e:
-                print(f"Error reading score from {file_path}: {e}")
-        return 0
-
-    def get_latest_score(self, directory):
-        today = datetime.now().strftime("%Y-%m-%d")
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        file_today = os.path.join(directory, f"{today}.json")
-        file_yesterday = os.path.join(directory, f"{yesterday}.json")
-        if os.path.exists(file_today):
-            return self.get_score(file_today)
-        elif os.path.exists(file_yesterday):
-            return self.get_score(file_yesterday)
-        else:
-            return None
 
     def update_scoreboard(self):
         while self.score_container.count():
@@ -607,151 +613,6 @@ class SleepStudyApp(QWidget):
 
         self.save_today_rankings(today_rankings, ranking_file)
         self.score_container.addLayout(main_layout)
-
-    def get_score(self, file_path):
-        if not file_path:
-            return 0
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, "r") as f:
-                    data = json.load(f)
-                return data.get("score", 0) if isinstance(data, dict) else float(data)
-            except Exception as e:
-                print(f"Error reading score from {file_path}: {e}")
-        return 0
-
-    def get_latest_score(self, directory):
-        today = datetime.now().strftime("%Y-%m-%d")
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        file_today = os.path.join(directory, f"{today}.json")
-        file_yesterday = os.path.join(directory, f"{yesterday}.json")
-        if os.path.exists(file_today):
-            return self.get_score(file_today)
-        elif os.path.exists(file_yesterday):
-            return self.get_score(file_yesterday)
-        else:
-            return None
-
-    def launch_game(self, script_path):
-        go_nogo_calibration_file = os.path.join("CognitiveTesting", "Go-Nogo", "calibration.txt")
-        if script_path.endswith("game.py") and not os.path.exists(go_nogo_calibration_file):
-            calibration_script = os.path.abspath(os.path.join("CognitiveTesting", "Go-Nogo", "calibration.py"))
-        else:
-            calibration_script = None
-        if calibration_script:
-            calibration_process = subprocess.Popen([sys.executable, calibration_script])
-            calibration_process.wait()
-        # Always use the project root as the working directory
-        project_root = os.path.dirname(os.path.abspath(__file__))
-        subprocess.Popen([sys.executable, os.path.abspath(script_path)], cwd=project_root)
-
-    def show_scoreboard(self):
-        self.update_scoreboard()
-        self.stacked_widget.setCurrentWidget(self.scoreboard_page)
-        self.showFullScreen()
-
-    def create_scoreboard_page(self):
-        scoreboard_widget = QWidget()
-        layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignTop)
-        header_label = QLabel("Scoreboard")
-        header_label.setFont(QFont("Arial", 48, QFont.Weight.Bold))
-        header_label.setStyleSheet("color: white;")
-        header_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(header_label)
-        self.score_container = QVBoxLayout()
-        layout.addLayout(self.score_container)
-        back_button = QPushButton("Back to Home")
-        back_button.setFont(QFont("Arial", 18))
-        back_button.setStyleSheet("background-color: gray; color: white; padding: 10px; border-radius: 5px;")
-        back_button.clicked.connect(self.exit_fullscreen_and_go_home)
-        layout.addWidget(back_button, alignment=Qt.AlignCenter)
-        scoreboard_widget.setLayout(layout)
-        return scoreboard_widget
-
-    def exit_fullscreen_and_go_home(self):
-        self.showNormal()
-        self.stacked_widget.setCurrentWidget(self.main_page)
-
-    # --------------------------- Ranking Helper Functions --------------------------- #
-    def generate_scoreboard_table(self, user_score, competitor_names, forced_competitor):
-        total_entries = 6
-        r = random.random()
-        if r < 1/3:
-            user_rank = 0
-        elif r < 2/3:
-            user_rank = 1
-        elif r < 2/3 + 1/6:
-            user_rank = 2
-        else:
-            user_rank = 3
-        force_flag = False
-        if forced_competitor in competitor_names and random.random() < 0.3:
-            force_flag = True
-            if user_rank == 0:
-                user_rank = 1
-        score_by_rank = {}
-        score_by_rank[user_rank] = user_score
-        current = user_score
-        for pos in range(user_rank - 1, -1, -1):
-            current += random.uniform(1, 10)
-            score_by_rank[pos] = current
-        current = user_score
-        for pos in range(user_rank + 1, total_entries):
-            current -= random.uniform(1, 10)
-            score_by_rank[pos] = current
-        entries = {}
-        entries[user_rank] = ("You", user_score)
-        available_positions = [pos for pos in range(total_entries) if pos != user_rank]
-        names_copy = competitor_names.copy()
-        if force_flag:
-            possible_positions = [p for p in available_positions if p < user_rank]
-            if possible_positions:
-                best_pos = min(possible_positions)
-                entries[best_pos] = (forced_competitor, score_by_rank[best_pos])
-                names_copy.remove(forced_competitor)
-                available_positions.remove(best_pos)
-        random.shuffle(available_positions)
-        for name in names_copy:
-            if available_positions:
-                pos = available_positions.pop(0)
-                entries[pos] = (name, score_by_rank[pos])
-        sorted_entries = []
-        ranking_dict = {}
-        for pos in sorted(entries.keys()):
-            entry = entries[pos]
-            sorted_entries.append(entry)
-            ranking_dict[entry[0]] = pos + 1
-        return sorted_entries, ranking_dict
-
-    def load_previous_rankings(self):
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        file_path = os.path.join(RANKING_DIR, f"rankings_{yesterday}.json")
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, "r") as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Error loading previous rankings from {file_path}: {e}")
-        return {}
-
-    def get_today_rankings(self):
-        today = datetime.now().strftime("%Y-%m-%d")
-        file_path = os.path.join(RANKING_DIR, f"rankings_{today}.json")
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, "r") as f:
-                    return json.load(f), file_path
-            except Exception as e:
-                print(f"Error loading today's rankings from {file_path}: {e}")
-        return None, file_path
-
-    def save_today_rankings(self, rankings_dict, file_path):
-        try:
-            with open(file_path, "w") as f:
-                json.dump(rankings_dict, f)
-        except Exception as e:
-            print(f"Error saving today's rankings to {file_path}: {e}")
 
     def get_score(self, file_path):
         if not file_path:
