@@ -20,7 +20,6 @@ from PyQt5.QtCore import Qt
 from matplotlib.patches import Arc, FancyArrowPatch
 
 def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=1.05, is_ls=False, is_deep=False):
-    """ Adds an arc and an arrow to label sleep categories. """
     arc = Arc((0, 0), width=2*r_arrow, height=2*r_arrow,
               angle=0, theta1=theta_start, theta2=theta_end, lw=2, color=arrow_color)
     ax.add_patch(arc)
@@ -244,6 +243,7 @@ class SleepStageReportPage(QWidget):
         self.greeting_label = QLabel("Good Morning Brandon! Here is your sleep report!")
         self.greeting_label.setFont(QFont("Arial", 24, QFont.Weight.Bold))
         self.greeting_label.setAlignment(Qt.AlignCenter)
+        self.greeting_label.setStyleSheet("color: white;")  
         self.layout.addWidget(self.greeting_label)
 
         self.figure_label = QLabel()
@@ -275,6 +275,7 @@ class SleepStageReportPage(QWidget):
 
         self.figure_label.setPixmap(pixmap)
         self.asleep_label.setText(f"You were asleep for {total_sleep_str}")
+        self.asleep_label.setStyleSheet("color: white;")  
 
     def go_back_home(self):
         if self.parent_app:
