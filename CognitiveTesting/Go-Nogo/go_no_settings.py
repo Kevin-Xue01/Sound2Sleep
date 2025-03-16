@@ -4,7 +4,7 @@ import os
 import random
 
 FPS = 60
-NUM_TRIALS = 30
+NUM_TRIALS = 5
 TASK_TIME = 1500  # in milliseconds
 
 # Initialize pygame (or at least its display module)

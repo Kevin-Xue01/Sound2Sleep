@@ -133,7 +133,7 @@ def tutorial(screen, clock, font, screen_width, screen_height, idle_frames,
 ###########################
 import pygame
 import sys
-from go_no_settings import SCREEN_WIDTH, SCREEN_HEIGHT, SHURIKEN_SPAWN_POINT, FPS, NUM_TRIALS, LEVEL
+from go_no_settings import SCREEN_WIDTH, SCREEN_HEIGHT, FPS, NUM_TRIALS, LEVEL
 from spawner import spawn_shuriken
 from player import Player
 import json

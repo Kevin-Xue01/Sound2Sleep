@@ -1,8 +1,8 @@
 # Code written by Sean D'Mello (seandmello2002@gmail.com)
 import sys
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QStackedWidget
-from PyQt6.QtGui import QFont, QPixmap
-from PyQt6.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QStackedWidget
+from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtCore import Qt
 import subprocess
 import os
 from datetime import datetime

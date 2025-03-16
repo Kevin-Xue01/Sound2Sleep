@@ -7,6 +7,7 @@ import math
 from datetime import datetime, timedelta
 from vpat_settings import SCREEN_WIDTH, SCREEN_HEIGHT, PHYSICAL_WIDTH, PHYSICAL_HEIGHT
 
+# Set number of choices and allowed attempts relative to that.
 NUM_CHOICES = 3
 if NUM_CHOICES < 5:
     NUM_ALLOWED_ATTEMPTS = 2
@@ -216,8 +217,7 @@ random.shuffle(icons)
 # -------------------
 # Build the pairs list for matching:
 today_str = datetime.now().strftime("%Y-%m-%d")
-daily_prompts_file = os.path.join("CognitiveTesting","VPAT", "new_prompts.json")
-
+daily_prompts_file = os.path.join("VPAT", "new_prompts.json")
 def load_new_pairs_from_daily():
     new_pairs = []
     if os.path.exists(daily_prompts_file):
@@ -284,7 +284,7 @@ if not daily_new_pairs:
     }
     with open(daily_prompts_file, "w") as f:
         json.dump(daily_data, f, indent=4)
-    master_file = os.path.join("CognitiveTesting","VPAT", "master_used_prompts.json")
+    master_file = os.path.join("VPAT", "master_used_prompts.json")
     if os.path.exists(master_file):
         with open(master_file, "r") as f:
             master_data = json.load(f)
@@ -636,27 +636,24 @@ while running:
     pygame.display.flip()
     clock.tick(FPS)
 
+# -------------------
+# Save game results and score.
 folder = "CognitiveTesting/VPAT/Data"
 if not os.path.exists(folder):
     os.makedirs(folder)
-current_date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-filenameData = os.path.join(folder, f"VPAT_data_{current_date_time}.json")
-with open(filenameData, "w") as f:
+current_date = datetime.now().strftime("%Y-%m-%d")
+filename = os.path.join(folder, f"{current_date}.json")
+with open(filename, "w") as f:
     json.dump(game_results, f, indent=4)
 
 folder = "CognitiveTesting/VPAT/Score"
-
 if not os.path.exists(folder):
     os.makedirs(folder)
-current_date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+current_date = datetime.now().strftime("%Y-%m-%d")
 score = score / len(pairs) * 100
-filenameScore = os.path.join(folder, f"VPAT_score_{current_date_time}.json")
-with open(filenameScore, "w") as f:
+filename = os.path.join(folder, f"{current_date}.json")
+with open(filename, "w") as f:
     json.dump(score, f, indent=4)
-
-#Upload Data and Score to Dropbox
-upload_to_dropbox(filenameData)  # Upload the encrypted version of trial log file
-upload_to_dropbox(filenameScore)  # Upload the encrypted version of score file
 
 pygame.quit()
 sys.exit()
