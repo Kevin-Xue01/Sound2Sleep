@@ -502,6 +502,12 @@ class SleepStudyApp(QWidget):
                 grid_ninja.addWidget(change_label, row, 3)
             
             main_layout.addLayout(grid_ninja)
+
+        spacer = QFrame()
+        spacer.setFixedHeight(150)  # Adjust the height for desired spacing
+        spacer.setStyleSheet("background-color: transparent;")  # Ensure it's invisible
+        main_layout.addWidget(spacer)
+
         
         # ----- Can you Memorize Table (VPAT) -----
         memorize_label = QLabel("Can you Memorize")
@@ -565,7 +571,7 @@ class SleepStudyApp(QWidget):
                 score_label.setFont(QFont("Arial", 24))
                 score_label.setStyleSheet("color:white;")
                 grid_memorize.addWidget(score_label, row, 2)
-                
+                                
                 prev_memorize = prev_rankings.get("can_you_memorize", {})
                 prev_rank = prev_memorize.get(name, current_rank)
                 diff = prev_rank - current_rank
