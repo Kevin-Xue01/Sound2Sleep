@@ -386,13 +386,10 @@ class SleepStudyApp(QWidget):
     def launch_game(self, script_path):
         """Launch a game with calibration handling."""
         go_nogo_calibration_file = os.path.join("CognitiveTesting","Go-Nogo", "calibration.txt")
-        vpat_calibration_file = os.path.join("CognitiveTesting","VPAT", "calibration.txt")
 
         # Check if calibration is needed
         if script_path.endswith("game.py") and not os.path.exists(go_nogo_calibration_file):
             calibration_script = os.path.abspath(os.path.join("CognitiveTesting", "Go-Nogo", "calibration.py"))
-        elif script_path.endswith("vpat6.py") and not os.path.exists(vpat_calibration_file):
-            calibration_script = os.path.abspath(os.path.join("CognitiveTesting","VPAT", "calibration.py"))
         else:
             calibration_script = None
 

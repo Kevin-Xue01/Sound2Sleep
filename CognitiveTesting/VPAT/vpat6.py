@@ -217,7 +217,7 @@ random.shuffle(icons)
 # -------------------
 # Build the pairs list for matching:
 today_str = datetime.now().strftime("%Y-%m-%d")
-daily_prompts_file = os.path.join("VPAT", "new_prompts.json")
+daily_prompts_file = os.path.join("CognitiveTesting/VPAT", "new_prompts.json")
 def load_new_pairs_from_daily():
     new_pairs = []
     if os.path.exists(daily_prompts_file):
@@ -284,7 +284,7 @@ if not daily_new_pairs:
     }
     with open(daily_prompts_file, "w") as f:
         json.dump(daily_data, f, indent=4)
-    master_file = os.path.join("VPAT", "master_used_prompts.json")
+    master_file = os.path.join("CognitiveTesting/VPAT", "master_used_prompts.json")
     if os.path.exists(master_file):
         with open(master_file, "r") as f:
             master_data = json.load(f)
@@ -630,7 +630,6 @@ while running:
     if feedback_message and pygame.time.get_ticks() - (feedback_start_time or 0) > FEEDBACK_DURATION:
         feedback_message = ""
 
-    # Finally, clear the physical screen and blit the game surface at the computed offsets.
     screen.fill((0, 0, 0))
     screen.blit(game_surface, (offset_x, offset_y))
     pygame.display.flip()
