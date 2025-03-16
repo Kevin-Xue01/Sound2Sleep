@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.use("Agg")  # For headless use, if needed
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from sleep_staging_functions import generate_sleep_figure, SleepStageReportPage, generate_and_display_report
+from sleep_staging_functions import generate_sleep_figure, SleepStageReportPage
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QPushButton, QFrame, QStackedWidget, QSizePolicy, QTextEdit, QScrollArea
@@ -18,6 +18,10 @@ from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import Qt
 from loading_screen import LoadingScreen
+from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
+
+# Import the headband connection workflow from your separate file.
+from data_collection_gui import HeadbandConnectionWidget
 
 RANKING_DIR = "gui_data/"
 if not os.path.exists(RANKING_DIR):
@@ -28,10 +32,12 @@ class SleepStudyApp(QWidget):
         super().__init__()
         self.setWindowTitle("Overnight Sounds Research Study")
         self.setStyleSheet("background-color: #1A0033;")
+        
+        # Launch full screen so that the proportions remain as set.
+        self.showFullScreen()
 
         self.stacked_widget = QStackedWidget()
         self.main_page = self.create_main_page()
-        self.setup_page = self.create_setup_page()
         self.data_collection_page = self.create_data_collection_page()
         self.mood_page = self.create_mood_selection_page()
         self.morning_sleepiness_page = self.create_morning_sleepiness_test()
@@ -43,7 +49,6 @@ class SleepStudyApp(QWidget):
 
         # Add pages to the stacked widget
         self.stacked_widget.addWidget(self.main_page)
-        self.stacked_widget.addWidget(self.setup_page)
         self.stacked_widget.addWidget(self.data_collection_page)
         self.stacked_widget.addWidget(self.mood_page)
         self.stacked_widget.addWidget(self.morning_sleepiness_page)
@@ -59,7 +64,6 @@ class SleepStudyApp(QWidget):
         return SleepStageReportPage(self)
     
     def show_sleep_stage_report(self):
-        # Instead of immediately showing the report, show the loading screen first.
         self.show_loading_screen()
 
     def show_loading_screen(self):
@@ -67,7 +71,6 @@ class SleepStudyApp(QWidget):
         self.stacked_widget.addWidget(self.loading_screen)
         self.stacked_widget.setCurrentWidget(self.loading_screen)
         self.showFullScreen()
-        # After 10 seconds, call show_sleep_report_after_loading:
         QTimer.singleShot(9600, self.show_sleep_report_after_loading)
 
     def show_sleep_report_after_loading(self):
@@ -76,13 +79,18 @@ class SleepStudyApp(QWidget):
         self.stacked_widget.removeWidget(self.loading_screen)
 
     # --------------------- UI Page Creation Functions --------------------- #
+
     def create_header(self):
-        top_layout = QHBoxLayout()
+        # Wrap the header layout in a widget so we can fix its height.
+        header_widget = QWidget()
+        top_layout = QHBoxLayout(header_widget)
+        top_layout.setContentsMargins(10, 10, 10, 10)
         # Left side: logo and text
         left_layout = QHBoxLayout()
         logo_label = QLabel()
         logo_pixmap = QPixmap("/Users/seandmello/Downloads/The_Hospital_for_Sick_Children_Logo.svg.png")
         if not logo_pixmap.isNull():
+            # Keep the logo size small regardless of full screen.
             logo_label.setPixmap(logo_pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio))
         left_layout.addWidget(logo_label)
         text_layout = QVBoxLayout()
@@ -116,12 +124,14 @@ class SleepStudyApp(QWidget):
         stop_button.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         stop_button.setStyleSheet("background-color: #8B4513; color: white; padding: 10px; border-radius: 10px;")
         top_layout.addWidget(stop_button)
-        return top_layout
+        # Fix the header height so it remains small
+        header_widget.setFixedHeight(80)
+        return header_widget
 
     def create_main_page(self):
         main_widget = QWidget()
         layout = QVBoxLayout()
-        layout.addLayout(self.create_header())
+        layout.addWidget(self.create_header())
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
@@ -136,26 +146,30 @@ class SleepStudyApp(QWidget):
         start_button = QPushButton("Start setup for sleep")
         start_button.setFont(QFont("Arial", 16))
         start_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
-        start_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.setup_page))
+        # Set a maximum width to preserve ratio
+        start_button.setMaximumWidth(400)
+        start_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.data_collection_page))
         center_layout.addWidget(start_button)
         sleepiness_button = QPushButton("Do the sleepiness test")
         sleepiness_button.setFont(QFont("Arial", 14))
         sleepiness_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
+        sleepiness_button.setMaximumWidth(400)
         sleepiness_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.game_launch_page))
         center_layout.addWidget(sleepiness_button)
         report_button = QPushButton("View Sleep Stage Report")
         report_button.setFont(QFont("Arial", 14))
         report_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
+        report_button.setMaximumWidth(400)
         report_button.clicked.connect(self.show_sleep_stage_report)
         center_layout.addWidget(report_button)
         layout.addLayout(center_layout)
         main_widget.setLayout(layout)
         return main_widget
 
-    def create_setup_page(self):
-        setup_widget = QWidget()
+    def create_data_collection_page(self):
+        data_widget = QWidget()
         layout = QVBoxLayout()
-        layout.addLayout(self.create_header())
+        layout.addWidget(self.create_header())
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
@@ -167,51 +181,47 @@ class SleepStudyApp(QWidget):
         title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         center_layout.addWidget(title_label)
-        subtitle_label = QLabel("Adjust until you're comfortable and we have a good signal")
+        subtitle_label = QLabel("Adjust until you're comfortable!")
         subtitle_label.setFont(QFont("Arial", 16))
         subtitle_label.setAlignment(Qt.AlignCenter)
         center_layout.addWidget(subtitle_label)
-        ready_button = QPushButton("I'm ready to sleep!")
-        ready_button.setFont(QFont("Arial", 16))
-        ready_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
-        ready_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.data_collection_page))
-        center_layout.addWidget(ready_button)
-        layout.addLayout(center_layout)
-        setup_widget.setLayout(layout)
-        return setup_widget
-
-    def create_data_collection_page(self):
-        data_widget = QWidget()
-        layout = QVBoxLayout()
-        layout.addLayout(self.create_header())
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Sunken)
-        separator.setStyleSheet("background-color: white; height: 2px;")
-        layout.addWidget(separator)
-        center_layout = QVBoxLayout()
-        center_layout.setAlignment(Qt.AlignCenter)
-        title_label = QLabel("Recording Data")
-        title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
-        title_label.setAlignment(Qt.AlignCenter)
-        center_layout.addWidget(title_label)
-        subtitle_label = QLabel("Good night!")
-        subtitle_label.setFont(QFont("Arial", 16))
-        subtitle_label.setAlignment(Qt.AlignCenter)
-        center_layout.addWidget(subtitle_label)
-        done_button = QPushButton("End")
-        done_button.setFont(QFont("Arial", 16))
-        done_button.setStyleSheet("background-color: #8B0000; color: white; padding: 10px; border-radius: 10px;")
-        done_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.mood_page))
-        center_layout.addWidget(done_button)
+        # Add a new button to start the headband connection (data collection) workflow.
+        connect_button = QPushButton("Connect!")
+        connect_button.setFont(QFont("Arial", 16))
+        connect_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
+        connect_button.setMaximumWidth(400)
+        connect_button.clicked.connect(self.start_headband_connection)
+        center_layout.addWidget(connect_button)
+        # The "End" button has been removed from this page.
         layout.addLayout(center_layout)
         data_widget.setLayout(layout)
         return data_widget
 
+    def start_headband_connection(self):
+        # This method starts the headband connection workflow.
+        self.headband_connection = HeadbandConnectionWidget(self)
+        self.stacked_widget.addWidget(self.headband_connection)
+        # Add an "End" button to the headband connection widget layout.
+        # end_button = QPushButton("End")
+        # end_button.setFont(QFont("Arial", 16))
+        # end_button.setStyleSheet("background-color: #8B0000; color: white; padding: 10px; border-radius: 10px;")
+        # end_button.setMaximumWidth(400)
+        # end_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.mood_page))
+        # # Create a container widget for the button
+        # button_container = QWidget()
+        # button_layout = QVBoxLayout(button_container)
+        # button_layout.setContentsMargins(0, 0, 0, 0)
+        # button_layout.addStretch(2)
+        # button_layout.addWidget(end_button, alignment=Qt.AlignHCenter)
+        # button_layout.addStretch(1)
+        # self.headband_connection.main_layout.addWidget(button_container)
+
+        self.stacked_widget.setCurrentWidget(self.headband_connection)
+
     def create_mood_selection_page(self):
         mood_widget = QWidget()
         layout = QVBoxLayout()
-        layout.addLayout(self.create_header())
+        layout.addWidget(self.create_header())
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
@@ -231,6 +241,7 @@ class SleepStudyApp(QWidget):
             button = QPushButton(mood)
             button.setFont(QFont("Arial", 36))
             button.setStyleSheet("background-color: transparent; border: none;")
+            button.setMaximumWidth(150)
             button.clicked.connect(lambda _, m=mood: self.stacked_widget.setCurrentWidget(self.morning_sleepiness_page))
             mood_layout.addWidget(button)
         layout.addLayout(mood_layout)
@@ -241,7 +252,7 @@ class SleepStudyApp(QWidget):
         morning_sleepiness_test_widget = QWidget()
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
-        layout.addLayout(self.create_header())
+        layout.addWidget(self.create_header())
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
@@ -260,6 +271,7 @@ class SleepStudyApp(QWidget):
         test_button = QPushButton("Do the sleepiness test")
         test_button.setFont(QFont("Arial", 16))
         test_button.setStyleSheet("background-color: purple; color: white; padding: 10px; border-radius: 10px;")
+        test_button.setMaximumWidth(400)
         test_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.game_launch_page))
         center_layout.addWidget(good_morning_label)
         center_layout.addWidget(sleep_test_label)
@@ -273,7 +285,7 @@ class SleepStudyApp(QWidget):
         game_launcher_widget = QWidget()
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
-        layout.addLayout(self.create_header())
+        layout.addWidget(self.create_header())
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
@@ -284,14 +296,17 @@ class SleepStudyApp(QWidget):
         launch_game1_button = QPushButton("Launch Game 1")
         launch_game1_button.setFont(QFont("Arial", 16))
         launch_game1_button.setStyleSheet("background-color: purple; color: white; padding: 10px; border-radius: 10px;")
+        launch_game1_button.setMaximumWidth(400)
         launch_game1_button.clicked.connect(lambda: self.launch_game("CognitiveTesting/Go-Nogo/game.py"))
         launch_game2_button = QPushButton("Launch Game 2")
         launch_game2_button.setFont(QFont("Arial", 16))
         launch_game2_button.setStyleSheet("background-color: purple; color: white; padding: 10px; border-radius: 10px;")
+        launch_game2_button.setMaximumWidth(400)
         launch_game2_button.clicked.connect(lambda: self.launch_game("CognitiveTesting/VPAT/vpat6.py"))
         scoreboard_button = QPushButton("Scoreboard")
         scoreboard_button.setFont(QFont("Arial", 16))
         scoreboard_button.setStyleSheet("background-color: purple; color: white; padding: 10px; border-radius: 10px;")
+        scoreboard_button.setMaximumWidth(400)
         scoreboard_button.clicked.connect(self.show_scoreboard)
         center_layout.addWidget(launch_game1_button)
         center_layout.addWidget(launch_game2_button)
@@ -300,10 +315,12 @@ class SleepStudyApp(QWidget):
         back_button = QPushButton("Back")
         back_button.setFont(QFont("Arial", 14))
         back_button.setStyleSheet("background-color: gray; color: white; padding: 10px; border-radius: 5px;")
+        back_button.setMaximumWidth(200)
         back_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.main_page))
         done_button = QPushButton("Done")
         done_button.setFont(QFont("Arial", 14))
         done_button.setStyleSheet("background-color: green; color: white; padding: 10px; border-radius: 5px;")
+        done_button.setMaximumWidth(200)
         bottom_layout.addWidget(back_button)
         bottom_layout.addWidget(done_button)
         center_layout.addLayout(bottom_layout)
@@ -343,14 +360,15 @@ class SleepStudyApp(QWidget):
         back_button = QPushButton("Back to Home")
         back_button.setFont(QFont("Arial", 18))
         back_button.setStyleSheet("background-color: gray; color: white; padding: 10px; border-radius: 5px;")
+        back_button.setMaximumWidth(400)
         back_button.clicked.connect(self.exit_fullscreen_and_go_home)
         layout.addWidget(back_button, alignment=Qt.AlignCenter)
         scoreboard_widget.setLayout(layout)
         return scoreboard_widget
 
     def exit_fullscreen_and_go_home(self):
-        self.showNormal()
         self.stacked_widget.setCurrentWidget(self.main_page)
+        self.showFullScreen()
 
     # --------------------------- Ranking Helper Functions --------------------------- #
     def generate_scoreboard_table(self, user_score, competitor_names, forced_competitor):
@@ -551,7 +569,109 @@ class SleepStudyApp(QWidget):
                 }
                 today_rankings["can_you_memorize"] = scoreboard_data
                 self.save_today_rankings(today_rankings, ranking_file)
+            grid_memorize = QGridLayout()
+            grid_memorize.setHorizontalSpacing(5)
+            grid_memorize.setContentsMargins(0, 0, 0, 0)
 
+            for col, text in enumerate(headers):
+                label = QLabel(text)
+                label.setFont(header_font)
+                label.setStyleSheet("color: white;")
+                label.setAlignment(Qt.AlignCenter)
+                grid_memorize.addWidget(label, 0, col)
+
+            for row, (name, score) in enumerate(sorted_entries_memorize, start=1):
+                current_rank = ranking_dict_memorize.get(name, row)
+
+                if current_rank == 1:
+                    rank_html = ('<div style="display:inline-block; background-color: gold; border-radius:50%; '
+                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                                'font-weight:bold; font-size:22px;">1</div>')
+                elif current_rank == 2:
+                    rank_html = ('<div style="display:inline-block; background-color: silver; border-radius:50%; '
+                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                                'font-weight:bold; font-size:22px;">2</div>')
+                elif current_rank == 3:
+                    rank_html = ('<div style="display:inline-block; background-color: #cd7f32; border-radius:50%; '
+                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                                'font-weight:bold; font-size:22px;">3</div>')
+                else:
+                    rank_html = str(current_rank)
+
+                rank_label = QLabel(rank_html)
+                rank_label.setAlignment(Qt.AlignCenter)
+                rank_label.setTextFormat(Qt.RichText)
+                if current_rank not in [1, 2, 3]:
+                    rank_label.setStyleSheet("color:white;")
+                grid_memorize.addWidget(rank_label, row, 0)
+
+                name_label = QLabel(name)
+                name_label.setAlignment(Qt.AlignCenter)
+                name_label.setFont(QFont("Arial", 24))
+                name_label.setStyleSheet("color:white;")
+                grid_memorize.addWidget(name_label, row, 1)
+
+                score_label = QLabel(f"{score:.2f}")
+                score_label.setAlignment(Qt.AlignCenter)
+                score_label.setFont(QFont("Arial", 24))
+                score_label.setStyleSheet("color:white;")
+                grid_memorize.addWidget(score_label, row, 2)
+
+                prev_memorize = prev_rankings.get("can_you_memorize", {}).get("ranking_dict", {})
+                prev_rank = prev_memorize.get(name, current_rank)
+                diff = prev_rank - current_rank
+                if diff > 0:
+                    change_text = f'<font color="green" style="font-size:24px;">▲{diff}</font>'
+                elif diff < 0:
+                    change_text = f'<font color="red" style="font-size:24px;">▼{abs(diff)}</font>'
+                else:
+                    change_text = '<span style="font-size:24px;">-</span>'
+                change_label = QLabel(change_text)
+                change_label.setAlignment(Qt.AlignCenter)
+                change_label.setTextFormat(Qt.RichText)
+                grid_memorize.addWidget(change_label, row, 3)
+
+            main_layout.addLayout(grid_memorize)
+
+        spacer = QFrame()
+        spacer.setFixedHeight(150)
+        spacer.setStyleSheet("background-color: transparent;")
+        main_layout.addWidget(spacer)
+
+        memorize_label = QLabel("Can you Memorize?")
+        memorize_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
+        memorize_label.setStyleSheet("color: white;")
+        memorize_label.setAlignment(Qt.AlignCenter)
+        main_layout.addWidget(memorize_label)
+
+        competitor_names_memorize = ["James", "Alice", "Bob", "Charlie", "Diana"]
+        user_score_memorize = self.get_latest_score("CognitiveTesting/VPAT/Score/")
+
+        if user_score_memorize is None:
+            msg = QLabel("Don't Forget to Take the Test!")
+            msg.setFont(QFont("Arial", 20, QFont.Weight.Bold))
+            msg.setStyleSheet("color: white;")
+            msg.setAlignment(Qt.AlignCenter)
+            main_layout.addWidget(msg)
+        else:
+            if "can_you_memorize" in today_rankings:
+                scoreboard_data = today_rankings["can_you_memorize"]
+                sorted_entries_memorize = [
+                    (item[0], item[1]) for item in scoreboard_data["sorted_entries"]
+                ]
+                ranking_dict_memorize = scoreboard_data["ranking_dict"]
+            else:
+                sorted_entries_memorize, ranking_dict_memorize = self.generate_scoreboard_table(
+                    user_score_memorize,
+                    competitor_names_memorize,
+                    forced_competitor="James"
+                )
+                scoreboard_data = {
+                    "sorted_entries": [[name, score] for (name, score) in sorted_entries_memorize],
+                    "ranking_dict": ranking_dict_memorize
+                }
+                today_rankings["can_you_memorize"] = scoreboard_data
+                self.save_today_rankings(today_rankings, ranking_file)
             grid_memorize = QGridLayout()
             grid_memorize.setHorizontalSpacing(5)
             grid_memorize.setContentsMargins(0, 0, 0, 0)
@@ -619,7 +739,6 @@ class SleepStudyApp(QWidget):
         self.save_today_rankings(today_rankings, ranking_file)
 
         self.score_container.addLayout(main_layout)
-
 
     def get_score(self, file_path):
         if not file_path:

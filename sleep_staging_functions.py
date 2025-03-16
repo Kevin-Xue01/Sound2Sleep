@@ -19,32 +19,6 @@ from PyQt5.QtCore import Qt
 
 from matplotlib.patches import Arc, FancyArrowPatch
 
-def generate_and_display_report(self):
-    fig, total_sleep_str = generate_sleep_figure()
-
-    # Set the overall figure background to be transparent
-    fig.patch.set_alpha(0.0)
-    # Set each axis background to transparent
-    for ax in fig.get_axes():
-        ax.set_facecolor("none")
-    
-    # Export the figure as a transparent PDF
-    fig.savefig("hypnogram.pdf", format="pdf", transparent=True, bbox_inches="tight")
-
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
-    buf.seek(0)
-
-    pixmap = QPixmap()
-    pixmap.loadFromData(buf.getvalue(), 'PNG')
-    buf.close()
-    plt.close(fig)
-
-    self.figure_label.setPixmap(pixmap)
-    self.asleep_label.setText(f"You were asleep for {total_sleep_str}")
-    self.asleep_label.setStyleSheet("color: white;")  
-
-
 def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=1.05, is_ls=False, is_deep=False):
     arc = Arc((0, 0), width=2*r_arrow, height=2*r_arrow,
               angle=0, theta1=theta_start, theta2=theta_end, lw=2, color=arrow_color)
@@ -305,5 +279,5 @@ class SleepStageReportPage(QWidget):
 
     def go_back_home(self):
         if self.parent_app:
-            self.parent_app.showNormal()
             self.parent_app.stacked_widget.setCurrentWidget(self.parent_app.main_page)
+            self.parent_app.showFullScreen()
