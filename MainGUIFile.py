@@ -15,7 +15,9 @@ from PyQt5.QtWidgets import (
     QPushButton, QFrame, QStackedWidget, QSizePolicy, QTextEdit, QScrollArea
 )
 from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import Qt
+from loading_screen import LoadingScreen
 
 RANKING_DIR = "gui_data/"
 if not os.path.exists(RANKING_DIR):
@@ -55,11 +57,25 @@ class SleepStudyApp(QWidget):
 
     def create_sleep_stage_report_page(self):
         return SleepStageReportPage(self)
-
+    
     def show_sleep_stage_report(self):
-        self.sleep_stage_report_page.generate_and_display_report()
-        self.stacked_widget.setCurrentWidget(self.sleep_stage_report_page)
+        # Instead of immediately showing the report, show the loading screen first.
+        self.show_loading_screen()
+
+
+    def show_loading_screen(self):
+        self.loading_screen = LoadingScreen(self)
+        self.stacked_widget.addWidget(self.loading_screen)
+        self.stacked_widget.setCurrentWidget(self.loading_screen)
         self.showFullScreen()
+        # After 10 seconds, call show_sleep_report_after_loading:
+        QTimer.singleShot(9600, self.show_sleep_report_after_loading)
+
+    def show_sleep_report_after_loading(self):
+        self.stacked_widget.setCurrentWidget(self.sleep_stage_report_page)
+        self.sleep_stage_report_page.generate_and_display_report()
+        self.stacked_widget.removeWidget(self.loading_screen)
+
 
     # --------------------- UI Page Creation Functions --------------------- #
     def create_header(self):
