@@ -429,7 +429,6 @@ class SleepStudyApp(QWidget):
         # Get user's score for Go-No-Go.
         user_score_ninja = self.get_latest_score("CognitiveTesting/Go-Nogo/Score/")
         if user_score_ninja is None:
-            # If no score is found, display message.
             msg = QLabel("Don't Forget to Take the Test!")
             msg.setFont(QFont("Arial", 20, QFont.Weight.Bold))
             msg.setStyleSheet("color: white;")
@@ -465,14 +464,18 @@ class SleepStudyApp(QWidget):
                 rank_label = QLabel(rank_html)
                 rank_label.setAlignment(Qt.AlignCenter)
                 rank_label.setTextFormat(Qt.RichText)
+                if current_rank not in [1, 2, 3]:
+                    rank_label.setStyleSheet("color:white;")
                 grid_ninja.addWidget(rank_label, row, 0)
                 
                 name_label = QLabel(name)
                 name_label.setAlignment(Qt.AlignCenter)
+                name_label.setStyleSheet("color:white;")
                 grid_ninja.addWidget(name_label, row, 1)
                 
                 score_label = QLabel(f"{score:.2f}")
                 score_label.setAlignment(Qt.AlignCenter)
+                score_label.setStyleSheet("color:white;")
                 grid_ninja.addWidget(score_label, row, 2)
                 
                 # Compute ranking change.
@@ -533,14 +536,18 @@ class SleepStudyApp(QWidget):
                 rank_label = QLabel(rank_html)
                 rank_label.setAlignment(Qt.AlignCenter)
                 rank_label.setTextFormat(Qt.RichText)
+                if current_rank not in [1, 2, 3]:
+                    rank_label.setStyleSheet("color:white;")
                 grid_memorize.addWidget(rank_label, row, 0)
                 
                 name_label = QLabel(name)
                 name_label.setAlignment(Qt.AlignCenter)
+                name_label.setStyleSheet("color:white;")
                 grid_memorize.addWidget(name_label, row, 1)
                 
                 score_label = QLabel(f"{score:.2f}")
                 score_label.setAlignment(Qt.AlignCenter)
+                score_label.setStyleSheet("color:white;")
                 grid_memorize.addWidget(score_label, row, 2)
                 
                 prev_memorize = prev_rankings.get("can_you_memorize", {})
