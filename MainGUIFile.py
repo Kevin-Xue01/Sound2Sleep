@@ -418,6 +418,7 @@ class SleepStudyApp(QWidget):
             print(f"Error saving today's rankings to {file_path}: {e}")
 
     def update_scoreboard(self):
+        # Clear any existing items in the score container
         while self.score_container.count():
             item = self.score_container.takeAt(0)
             widget = item.widget()
@@ -426,11 +427,13 @@ class SleepStudyApp(QWidget):
 
         main_layout = QVBoxLayout()
 
+        # Load previous and today's rankings
         prev_rankings = self.load_previous_rankings()
         today_rankings, ranking_file = self.get_today_rankings()
         if today_rankings is None:
             today_rankings = {}
 
+        # ------------------- Ninja Swipe Scoreboard -------------------
         ninja_label = QLabel("Ninja Swipe")
         ninja_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
         ninja_label.setStyleSheet("color: white;")
@@ -439,7 +442,6 @@ class SleepStudyApp(QWidget):
 
         competitor_names_ninja = ["James", "Alice", "Bob", "Charlie", "Diana"]
         user_score_ninja = self.get_latest_score("CognitiveTesting/Go-Nogo/Score/")
-
         if user_score_ninja is None:
             msg = QLabel("Don't Forget to Take the Test!")
             msg.setFont(QFont("Arial", 20, QFont.Weight.Bold))
@@ -449,15 +451,11 @@ class SleepStudyApp(QWidget):
         else:
             if "ninja_swipe" in today_rankings:
                 scoreboard_data = today_rankings["ninja_swipe"]
-                sorted_entries_ninja = [
-                    (item[0], item[1]) for item in scoreboard_data["sorted_entries"]
-                ]
+                sorted_entries_ninja = [ (item[0], item[1]) for item in scoreboard_data["sorted_entries"] ]
                 ranking_dict_ninja = scoreboard_data["ranking_dict"]
             else:
                 sorted_entries_ninja, ranking_dict_ninja = self.generate_scoreboard_table(
-                    user_score_ninja,
-                    competitor_names_ninja,
-                    forced_competitor="Brandon"
+                    user_score_ninja, competitor_names_ninja, forced_competitor="Brandon"
                 )
                 scoreboard_data = {
                     "sorted_entries": [[name, score] for (name, score) in sorted_entries_ninja],
@@ -469,7 +467,6 @@ class SleepStudyApp(QWidget):
             grid_ninja = QGridLayout()
             grid_ninja.setHorizontalSpacing(5)
             grid_ninja.setContentsMargins(0, 0, 0, 0)
-
             header_font = QFont("Arial", 24, QFont.Weight.Bold)
             headers = ["Rank", "Name", "Score", "Ranking Position Change"]
             for col, text in enumerate(headers):
@@ -481,22 +478,26 @@ class SleepStudyApp(QWidget):
 
             for row, (name, score) in enumerate(sorted_entries_ninja, start=1):
                 current_rank = ranking_dict_ninja.get(name, row)
-
                 if current_rank == 1:
-                    rank_html = ('<div style="display:inline-block; background-color: gold; border-radius:50%; '
-                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
-                                'font-weight:bold; font-size:22px;">1</div>')
+                    rank_html = (
+                        '<div style="display:inline-block; background-color: gold; border-radius:50%; '
+                        'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                        'font-weight:bold; font-size:22px;">1</div>'
+                    )
                 elif current_rank == 2:
-                    rank_html = ('<div style="display:inline-block; background-color: silver; border-radius:50%; '
-                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
-                                'font-weight:bold; font-size:22px;">2</div>')
+                    rank_html = (
+                        '<div style="display:inline-block; background-color: silver; border-radius:50%; '
+                        'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                        'font-weight:bold; font-size:22px;">2</div>'
+                    )
                 elif current_rank == 3:
-                    rank_html = ('<div style="display:inline-block; background-color: #cd7f32; border-radius:50%; '
-                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
-                                'font-weight:bold; font-size:22px;">3</div>')
+                    rank_html = (
+                        '<div style="display:inline-block; background-color: #cd7f32; border-radius:50%; '
+                        'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                        'font-weight:bold; font-size:22px;">3</div>'
+                    )
                 else:
                     rank_html = str(current_rank)
-
                 rank_label = QLabel(rank_html)
                 rank_label.setAlignment(Qt.AlignCenter)
                 rank_label.setTextFormat(Qt.RichText)
@@ -529,14 +530,9 @@ class SleepStudyApp(QWidget):
                 change_label.setAlignment(Qt.AlignCenter)
                 change_label.setTextFormat(Qt.RichText)
                 grid_ninja.addWidget(change_label, row, 3)
-
             main_layout.addLayout(grid_ninja)
 
-        spacer = QFrame()
-        spacer.setFixedHeight(150)
-        spacer.setStyleSheet("background-color: transparent;")
-        main_layout.addWidget(spacer)
-
+        # ------------------- "Can you Memorize?" Scoreboard (added only once) -------------------
         memorize_label = QLabel("Can you Memorize?")
         memorize_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
         memorize_label.setStyleSheet("color: white;")
@@ -545,7 +541,6 @@ class SleepStudyApp(QWidget):
 
         competitor_names_memorize = ["James", "Alice", "Bob", "Charlie", "Diana"]
         user_score_memorize = self.get_latest_score("CognitiveTesting/VPAT/Score/")
-
         if user_score_memorize is None:
             msg = QLabel("Don't Forget to Take the Test!")
             msg.setFont(QFont("Arial", 20, QFont.Weight.Bold))
@@ -555,15 +550,11 @@ class SleepStudyApp(QWidget):
         else:
             if "can_you_memorize" in today_rankings:
                 scoreboard_data = today_rankings["can_you_memorize"]
-                sorted_entries_memorize = [
-                    (item[0], item[1]) for item in scoreboard_data["sorted_entries"]
-                ]
+                sorted_entries_memorize = [ (item[0], item[1]) for item in scoreboard_data["sorted_entries"] ]
                 ranking_dict_memorize = scoreboard_data["ranking_dict"]
             else:
                 sorted_entries_memorize, ranking_dict_memorize = self.generate_scoreboard_table(
-                    user_score_memorize,
-                    competitor_names_memorize,
-                    forced_competitor="James"
+                    user_score_memorize, competitor_names_memorize, forced_competitor="James"
                 )
                 scoreboard_data = {
                     "sorted_entries": [[name, score] for (name, score) in sorted_entries_memorize],
@@ -574,51 +565,50 @@ class SleepStudyApp(QWidget):
             grid_memorize = QGridLayout()
             grid_memorize.setHorizontalSpacing(5)
             grid_memorize.setContentsMargins(0, 0, 0, 0)
-
             for col, text in enumerate(headers):
                 label = QLabel(text)
                 label.setFont(header_font)
                 label.setStyleSheet("color: white;")
                 label.setAlignment(Qt.AlignCenter)
                 grid_memorize.addWidget(label, 0, col)
-
             for row, (name, score) in enumerate(sorted_entries_memorize, start=1):
                 current_rank = ranking_dict_memorize.get(name, row)
-
                 if current_rank == 1:
-                    rank_html = ('<div style="display:inline-block; background-color: gold; border-radius:50%; '
-                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
-                                'font-weight:bold; font-size:22px;">1</div>')
+                    rank_html = (
+                        '<div style="display:inline-block; background-color: gold; border-radius:50%; '
+                        'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                        'font-weight:bold; font-size:22px;">1</div>'
+                    )
                 elif current_rank == 2:
-                    rank_html = ('<div style="display:inline-block; background-color: silver; border-radius:50%; '
-                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
-                                'font-weight:bold; font-size:22px;">2</div>')
+                    rank_html = (
+                        '<div style="display:inline-block; background-color: silver; border-radius:50%; '
+                        'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                        'font-weight:bold; font-size:22px;">2</div>'
+                    )
                 elif current_rank == 3:
-                    rank_html = ('<div style="display:inline-block; background-color: #cd7f32; border-radius:50%; '
-                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
-                                'font-weight:bold; font-size:22px;">3</div>')
+                    rank_html = (
+                        '<div style="display:inline-block; background-color: #cd7f32; border-radius:50%; '
+                        'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                        'font-weight:bold; font-size:22px;">3</div>'
+                    )
                 else:
                     rank_html = str(current_rank)
-
                 rank_label = QLabel(rank_html)
                 rank_label.setAlignment(Qt.AlignCenter)
                 rank_label.setTextFormat(Qt.RichText)
                 if current_rank not in [1, 2, 3]:
                     rank_label.setStyleSheet("color:white;")
                 grid_memorize.addWidget(rank_label, row, 0)
-
                 name_label = QLabel(name)
                 name_label.setAlignment(Qt.AlignCenter)
                 name_label.setFont(QFont("Arial", 24))
-                name_label.setStyleSheet("color:white;")
+                name_label.setStyleSheet("color: white;")
                 grid_memorize.addWidget(name_label, row, 1)
-
                 score_label = QLabel(f"{score:.2f}")
                 score_label.setAlignment(Qt.AlignCenter)
                 score_label.setFont(QFont("Arial", 24))
-                score_label.setStyleSheet("color:white;")
+                score_label.setStyleSheet("color: white;")
                 grid_memorize.addWidget(score_label, row, 2)
-
                 prev_memorize = prev_rankings.get("can_you_memorize", {}).get("ranking_dict", {})
                 prev_rank = prev_memorize.get(name, current_rank)
                 diff = prev_rank - current_rank
@@ -632,114 +622,10 @@ class SleepStudyApp(QWidget):
                 change_label.setAlignment(Qt.AlignCenter)
                 change_label.setTextFormat(Qt.RichText)
                 grid_memorize.addWidget(change_label, row, 3)
-
             main_layout.addLayout(grid_memorize)
 
-        spacer = QFrame()
-        spacer.setFixedHeight(150)
-        spacer.setStyleSheet("background-color: transparent;")
-        main_layout.addWidget(spacer)
-
-        memorize_label = QLabel("Can you Memorize?")
-        memorize_label.setFont(QFont("Arial", 28, QFont.Weight.Bold))
-        memorize_label.setStyleSheet("color: white;")
-        memorize_label.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(memorize_label)
-
-        competitor_names_memorize = ["James", "Alice", "Bob", "Charlie", "Diana"]
-        user_score_memorize = self.get_latest_score("CognitiveTesting/VPAT/Score/")
-
-        if user_score_memorize is None:
-            msg = QLabel("Don't Forget to Take the Test!")
-            msg.setFont(QFont("Arial", 20, QFont.Weight.Bold))
-            msg.setStyleSheet("color: white;")
-            msg.setAlignment(Qt.AlignCenter)
-            main_layout.addWidget(msg)
-        else:
-            if "can_you_memorize" in today_rankings:
-                scoreboard_data = today_rankings["can_you_memorize"]
-                sorted_entries_memorize = [
-                    (item[0], item[1]) for item in scoreboard_data["sorted_entries"]
-                ]
-                ranking_dict_memorize = scoreboard_data["ranking_dict"]
-            else:
-                sorted_entries_memorize, ranking_dict_memorize = self.generate_scoreboard_table(
-                    user_score_memorize,
-                    competitor_names_memorize,
-                    forced_competitor="James"
-                )
-                scoreboard_data = {
-                    "sorted_entries": [[name, score] for (name, score) in sorted_entries_memorize],
-                    "ranking_dict": ranking_dict_memorize
-                }
-                today_rankings["can_you_memorize"] = scoreboard_data
-                self.save_today_rankings(today_rankings, ranking_file)
-            grid_memorize = QGridLayout()
-            grid_memorize.setHorizontalSpacing(5)
-            grid_memorize.setContentsMargins(0, 0, 0, 0)
-
-            for col, text in enumerate(headers):
-                label = QLabel(text)
-                label.setFont(header_font)
-                label.setStyleSheet("color: white;")
-                label.setAlignment(Qt.AlignCenter)
-                grid_memorize.addWidget(label, 0, col)
-
-            for row, (name, score) in enumerate(sorted_entries_memorize, start=1):
-                current_rank = ranking_dict_memorize.get(name, row)
-
-                if current_rank == 1:
-                    rank_html = ('<div style="display:inline-block; background-color: gold; border-radius:50%; '
-                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
-                                'font-weight:bold; font-size:22px;">1</div>')
-                elif current_rank == 2:
-                    rank_html = ('<div style="display:inline-block; background-color: silver; border-radius:50%; '
-                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
-                                'font-weight:bold; font-size:22px;">2</div>')
-                elif current_rank == 3:
-                    rank_html = ('<div style="display:inline-block; background-color: #cd7f32; border-radius:50%; '
-                                'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
-                                'font-weight:bold; font-size:22px;">3</div>')
-                else:
-                    rank_html = str(current_rank)
-
-                rank_label = QLabel(rank_html)
-                rank_label.setAlignment(Qt.AlignCenter)
-                rank_label.setTextFormat(Qt.RichText)
-                if current_rank not in [1, 2, 3]:
-                    rank_label.setStyleSheet("color:white;")
-                grid_memorize.addWidget(rank_label, row, 0)
-
-                name_label = QLabel(name)
-                name_label.setAlignment(Qt.AlignCenter)
-                name_label.setFont(QFont("Arial", 24))
-                name_label.setStyleSheet("color:white;")
-                grid_memorize.addWidget(name_label, row, 1)
-
-                score_label = QLabel(f"{score:.2f}")
-                score_label.setAlignment(Qt.AlignCenter)
-                score_label.setFont(QFont("Arial", 24))
-                score_label.setStyleSheet("color:white;")
-                grid_memorize.addWidget(score_label, row, 2)
-
-                prev_memorize = prev_rankings.get("can_you_memorize", {}).get("ranking_dict", {})
-                prev_rank = prev_memorize.get(name, current_rank)
-                diff = prev_rank - current_rank
-                if diff > 0:
-                    change_text = f'<font color="green" style="font-size:24px;">▲{diff}</font>'
-                elif diff < 0:
-                    change_text = f'<font color="red" style="font-size:24px;">▼{abs(diff)}</font>'
-                else:
-                    change_text = '<span style="font-size:24px;">-</span>'
-                change_label = QLabel(change_text)
-                change_label.setAlignment(Qt.AlignCenter)
-                change_label.setTextFormat(Qt.RichText)
-                grid_memorize.addWidget(change_label, row, 3)
-
-            main_layout.addLayout(grid_memorize)
-
+        # Save the updated rankings and add the layout to the score container.
         self.save_today_rankings(today_rankings, ranking_file)
-
         self.score_container.addLayout(main_layout)
 
     def get_score(self, file_path):
