@@ -122,7 +122,7 @@ class SleepStudyApp(QWidget):
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         center_layout.addWidget(title_label)
         subtitle_label = QLabel("Adjust until you're comfortable and we have a good signal")
-        subtitle_label.setFont(QFont("Arial", 14))
+        subtitle_label.setFont(QFont("Arial", 16))  # Increased subtitle font
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         center_layout.addWidget(subtitle_label)
         ready_button = QPushButton("I'm ready to sleep!")
@@ -150,7 +150,7 @@ class SleepStudyApp(QWidget):
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         center_layout.addWidget(title_label)
         subtitle_label = QLabel("Good night!")
-        subtitle_label.setFont(QFont("Arial", 14))
+        subtitle_label.setFont(QFont("Arial", 16))  # Increased subtitle font
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         center_layout.addWidget(subtitle_label)
         done_button = QPushButton("End")
@@ -172,11 +172,11 @@ class SleepStudyApp(QWidget):
         separator.setStyleSheet("background-color: white; height: 2px;")
         layout.addWidget(separator)
         good_morning_label = QLabel("Good morning!")
-        good_morning_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
+        good_morning_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))  # Increased font
         good_morning_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(good_morning_label)
         question_label = QLabel("How are you feeling right now?")
-        question_label.setFont(QFont("Arial", 24, QFont.Weight.Bold))
+        question_label.setFont(QFont("Arial", 26, QFont.Weight.Bold))  # Increased font
         question_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(question_label)
         mood_layout = QHBoxLayout()
@@ -289,9 +289,9 @@ class SleepStudyApp(QWidget):
         scoreboard_widget = QWidget()
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
-        # Large header for the entire page
+        # Large header for the entire page (increased to 48pt)
         header_label = QLabel("Scoreboard")
-        header_label.setFont(QFont("Arial", 36, QFont.Weight.Bold))
+        header_label.setFont(QFont("Arial", 48, QFont.Weight.Bold))
         header_label.setStyleSheet("color: white;")
         header_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(header_label)
@@ -438,7 +438,7 @@ class SleepStudyApp(QWidget):
             grid_ninja = QGridLayout()
             grid_ninja.setHorizontalSpacing(5)
             grid_ninja.setContentsMargins(0,0,0,0)
-            header_font = QFont("Arial", 18, QFont.Weight.Bold)
+            header_font = QFont("Arial", 24, QFont.Weight.Bold)  # Increased header font
             headers = ["Rank", "Name", "Score", "Ranking Position Change"]
             for col, text in enumerate(headers):
                 label = QLabel(text)
@@ -452,13 +452,19 @@ class SleepStudyApp(QWidget):
             
             for row, (name, score) in enumerate(ninja_entries, start=1):
                 current_rank = ninja_rankings.get(name, row)
-                # For 1st, 2nd, and 3rd, display medals as circles (25px)
+                # For 1st, 2nd, and 3rd, display enlarged medal circles.
                 if current_rank == 1:
-                    rank_html = '<div style="display:inline-block; background-color: gold; border-radius:50%; width:25px; height:25px; text-align:center; line-height:25px; color:black; font-weight:bold;">1</div>'
+                    rank_html = ('<div style="display:inline-block; background-color: gold; border-radius:50%; '
+                                 'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                                 'font-weight:bold; font-size:22px;">1</div>')
                 elif current_rank == 2:
-                    rank_html = '<div style="display:inline-block; background-color: silver; border-radius:50%; width:25px; height:25px; text-align:center; line-height:25px; color:black; font-weight:bold;">2</div>'
+                    rank_html = ('<div style="display:inline-block; background-color: silver; border-radius:50%; '
+                                 'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                                 'font-weight:bold; font-size:22px;">2</div>')
                 elif current_rank == 3:
-                    rank_html = '<div style="display:inline-block; background-color: #cd7f32; border-radius:50%; width:25px; height:25px; text-align:center; line-height:25px; color:black; font-weight:bold;">3</div>'
+                    rank_html = ('<div style="display:inline-block; background-color: #cd7f32; border-radius:50%; '
+                                 'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                                 'font-weight:bold; font-size:22px;">3</div>')
                 else:
                     rank_html = str(current_rank)
                 rank_label = QLabel(rank_html)
@@ -470,11 +476,13 @@ class SleepStudyApp(QWidget):
                 
                 name_label = QLabel(name)
                 name_label.setAlignment(Qt.AlignCenter)
+                name_label.setFont(QFont("Arial", 24))  # Increased row font
                 name_label.setStyleSheet("color:white;")
                 grid_ninja.addWidget(name_label, row, 1)
                 
                 score_label = QLabel(f"{score:.2f}")
                 score_label.setAlignment(Qt.AlignCenter)
+                score_label.setFont(QFont("Arial", 24))  # Increased row font
                 score_label.setStyleSheet("color:white;")
                 grid_ninja.addWidget(score_label, row, 2)
                 
@@ -483,11 +491,11 @@ class SleepStudyApp(QWidget):
                 prev_rank = prev_ninja.get(name, current_rank)
                 diff = prev_rank - current_rank
                 if diff > 0:
-                    change_text = f'<font color="green">▲{diff}</font>'
+                    change_text = f'<font color="green" style="font-size:24px;">▲{diff}</font>'
                 elif diff < 0:
-                    change_text = f'<font color="red">▼{abs(diff)}</font>'
+                    change_text = f'<font color="red" style="font-size:24px;">▼{abs(diff)}</font>'
                 else:
-                    change_text = "-"
+                    change_text = '<span style="font-size:24px;">-</span>'
                 change_label = QLabel(change_text)
                 change_label.setAlignment(Qt.AlignCenter)
                 change_label.setTextFormat(Qt.RichText)
@@ -526,11 +534,17 @@ class SleepStudyApp(QWidget):
             for row, (name, score) in enumerate(memorize_entries, start=1):
                 current_rank = memorize_rankings.get(name, row)
                 if current_rank == 1:
-                    rank_html = '<div style="display:inline-block; background-color: gold; border-radius:50%; width:25px; height:25px; text-align:center; line-height:25px; color:black; font-weight:bold;">1</div>'
+                    rank_html = ('<div style="display:inline-block; background-color: gold; border-radius:50%; '
+                                 'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                                 'font-weight:bold; font-size:22px;">1</div>')
                 elif current_rank == 2:
-                    rank_html = '<div style="display:inline-block; background-color: silver; border-radius:50%; width:25px; height:25px; text-align:center; line-height:25px; color:black; font-weight:bold;">2</div>'
+                    rank_html = ('<div style="display:inline-block; background-color: silver; border-radius:50%; '
+                                 'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                                 'font-weight:bold; font-size:22px;">2</div>')
                 elif current_rank == 3:
-                    rank_html = '<div style="display:inline-block; background-color: #cd7f32; border-radius:50%; width:25px; height:25px; text-align:center; line-height:25px; color:black; font-weight:bold;">3</div>'
+                    rank_html = ('<div style="display:inline-block; background-color: #cd7f32; border-radius:50%; '
+                                 'width:35px; height:35px; text-align:center; line-height:35px; color:black; '
+                                 'font-weight:bold; font-size:22px;">3</div>')
                 else:
                     rank_html = str(current_rank)
                 rank_label = QLabel(rank_html)
@@ -542,11 +556,13 @@ class SleepStudyApp(QWidget):
                 
                 name_label = QLabel(name)
                 name_label.setAlignment(Qt.AlignCenter)
+                name_label.setFont(QFont("Arial", 24))
                 name_label.setStyleSheet("color:white;")
                 grid_memorize.addWidget(name_label, row, 1)
                 
                 score_label = QLabel(f"{score:.2f}")
                 score_label.setAlignment(Qt.AlignCenter)
+                score_label.setFont(QFont("Arial", 24))
                 score_label.setStyleSheet("color:white;")
                 grid_memorize.addWidget(score_label, row, 2)
                 
@@ -554,11 +570,11 @@ class SleepStudyApp(QWidget):
                 prev_rank = prev_memorize.get(name, current_rank)
                 diff = prev_rank - current_rank
                 if diff > 0:
-                    change_text = f'<font color="green">▲{diff}</font>'
+                    change_text = f'<font color="green" style="font-size:24px;">▲{diff}</font>'
                 elif diff < 0:
-                    change_text = f'<font color="red">▼{abs(diff)}</font>'
+                    change_text = f'<font color="red" style="font-size:24px;">▼{abs(diff)}</font>'
                 else:
-                    change_text = "-"
+                    change_text = '<span style="font-size:24px;">-</span>'
                 change_label = QLabel(change_text)
                 change_label.setAlignment(Qt.AlignCenter)
                 change_label.setTextFormat(Qt.RichText)
