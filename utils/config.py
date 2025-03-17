@@ -27,6 +27,8 @@ class SessionConfig(BaseModel):
     _audio: AudioConfig = PrivateAttr(default_factory=AudioConfig)
     experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_OFF
     truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
+    
+    mean_subtraction_window_len_s: float = 15.0
     processing_window_len_s: float = 2.0 # [seconds], duration of processing window
     
     hl_ratio_buffer_len: int = 3
@@ -34,8 +36,8 @@ class SessionConfig(BaseModel):
     hl_ratio_latest_max: float = -2.0
 
     amp_buffer_len: int = 3
-    amp_buffer_mean_min: float = 25.0
-    amp_buffer_mean_max: float = 200.0
+    amp_buffer_mean_min: float = 75.0
+    amp_buffer_mean_max: float = 175.0
 
     target_phase: float = 0.0 # radians
     
@@ -47,7 +49,7 @@ class SessionConfig(BaseModel):
     high_bpf_cutoff: tuple = (12.0, 80.0)
     bpf_order: int = 4
 
-    switch_channel_period_s: float = 5.0
+    switch_channel_period_s: float = 15.0
     stim1_prediction_limit_sec: float = 1.0
     stim2_prediction_limit_sec: float = 1.0
 
