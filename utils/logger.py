@@ -4,8 +4,7 @@ import os
 
 class Logger:
     log_format = logging.Formatter(
-        '%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        '%(created)f <%(name)s> [%(levelname)s] %(message)s'
     )
     def is_valid_path(self, path: str) -> bool:
         try:

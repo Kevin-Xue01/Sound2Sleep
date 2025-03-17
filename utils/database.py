@@ -126,17 +126,36 @@ class FileReader:
         
         return eeg_data, timestamp
     
-    def read_all_frames(self):
+    def read_all_frames(self, safe=True):
+        """Reads all frames from the files.
+        
+        - If `safe=True`, yields frames one by one to avoid high memory usage.
+        - If `safe=False`, reads all frames at once and returns numpy arrays.
+        """
         self.data_file.seek(0)
         self.timestamp_file.seek(0)
-        
-        for _ in range(self.total_frames):
-            eeg_data, timestamp = self.read_frame()
-            if eeg_data is None or timestamp is None:
-                break
-            
-            yield eeg_data, timestamp
 
+        if safe:
+            # Safe mode: Generator-based, memory-efficient
+            for _ in range(self.total_frames):
+                eeg_data, timestamp = self.read_frame()
+                if eeg_data is None or timestamp is None:
+                    break  # Stop if EOF is reached
+                yield eeg_data, timestamp
+        else:
+            # Unsafe mode: Load all data at once into memory
+            eeg_bytes = self.data_file.read(self.total_frames * self.data_frame_size)
+            timestamp_bytes = self.timestamp_file.read(self.total_frames * self.timestamp_frame_size)
+
+            if len(eeg_bytes) < self.total_frames * self.data_frame_size or \
+            len(timestamp_bytes) < self.total_frames * self.timestamp_frame_size:
+                raise ValueError("Unexpected EOF while reading files")
+
+            eeg_data = np.frombuffer(eeg_bytes, dtype=self.data_dtype).reshape((self.total_frames,) + self.data_shape)
+            timestamps = np.frombuffer(timestamp_bytes, dtype=self.timestamp_dtype).reshape((self.total_frames,) + self.timestamp_shape)
+
+            return eeg_data, timestamps  # Returns full dataset in unsafe mode
+    
     def read_stim_timestamp(self):
         # Load data, forcing errors='coerce' to convert invalid values to NaN
         data = np.genfromtxt(self.stim_timestamp, dtype=np.float64, invalid_raise=False)
