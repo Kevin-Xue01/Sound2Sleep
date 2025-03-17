@@ -257,7 +257,7 @@ class ConnectionWidget(QWidget):
     def estimate_phase(self, selected_channel): 
         conv_vals = [np.dot(selected_channel, w) for w in self.trunc_wavelets]
         max_idx = np.argmax(np.abs(conv_vals))
-        amp = conv_vals[max_idx] / 2
+        amp = np.abs(conv_vals[max_idx] / 2)
         freq = self.wavelet_freqs[max_idx]
         phase = (-np.angle(conv_vals[max_idx])) % (2 * pi)
         
