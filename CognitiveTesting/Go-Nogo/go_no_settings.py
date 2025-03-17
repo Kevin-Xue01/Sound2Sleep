@@ -1,12 +1,23 @@
 # settings.py
-SCREEN_WIDTH = 700
-SCREEN_HEIGHT = 600
-SHURIKEN_SPAWN_POINT = (SCREEN_HEIGHT//12, SCREEN_HEIGHT//2)  # Coordinates for a single spawn point
+import pygame
+import os
+import random
+
 FPS = 60
 NUM_TRIALS = 30
-TASK_TIME = 1500  # Time in milliseconds for each trial
+TASK_TIME = 1500  # in milliseconds
 
-import os
+# Initialize pygame (or at least its display module)
+pygame.init()
+
+# Get physical display dimensions
+info = pygame.display.Info()
+
+PHYSICAL_WIDTH = info.current_w
+PHYSICAL_HEIGHT = info.current_h
+SCREEN_HEIGHT = PHYSICAL_HEIGHT
+SCREEN_WIDTH = int(SCREEN_HEIGHT * (7 / 6))
+
 # Attempt to read the calibration level from "calibration_level.txt"
 calibration_file = "calibration_level.txt"
 if os.path.exists(calibration_file):
@@ -18,3 +29,20 @@ if os.path.exists(calibration_file):
         LEVEL = 4  # default level on error
 else:
     LEVEL = 4  # default level if file doesn't exist
+
+# Set spawn interval based on level
+if LEVEL == 1:
+    SPAWN_INTERVAL = 2500
+elif LEVEL == 2:
+    SPAWN_INTERVAL = 2000
+elif LEVEL == 3:
+    SPAWN_INTERVAL = 1750
+elif LEVEL == 4:
+    SPAWN_INTERVAL = 1500
+elif LEVEL == 5:
+    SPAWN_INTERVAL = 1250
+elif LEVEL == 6:
+    SPAWN_INTERVAL = 1000
+elif LEVEL == 7:
+    random_times = [300, 500, 750, 1000, 1500, 1750, 2000]
+    SPAWN_INTERVAL = random.choice(random_times)

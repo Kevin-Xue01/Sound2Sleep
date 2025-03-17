@@ -31,14 +31,15 @@ class Simulator():
         self.analysis_len = window_size
         self.window_len = int(window_size * fs)
         self.signal_buffer = deque(maxlen = self.window_len)
+        self.baseline_buffer = deque(maxlen = 15 * fs)
 
     def phase_estimator(self, signal: np.ndarray): 
         # dot product of truncated wavelet
         conv_vals = [np.dot(signal, w) for w in self.trunc_wavelets]
         max_idx = np.argmax(np.abs(conv_vals))
         freq = self.wavelet_freqs[max_idx]
-        phase = np.angle(conv_vals[max_idx]) % (2 * pi)
-        return phase, freq, conv_vals
+        phase = (-np.angle(conv_vals[max_idx])) % (2 * pi)
+        return phase, freq
 
     @staticmethod
     def identify_sw(filtered_signal_lp: np.ndarray, filtered_signal_hp: np.ndarray, fs: int):
@@ -64,8 +65,8 @@ class Simulator():
     def generate_eeg_signal(fs: int, duration: int, noise_level=0.2, mode = 'stationary', eeg_path = None):
         if mode == 'stationary':
             f = 1.25
-            test_signal = np.sin(2*np.pi*t / f)
             t = np.linspace(0, duration, fs * duration, endpoint=False) 
+            test_signal = np.sin(2*np.pi*t * f) * 100
         elif mode == 'time-varying':
             w_n = 1 + 0.5*np.sin((2*np.pi*t) / duration)
             phi = 2 * np.pi * np.cumsum(w_n) / fs
@@ -101,7 +102,7 @@ class Simulator():
         backoff = False
         stim_count = 0  
         last_stim_time = -np.inf
-        target_phase = 7 * np.pi / 4
+        target_phase = 0
         
         step_len = int(real_time_step * self.fs)
         phase_list =   []
@@ -129,22 +130,32 @@ class Simulator():
 
         for i in tqdm(range(0, len(signal), step_len)):
             self.signal_buffer.extend(signal[i:i+step_len])
-                
+            self.baseline_buffer.extend(signal[i:i+step_len])
+
             lp_signal, zi_low = scipy.signal.sosfilt(sos_low, self.signal_buffer, zi = zi_low)
             hp_signal, zi_high = scipy.signal.sosfilt(sos_high, self.signal_buffer, zi = zi_high)
 
             if len(self.signal_buffer) == self.window_len:
-                window = np.array(self.signal_buffer)
+                # baseline signal 
+                mean_baseline = np.mean(self.baseline_buffer)
 
+                # Update signal_buffer in-place
+                baselined_sig = deque((x - mean_baseline for x in self.signal_buffer), 
+                                        maxlen=self.window_len)
+                
+                window = np.array(baselined_sig)
                 # check high-low frequency ratio
                 hl_ratio = self.identify_sw(np.array(lp_signal), np.array(hp_signal), self.fs)
-                if hl_ratio > -2:
+                if hl_ratio > -1:
                     continue
                 max_amp = np.nanmax(np.abs(window[self.fs:]))
-                if max_amp < 80e-6:
+                max_thresh = 150
+                if max_amp > max_thresh:
+                    continue
+                if max_amp < 80:
                     continue
 
-                phase, freq, conv_vals = self.phase_estimator(window)
+                phase, freq = self.phase_estimator(window)
                 phase_list.append(phase)
                 time_indices.append(i/self.fs)
 
@@ -170,7 +181,6 @@ class Simulator():
         # unwrap phase
         phase_list = -np.unwrap(phase_list) % (2 * pi)
         return phase_list, time_indices, stim_time, stim_freqs
-    
 
 # Test accuracy and precision of phase estimation
 def phase_hist(signal, stim_trigs, outpath, stim_freqs, fs = 256, lowcut = 0.5, highcut = 2, window_size = 2):
@@ -279,17 +289,6 @@ for mode in modes:
 all_stim_phases = np.concatenate(all_stim_phases)
 mean_phase = scipy.stats.circmean(all_stim_phases)
 std_phase = scipy.stats.circstd(all_stim_phases)
-
-
-# # plot histogram of phase
-# plt.figure(figsize=(8, 8))
-# ax = plt.subplot(111, polar=True)
-# ax.hist(all_stim_phases, bins=30, color='slateblue')
-# plt.title(f'TWave - multi-subject\nMean: {mean_phase:.2f}, Std: {std_phase:.2f}')
-# ax.set_xlabel('Phase')
-# ax.grid(True, alpha = 0.2)
-# plt.savefig(os.path.join('twave', 'all_phase_histogram.png'))
-# plt.close()
 
 # plot histogram of frequencies
 # plt.figure(figsize=(8, 8))
