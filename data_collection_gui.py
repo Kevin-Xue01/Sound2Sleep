@@ -174,6 +174,7 @@ class ConnectionWidget(QWidget):
         self.running = False
         self.reset_attempt_count = 0
         
+        self.last_stim = 0.0
         self.processor_elapsed_time = 0.0
         self.target_phase = self.config.target_phase
         self.second_stim_start = nan
@@ -195,7 +196,7 @@ class ConnectionWidget(QWidget):
         self.zi_high = signal.sosfilt_zi(self.sos_high)
 
         self.wavelet_freqs = np.linspace(self.config.truncated_wavelet.low, self.config.truncated_wavelet.high, self.config.truncated_wavelet.n)
-        trunc_wavelet_len = self.window_len_n * 2 # double the length of the signal
+        trunc_wavelet_len = self.processing_window_len_n * 2 # double the length of the signal
         self.trunc_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = self.config.truncated_wavelet.w)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
         
         # Rolling mean buffer
@@ -360,6 +361,9 @@ class ConnectionWidget(QWidget):
 
                 self.eeg_data = self.eeg_data[-self.window_len_n:, :]
                 self.timestamps = self.timestamps[-self.window_len_n:]
+
+                if len(self.eeg_data) < self.processing_window_len_n:
+                    continue
 
                 mean_to_subtract = np.mean(self.eeg_data, axis=0)
                 
