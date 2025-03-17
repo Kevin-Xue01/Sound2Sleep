@@ -388,13 +388,37 @@ class ConnectionWidget(QWidget):
     @classmethod
     def record(cls, _queue: Queue, _connected_flag: EventType, _config: SessionConfig, *args):
         file_writer = FileWriter(_config._session_key)
-        logger = Logger(_config._session_key, cls.__name__)
+
+        # def run(self):
+        #     running = True
+        #     no_data_counter = 0
+        #     while self.running:
+        #         time.sleep(DELAYS[MuseDataType.EEG])
+
+        #         try:
+        #             data, timestamps = self.parent_app.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=DELAYS[MuseDataType.EEG], max_samples=CHUNK_SIZE[MuseDataType.EEG])
+        #             if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
+        #                 timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
+        #                 self.last_timestamp = timestamps[-1]
+        #                 data = np.array(data).astype(np.float32)
+
+        #                 self.results_ready.emit(data, timestamps)
+        #             else:
+        #                 no_data_counter += 1
+
+        #                 if no_data_counter >= 10:
+        #                     self.error.emit(f'No {MuseDataType.EEG} data received for 10 consecutive attempts')
+
+        #         except Exception as ex:
+        #             self.error.emit(traceback.format_exc())
+
+        #     self.finished.emit()
 
         found_muse = None
         while not found_muse:
             found_muse = find_muse()
         address = found_muse["address"]
-        logger.info(f'Connecting to Muse: {address}')
+        print(f'Connecting to Muse: {address}')
 
         def save_eeg(new_samples: np.ndarray, new_timestamps: np.ndarray):
             new_samples = new_samples.transpose()[:, :-1].astype(np.float32) # IGNORE RIGHT AUX Final shape of queue input = ((12, 4), (12,))
@@ -410,30 +434,33 @@ class ConnectionWidget(QWidget):
         print(f"Start recording at {datetime.now().strftime('%y-%m-%d_%H-%M-%S')}")
         last_update = t_init
         _connected_flag.set()
-        try:
-            while True:
-                muselsl.backends.sleep(1) # NOTE: this is not time.sleep(), it is asyncio.sleep(). Therefore, it is non-blocking
-                if time.time() - last_update > 10:
-                    last_update = time.time()
-                    muse.keep_alive()
-        except bleak.exc.BleakError:
-            print('Disconnected. Attempting to reconnect...')
-            while True:
-                if muse.connect(retries=3):
-                    try:
-                        muse.resume()
-                    except bleak.exc.BleakDBusError:
-                        print('DBus error occurred. Reconnecting.')
-                        muse.disconnect()
-                        continue
-                    break
-            print('Connected. Continuing with data collection...')
-        except KeyboardInterrupt:
-            print('Interrupt received. Exiting data collection.')
-            
-        finally:
-            muse.stop()
-            muse.disconnect()
+        while True:
+            try:
+                try:
+                    while True:
+                        muselsl.backends.sleep(1) # NOTE: this is not time.sleep(), it is asyncio.sleep(). Therefore, it is non-blocking
+                        if time.time() - last_update > 10:
+                            last_update = time.time()
+                            muse.keep_alive()
+                except bleak.exc.BleakError:
+                    print('Disconnected. Attempting to reconnect...')
+                    while True:
+                        muse.connect(retries=3)
+                        try:
+                            muse.resume()
+                        except bleak.exc.BleakDBusError:
+                            print('DBus error occurred. Reconnecting.')
+                            muse.disconnect()
+                            continue
+                        else:
+                            break
+                    print('Connected. Continuing with data collection...')
+            except KeyboardInterrupt:
+                print('Interrupt received. Exiting data collection.')
+            finally:
+                muse.stop()
+                muse.disconnect()
+                break
 
     def __del__(self):
         if self.recording_process.is_alive():
