@@ -868,31 +868,31 @@ if __name__ == "__main__":
         ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)
 
     try:
-        lsl_thread = LSLReceiver()
-        lsl_thread.start()
-        data_queue = Queue()
-        result_queue = Queue()
+        # lsl_thread = LSLReceiver()
+        # lsl_thread.start()
+        # data_queue = Queue()
+        # result_queue = Queue()
 
-        proc = Process(target=process_eeg, args=(data_queue, result_queue))
-        proc.start()
+        # proc = Process(target=process_eeg, args=(data_queue, result_queue))
+        # proc.start()
 
         app = QApplication(sys.argv)
-        # window = EEGApp()
-        window = EEGViewer(result_queue)
+        window = EEGApp()
+        # window = EEGViewer(result_queue)
         window.show()
-        # exit_code = app.exec()
-        try:
-            while True:
-                if not lsl_thread.queue.empty():
-                    timestamps, eeg_data = lsl_thread.queue.get()
-                    data_queue.put((timestamps, eeg_data))  # Send data to processor
+        exit_code = app.exec()
+        # try:
+        #     while True:
+        #         if not lsl_thread.queue.empty():
+        #             timestamps, eeg_data = lsl_thread.queue.get()
+        #             data_queue.put((timestamps, eeg_data))  # Send data to processor
                 
-                app.processEvents()  # Keep GUI responsive
-        except KeyboardInterrupt:
-            print("Stopping...")
-            lsl_thread.stop()
-            data_queue.put((None, None))  # Stop processing worker
-            proc.join()
+        #         app.processEvents()  # Keep GUI responsive
+        # except KeyboardInterrupt:
+        #     print("Stopping...")
+        #     lsl_thread.stop()
+        #     data_queue.put((None, None))  # Stop processing worker
+        #     proc.join()
     finally:
         if sys.platform.startswith("win"):
             ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
