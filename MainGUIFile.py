@@ -5,6 +5,7 @@ import random
 import subprocess
 import sys
 from datetime import datetime, timedelta
+from multiprocessing import freeze_support
 
 import matplotlib
 
@@ -666,6 +667,7 @@ class SleepStudyApp(QWidget):
             return None
 
 if __name__ == "__main__":
+    freeze_support()
     app = QApplication(sys.argv)
     app.setStyleSheet("QLabel { color: white; }")
     window = SleepStudyApp()
