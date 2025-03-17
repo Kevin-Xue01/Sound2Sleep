@@ -457,11 +457,10 @@ class ConnectionWidget(QWidget):
                     print('Connected. Continuing with data collection...')
             except KeyboardInterrupt:
                 print('Interrupt received. Exiting data collection.')
-            finally:
-                muse.stop()
-                muse.disconnect()
                 break
 
+        muse.stop()
+        muse.disconnect()
     def __del__(self):
         if self.recording_process.is_alive():
             self.recording_process.terminate()
