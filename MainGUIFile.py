@@ -1,27 +1,39 @@
-import sys
-import os
+import io
 import json
+import os
 import random
 import subprocess
+import sys
 from datetime import datetime, timedelta
-import io
+
 import matplotlib
+
 matplotlib.use("Agg")  # For headless use, if needed
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from sleep_staging_functions import generate_sleep_figure, SleepStageReportPage
-from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
-    QPushButton, QFrame, QStackedWidget, QSizePolicy, QTextEdit, QScrollArea
-)
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QPixmap
-from PyQt5.QtCore import QTimer
-from PyQt5.QtCore import Qt
-from loading_screen import LoadingScreen
-from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSpacerItem,
+    QStackedWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 # Import the headband connection workflow from your separate file.
-from data_collection_gui import HeadbandConnectionWidget
+from data_collection_gui import ConnectionWidget
+from loading_screen import LoadingScreen
+from sleep_staging_functions import SleepStageReportPage, generate_sleep_figure
+from utils import SessionConfig
 
 RANKING_DIR = "gui_data/"
 if not os.path.exists(RANKING_DIR):
@@ -31,6 +43,7 @@ if not os.path.exists(RANKING_DIR):
 class SleepStudyApp(QWidget):
     def __init__(self):
         super().__init__()
+        self.config = SessionConfig()
         self.setWindowTitle("Overnight Sounds Research Study")
         self.setStyleSheet("background-color: #1A0033;")
         
@@ -201,7 +214,7 @@ class SleepStudyApp(QWidget):
 
     def start_headband_connection(self):
         # This method starts the headband connection workflow.
-        self.headband_connection = HeadbandConnectionWidget(self)
+        self.headband_connection = ConnectionWidget(self, self.config)
         self.stacked_widget.addWidget(self.headband_connection)
         # Add an "End" button to the headband connection widget layout.
         # end_button = QPushButton("End")
