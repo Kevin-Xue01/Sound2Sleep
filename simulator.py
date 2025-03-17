@@ -110,9 +110,11 @@ class Simulator():
         stim_time = [] # time of stimulation
         stim_freqs = []
 
+        hl_ratios = []
+
         # filter parameters
-        lowband = [1, 4]
-        highband = [12, 80] 
+        lowband = [0.5, 4]
+        highband = [8, 12] 
         sos_low = self.butter_filter(lowband, 'bandpass', self.fs)
         sos_high = self.butter_filter(highband, 'bandpass', self.fs)
 
@@ -131,9 +133,9 @@ class Simulator():
         for i in tqdm(range(0, len(signal), step_len)):
             self.signal_buffer.extend(signal[i:i+step_len])
             self.baseline_buffer.extend(signal[i:i+step_len])
-
-            lp_signal, zi_low = scipy.signal.sosfilt(sos_low, self.signal_buffer, zi = zi_low)
-            hp_signal, zi_high = scipy.signal.sosfilt(sos_high, self.signal_buffer, zi = zi_high)
+            ratio_data = np.array(list(self.baseline_buffer)[-4 * self.fs:])
+            lp_signal, zi_low = scipy.signal.sosfilt(sos_low, ratio_data, zi = zi_low)
+            hp_signal, zi_high = scipy.signal.sosfilt(sos_high, ratio_data, zi = zi_high)
 
             if len(self.signal_buffer) == self.window_len:
                 # baseline signal 
@@ -146,13 +148,14 @@ class Simulator():
                 window = np.array(baselined_sig)
                 # check high-low frequency ratio
                 hl_ratio = self.identify_sw(np.array(lp_signal), np.array(hp_signal), self.fs)
-                if hl_ratio > -1:
+                hl_ratios.append(hl_ratio)
+                if hl_ratio > 0:
                     continue
                 max_amp = np.nanmax(np.abs(window[self.fs:]))
                 max_thresh = 150
                 if max_amp > max_thresh:
                     continue
-                if max_amp < 80:
+                if max_amp < 30:
                     continue
 
                 phase, freq = self.phase_estimator(window)
@@ -180,7 +183,7 @@ class Simulator():
         
         # unwrap phase
         phase_list = -np.unwrap(phase_list) % (2 * pi)
-        return phase_list, time_indices, stim_time, stim_freqs
+        return phase_list, time_indices, stim_time, stim_freqs, hl_ratios
 
 # Test accuracy and precision of phase estimation
 def phase_hist(signal, stim_trigs, outpath, stim_freqs, fs = 256, lowcut = 0.5, highcut = 2, window_size = 2):
