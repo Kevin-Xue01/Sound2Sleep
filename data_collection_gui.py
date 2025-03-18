@@ -275,6 +275,26 @@ class ConnectionWidget(QWidget):
         self.CLAS_button.setFixedSize(200, 40)
         self.CLAS_button.setEnabled(False)
         self.CLAS_button.clicked.connect(self.on_CLAS_button_clicked)
+
+        self.CLAS_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                border-radius: 5px;
+                border: none;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+            QPushButton:hover:!disabled {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3e8e41;
+            }
+        """)
         
         # Add button to layout
         button_layout = QHBoxLayout()
@@ -355,7 +375,7 @@ class ConnectionWidget(QWidget):
             if (amp_buffer_mean < self.config.amp_buffer_mean_min) or (amp_buffer_mean > self.config.amp_buffer_mean_max):
                 return EEGProcessorOutput.AMPLITUDE, 0, phase, freq, amp, amp_buffer_mean
 
-            if hl_ratio_buffer_mean > self.config.hl_ratio_buffer_mean_threshold or hl_ratio > self.config.hl_ratio_latest_threshold:
+            if hl_ratio_buffer_mean > self.config.hl_ratio_buffer_mean_max or hl_ratio > self.config.hl_ratio_latest_max:
                 return EEGProcessorOutput.HL_RATIO, 0, phase, freq, amp, amp_buffer_mean
 
         # if we are waiting for 2nd stim, but before the backoff window, only use phase targeting
@@ -466,14 +486,7 @@ class ConnectionWidget(QWidget):
         elapsed_time = time.time() - self.quality_check_start_time
         quality = self.status_widget.connection_quality
         
-        # Update button style based on quality
-        if quality == ConnectionQuality.HIGH:
-            self.CLAS_button.setText(f"Ready to Sleep (Signal Quality: {self.status_widget.connection_quality.value})")
-        elif quality == ConnectionQuality.MEDIUM:
-            self.CLAS_button.setText(f"Ready to Sleep (Signal Quality: {self.status_widget.connection_quality.value})")
-        else:
-            self.CLAS_button.setStyleSheet("")
-            self.CLAS_button.setText(f"Ready to Sleep (Signal Quality: {self.status_widget.connection_quality.value})")
+        self.CLAS_button.setText(CONNECTION_QUALITY_LABELS[quality])
         
         # Enable button based on quality and elapsed time
         enable_button = (quality == ConnectionQuality.HIGH or (quality == ConnectionQuality.MEDIUM and elapsed_time >= self.min_quality_check_duration))
