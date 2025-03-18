@@ -19,6 +19,9 @@ from PyQt5.QtCore import Qt
 
 from matplotlib.patches import Arc, FancyArrowPatch
 
+from utils import hypnogramCreation
+from config import Config
+
 def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=1.05, is_ls=False, is_deep=False):
     arc = Arc((0, 0), width=2*r_arrow, height=2*r_arrow,
               angle=0, theta1=theta_start, theta2=theta_end, lw=2, color=arrow_color)
@@ -50,25 +53,12 @@ def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=
     ax.add_patch(arrow)
 
 def generate_sleep_figure():
-    # 1. Download EDF file and load data
-    data_dir = "./sleep_data"
-    os.makedirs(data_dir, exist_ok=True)
-    records = fetch_data(subjects=[0], recording=[1], path=data_dir)
-    edf_file = records[0]  # First file
 
-    raw = mne.io.read_raw_edf(edf_file[0], preload=True)
-    raw.resample(100)  # Downsample to 100 Hz
+    #session_key = Config.get_session_key()  # Access session key
+    directory = f"data/{session_key = config.get_session_key()  # Access session key}"
 
-    # 2. Select EEG channel
-    eeg_channels = [ch for ch in raw.ch_names if "EEG" in ch or "CH" in ch]
-    selected_channel = "CH 2" if "CH 2" in eeg_channels else eeg_channels[0]
-    raw.pick_channels([selected_channel])
-
-    # 3. Run Sleep Staging
-    sls = yasa.SleepStaging(raw, eeg_name=selected_channel)
-    hypno_pred = sls.predict()
-    hypno_pred = yasa.hypno_str_to_int(hypno_pred)
-    hypno_pred = hypno_pred[900:1750]
+    os.makedirs(directory, exist_ok=True)
+    hypno_pred = hypnogramCreation(data_dir, "Ch2")
 
     # 4. Prepare donut chart data
     stage_names = ["Awake", "REM", "N1", "N2", "N3"]
