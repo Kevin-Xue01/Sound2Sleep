@@ -150,6 +150,31 @@ class StatusWidget(QWidget):
 #         for i in range(len(points) - 1):
 #             painter.drawLine(points[i][0], points[i][1], points[i+1][0], points[i+1][1])
 
+class StatusWidget(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.connection_quality = ConnectionQuality.LOW
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        self.indicator = QLabel()
+        self.indicator.setFixedSize(15, 15)
+        self.indicator.setStyleSheet(f"background-color: {CONNECTION_QUALITY_COLORS[self.connection_quality]}; border-radius: 7px;")
+
+        self.text = QLabel(CONNECTION_QUALITY_LABELS[self.connection_quality])
+        self.text.setFont(QFont("Arial", 16))
+        self.text.setStyleSheet("color: white;")  # Set display text to white
+        layout.addWidget(self.indicator)
+        layout.addWidget(self.text)
+        self.setLayout(layout)
+
+    def setStatus(self, status):
+        self.connection_quality = status
+        self.indicator.setStyleSheet(f"background-color: {CONNECTION_QUALITY_COLORS[self.connection_quality]}; border-radius: 7px;")
+        self.text.setText(CONNECTION_QUALITY_LABELS[self.connection_quality])
+
+
 class ConnectionWidget(QWidget):
     def __init__(self, parent, config: SessionConfig):
         super().__init__(parent)
@@ -158,7 +183,7 @@ class ConnectionWidget(QWidget):
         self.file_writer = FileWriter(self.config._session_key)
         self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
-
+        self.running_clas_algo = False
 
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
@@ -213,7 +238,7 @@ class ConnectionWidget(QWidget):
         # Start the Muse LSL recording process
         self.recording_process = Process(
             target=ConnectionWidget.record,
-            args=(self._queue, self.connected_flag, self.config),
+            args=(self._queue, self.connected_flag),
             daemon=True
         )
         self.recording_process.start()
@@ -232,10 +257,36 @@ class ConnectionWidget(QWidget):
         self.loading_movie.stop()
         self.loading_screen.setVisible(False)
 
+        # Create and add StatusWidget
+        self.status_widget = StatusWidget(self)
+        self.main_layout.addWidget(self.status_widget, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        # Set initial status to checking
+        self.status_widget.setStatus(ConnectionQuality.LOW)
+        
+        # Initialize quality check variables
+        self.quality_check_enabled = True
+        self.quality_check_start_time = time.time()
+        self.processing_enabled = False
+        self.min_quality_check_duration = 30  # Minimum 30 seconds of quality checking
+        
+        # Create start button (initially disabled)
+        self.CLAS_button = QPushButton("Start Processing")
+        self.CLAS_button.setFixedSize(200, 40)
+        self.CLAS_button.setEnabled(False)
+        self.CLAS_button.clicked.connect(self.on_CLAS_button_clicked)
+        
+        # Add button to layout
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(self.CLAS_button)
+        button_layout.addStretch()
+        self.main_layout.addLayout(button_layout)
+        
         # Setup the timer for real-time updates
         self.update_timer = QtCore.QTimer()
         self.update_timer.timeout.connect(self.update_plot)
-        self.update_timer.start(20)  # 25 fps update rate
+        self.update_timer.start(20)  # 50 fps update rate
         
         # Install event filter for key press events
         self.installEventFilter(self)
@@ -304,7 +355,7 @@ class ConnectionWidget(QWidget):
             if (amp_buffer_mean < self.config.amp_buffer_mean_min) or (amp_buffer_mean > self.config.amp_buffer_mean_max):
                 return EEGProcessorOutput.AMPLITUDE, 0, phase, freq, amp, amp_buffer_mean
 
-            if hl_ratio_buffer_mean > self.config.hl_ratio_buffer_mean_max or hl_ratio > self.config.hl_ratio_latest_max:
+            if hl_ratio_buffer_mean > self.config.hl_ratio_buffer_mean_threshold or hl_ratio > self.config.hl_ratio_latest_threshold:
                 return EEGProcessorOutput.HL_RATIO, 0, phase, freq, amp, amp_buffer_mean
 
         # if we are waiting for 2nd stim, but before the backoff window, only use phase targeting
@@ -350,8 +401,7 @@ class ConnectionWidget(QWidget):
         while not self._queue.empty():
             try:
                 new_samples, new_timestamps = self._queue.get_nowait()
-                
-                # Example:
+
                 if len(self.eeg_data) == 0:
                     self.eeg_data = new_samples
                     self.timestamps = new_timestamps
@@ -362,11 +412,15 @@ class ConnectionWidget(QWidget):
                 self.eeg_data = self.eeg_data[-self.window_len_n:, :]
                 self.timestamps = self.timestamps[-self.window_len_n:]
 
-                if len(self.eeg_data) < self.processing_window_len_n:
+                # If we're still in quality check period
+                if self.quality_check_enabled:
+                    self.check_signal_quality()
+                    self.update_button_state()
                     continue
 
                 mean_to_subtract = np.mean(self.eeg_data, axis=0)
-                
+                self.file_writer.write_chunk(new_samples, new_timestamps)
+
                 result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1(mean_to_subtract)
                 self.logger.info(f"Result {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
 
@@ -377,7 +431,54 @@ class ConnectionWidget(QWidget):
                 
             except Empty:
                 break
+    
+    def check_signal_quality(self):
+        if len(self.eeg_data) < self.processing_window_len_n:  return
+            
+        channel_stds = np.std(self.eeg_data[-self.processing_window_len_n:, :], axis=0)
+        channel_std = np.min(channel_stds)
+        
+        # Update status based on minimum channel variance
+        if channel_std > 250:
+            self.status_widget.setStatus(ConnectionQuality.LOW)
+        elif channel_std > 150:
+            self.status_widget.setStatus(ConnectionQuality.MEDIUM)
+        else:
+            self.status_widget.setStatus(ConnectionQuality.HIGH)
+        
+    def on_CLAS_button_clicked(self):
+        if not self.processing_enabled:
+            self.quality_check_enabled = False
+            self.processing_enabled = True
+            
+            # Update button to show processing state
+            self.CLAS_button.setEnabled(True)
+            self.CLAS_button.setText("I'm awake")
+            
+            if self.status_widget.connection_quality == ConnectionQuality.HIGH:
+                self.logger.info(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
+            else:
+                self.logger.warning(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
+        else:
+            pass
 
+    def update_button_state(self):
+        elapsed_time = time.time() - self.quality_check_start_time
+        quality = self.status_widget.connection_quality
+        
+        # Update button style based on quality
+        if quality == ConnectionQuality.HIGH:
+            self.CLAS_button.setText(f"Ready to Sleep (Signal Quality: {self.status_widget.connection_quality.value})")
+        elif quality == ConnectionQuality.MEDIUM:
+            self.CLAS_button.setText(f"Ready to Sleep (Signal Quality: {self.status_widget.connection_quality.value})")
+        else:
+            self.CLAS_button.setStyleSheet("")
+            self.CLAS_button.setText(f"Ready to Sleep (Signal Quality: {self.status_widget.connection_quality.value})")
+        
+        # Enable button based on quality and elapsed time
+        enable_button = (quality == ConnectionQuality.HIGH or (quality == ConnectionQuality.MEDIUM and elapsed_time >= self.min_quality_check_duration))
+        self.CLAS_button.setEnabled(enable_button)
+            
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress:
             # Handle key press events
@@ -386,34 +487,7 @@ class ConnectionWidget(QWidget):
         return super().eventFilter(obj, event)
 
     @classmethod
-    def record(cls, _queue: Queue, _connected_flag: EventType, _config: SessionConfig, *args):
-        file_writer = FileWriter(_config._session_key)
-
-        # def run(self):
-        #     running = True
-        #     no_data_counter = 0
-        #     while self.running:
-        #         time.sleep(DELAYS[MuseDataType.EEG])
-
-        #         try:
-        #             data, timestamps = self.parent_app.stream_inlet[MuseDataType.EEG].pull_chunk(timeout=DELAYS[MuseDataType.EEG], max_samples=CHUNK_SIZE[MuseDataType.EEG])
-        #             if timestamps and len(timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
-        #                 timestamps = TIMESTAMPS[MuseDataType.EEG] + np.float64(time.time())
-        #                 self.last_timestamp = timestamps[-1]
-        #                 data = np.array(data).astype(np.float32)
-
-        #                 self.results_ready.emit(data, timestamps)
-        #             else:
-        #                 no_data_counter += 1
-
-        #                 if no_data_counter >= 10:
-        #                     self.error.emit(f'No {MuseDataType.EEG} data received for 10 consecutive attempts')
-
-        #         except Exception as ex:
-        #             self.error.emit(traceback.format_exc())
-
-        #     self.finished.emit()
-
+    def record(cls, _queue: Queue, _connected_flag: EventType):
         found_muse = None
         while not found_muse:
             found_muse = find_muse()
@@ -423,7 +497,6 @@ class ConnectionWidget(QWidget):
         def save_eeg(new_samples: np.ndarray, new_timestamps: np.ndarray):
             new_samples = new_samples.transpose()[:, :-1].astype(np.float32) # IGNORE RIGHT AUX Final shape of queue input = ((12, 4), (12,))
             _queue.put((new_samples, new_timestamps)) 
-            file_writer.write_chunk(new_samples, new_timestamps)
 
         muse = Muse(address, save_eeg)
         while not muse.connect():
@@ -461,6 +534,7 @@ class ConnectionWidget(QWidget):
 
         muse.stop()
         muse.disconnect()
+
     def __del__(self):
         if self.recording_process.is_alive():
             self.recording_process.terminate()

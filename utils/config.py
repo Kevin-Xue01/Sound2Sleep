@@ -31,13 +31,13 @@ class SessionConfig(BaseModel):
     mean_subtraction_window_len_s: float = 15.0
     processing_window_len_s: float = 2.0 # [seconds], duration of processing window
     
-    hl_ratio_buffer_len: int = 3
-    hl_ratio_buffer_mean_max: float = -2.0
-    hl_ratio_latest_max: float = -2.0
+    hl_ratio_buffer_len: int = 2
+    hl_ratio_buffer_mean_threshold: float = 0.0
+    hl_ratio_latest_threshold: float = -1.0
 
-    amp_buffer_len: int = 3
-    amp_buffer_mean_min: float = 75.0
-    amp_buffer_mean_max: float = 175.0
+    amp_buffer_len: int = 2
+    amp_buffer_mean_min: float = 50.0
+    amp_buffer_mean_max: float = 150.0
 
     target_phase: float = 0.0 # radians
     
@@ -45,15 +45,15 @@ class SessionConfig(BaseModel):
     stim2_start_delay: float = 2.0
     stim2_end_delay: float = 2.0
 
-    low_bpf_cutoff: tuple = (1.0, 4.0)
-    high_bpf_cutoff: tuple = (12.0, 80.0)
+    low_bpf_cutoff: tuple = (0.5, 4.0)
+    high_bpf_cutoff: tuple = (8.0, 12.0)
     bpf_order: int = 4
 
     switch_channel_period_s: float = 15.0
     stim1_prediction_limit_sec: float = 1.0
     stim2_prediction_limit_sec: float = 1.0
 
-    time_to_target_offset: float = 0.005
+    time_to_target_offset: float = 0.002
     
     def __eq__(self, other):
         """Compare two SessionConfig objects, ignoring private attributes."""
