@@ -32,27 +32,26 @@ class Simulator():
         self.window_len = int(window_size * fs)
         self.signal_buffer = deque(maxlen = self.window_len)
         self.baseline_buffer = deque(maxlen = 15 * fs)
+        self.low_buffer = deque(maxlen = 15 * fs)
+        self.high_buffer = deque(maxlen = 15 * fs)
 
     def phase_estimator(self, signal: np.ndarray): 
         # dot product of truncated wavelet
         conv_vals = [np.dot(signal, w) for w in self.trunc_wavelets]
         max_idx = np.argmax(np.abs(conv_vals))
         freq = self.wavelet_freqs[max_idx]
+        amp = np.abs(conv_vals[max_idx] / 2)
         phase = (-np.angle(conv_vals[max_idx])) % (2 * pi)
-        return phase, freq
+        return phase, freq, amp
 
-    @staticmethod
-    def identify_sw(filtered_signal_lp: np.ndarray, filtered_signal_hp: np.ndarray, fs: int):
-        filtered_signal_lp = filtered_signal_lp[1 * fs:]
-        filtered_signal_hp = filtered_signal_hp[1 * fs:]
-        # compute the lp envelope of the signal
-        envelope_lp = np.abs(scipy.signal.hilbert(filtered_signal_lp))
-        power_lf = envelope_lp**2
-        # compute the hf envelope of the signal
-        envelope_hf = np.abs(scipy.signal.hilbert(filtered_signal_hp))
-        power_hf = envelope_hf**2
-        # compute ratio and store
-        hl_ratio = np.mean(power_hf) / np.mean(power_lf)
+    def identify_sw(self, signal: np.ndarray, low_Freq_wavelets, high_freq_wavelets):
+
+        low_conv_vals = [np.dot(signal, w) for w in low_Freq_wavelets]
+        high_conv_vals = [np.dot(signal, w) for w in high_freq_wavelets]
+
+        low_amp = np.nanmean(np.abs(low_conv_vals) **2)
+        high_amp = np.nanmean(np.abs(high_conv_vals) **2)
+        hl_ratio = high_amp / low_amp
         hl_ratio = np.log10(hl_ratio)
         return hl_ratio
         
@@ -102,7 +101,7 @@ class Simulator():
         backoff = False
         stim_count = 0  
         last_stim_time = -np.inf
-        target_phase = 0
+        target_phase = np.pi / 4
         
         step_len = int(real_time_step * self.fs)
         phase_list =   []
@@ -112,16 +111,6 @@ class Simulator():
 
         hl_ratios = []
 
-        # filter parameters
-        lowband = [0.5, 4]
-        highband = [8, 12] 
-        sos_low = self.butter_filter(lowband, 'bandpass', self.fs)
-        sos_high = self.butter_filter(highband, 'bandpass', self.fs)
-
-        # initialize filters
-        zi_low = scipy.signal.sosfilt_zi(sos_low)
-        zi_high = scipy.signal.sosfilt_zi(sos_high)
-
         # initialize wavelets
         w = 5
         wavelet_width = lambda f: w*self.fs / (2*f*np.pi)
@@ -130,12 +119,17 @@ class Simulator():
         trunc_wavelet_len = self.analysis_len * self.fs * 2 # double the length of the signal
         self.trunc_wavelets = [scipy.signal.morlet2(trunc_wavelet_len, wavelet_width(f), w = 5)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
 
+        low_freqs = np.linspace(0.5, 4, 5)
+        # initalize low freq wavelets
+        low_freq_wavelets = [scipy.signal.morlet2(trunc_wavelet_len, wavelet_width(f), w = 5)[:trunc_wavelet_len // 2] for f in low_freqs]
+        high_freqs = np.linspace(8, 12, 5)
+        # initalize high freq wavelets
+        high_freq_wavelets = [scipy.signal.morlet2(trunc_wavelet_len, wavelet_width(f), w = 5)[:trunc_wavelet_len // 2] for f in high_freqs]
+
         for i in tqdm(range(0, len(signal), step_len)):
             self.signal_buffer.extend(signal[i:i+step_len])
             self.baseline_buffer.extend(signal[i:i+step_len])
-            ratio_data = np.array(list(self.baseline_buffer)[-4 * self.fs:])
-            lp_signal, zi_low = scipy.signal.sosfilt(sos_low, ratio_data, zi = zi_low)
-            hp_signal, zi_high = scipy.signal.sosfilt(sos_high, ratio_data, zi = zi_high)
+
 
             if len(self.signal_buffer) == self.window_len:
                 # baseline signal 
@@ -147,18 +141,18 @@ class Simulator():
                 
                 window = np.array(baselined_sig)
                 # check high-low frequency ratio
-                hl_ratio = self.identify_sw(np.array(lp_signal), np.array(hp_signal), self.fs)
+                hl_ratio = self.identify_sw(window, low_freq_wavelets, high_freq_wavelets)
                 hl_ratios.append(hl_ratio)
-                if hl_ratio > 0:
+                if hl_ratio > -1:
                     continue
-                max_amp = np.nanmax(np.abs(window[self.fs:]))
-                max_thresh = 150
-                if max_amp > max_thresh:
+                phase, freq, amp = self.phase_estimator(window)
+                max_thresh = 400
+                if amp > max_thresh:
                     continue
-                if max_amp < 30:
+                
+                if amp < 75:
                     continue
 
-                phase, freq = self.phase_estimator(window)
                 phase_list.append(phase)
                 time_indices.append(i/self.fs)
 
@@ -167,10 +161,11 @@ class Simulator():
 
                 delta_t = (target_phase - phase) % (2 * pi) / (2 * pi * freq)
                 
-                if delta_t < 0.1 and not backoff:
+                if delta_t < 0.1 and not backoff and (i / self.fs - last_stim_time) >= 0.5:
                 # queue stim
                     stim_time.append(i / self.fs + delta_t)
                     stim_freqs.append(freq)
+                    last_stim_time = i / self.fs + delta_t
                     stim_count += 1
 
                     if stim_count == 2:
@@ -183,8 +178,8 @@ class Simulator():
         
         # unwrap phase
         phase_list = -np.unwrap(phase_list) % (2 * pi)
-        return phase_list, time_indices, stim_time, stim_freqs, hl_ratios
-
+        return phase_list, time_indices, stim_time, stim_freqs
+    
 # Test accuracy and precision of phase estimation
 def phase_hist(signal, stim_trigs, outpath, stim_freqs, fs = 256, lowcut = 0.5, highcut = 2, window_size = 2):
     stim_idx = (np.array(stim_trigs) * fs).astype(int)
@@ -253,7 +248,7 @@ def phase_hist(signal, stim_trigs, outpath, stim_freqs, fs = 256, lowcut = 0.5, 
         plt.savefig(os.path.join(output_dir, f'phase_{bin:.2f}.png'))
         plt.close()
 
-    return stim_phases, mean_signal
+    return stim_phases, 0
 
     
 
@@ -326,18 +321,18 @@ plt.close()
 
 
 
-# plot mean signal
-mean_signals = np.concatenate(mean_signals)
-lower_percentile = np.percentile(mean_signals, 25, axis=0)
-upper_percentile = np.percentile(mean_signals, 75, axis=0)
-plt.figure(figsize=(10, 10))
-plt.fill_between(np.arange(len(mean_signals)) / fs - 1.5, lower_percentile, upper_percentile, alpha = 0.2, color = 'slateblue')
-plt.plot(np.arange(len(mean_signals)) / fs - 1.5, mean_signals * 1e6, linewidth = 2, color = 'slateblue')
-plt.axvline(linestyle = '--', alpha = 0.1)
-plt.ylim(-150, 150)
-plt.xlabel('Time (s)')
-plt.ylabel('Amplitude (μV)')
-plt.title('Average Signal')
-plt.tight_layout()
-plt.savefig(os.path.join('simulation_results', 'twave_mean_signal.pdf'), dpi=300, transparent=True)
-plt.close()
+# # plot mean signal
+# mean_signals = np.concatenate(mean_signals)
+# lower_percentile = np.percentile(mean_signals, 25, axis=0)
+# upper_percentile = np.percentile(mean_signals, 75, axis=0)
+# plt.figure(figsize=(10, 10))
+# plt.fill_between(np.arange(len(mean_signals)) / fs - 1.5, lower_percentile, upper_percentile, alpha = 0.2, color = 'slateblue')
+# plt.plot(np.arange(len(mean_signals)) / fs - 1.5, mean_signals * 1e6, linewidth = 2, color = 'slateblue')
+# plt.axvline(linestyle = '--', alpha = 0.1)
+# plt.ylim(-150, 150)
+# plt.xlabel('Time (s)')
+# plt.ylabel('Amplitude (μV)')
+# plt.title('Average Signal')
+# plt.tight_layout()
+# plt.savefig(os.path.join('simulation_results', 'twave_mean_signal.pdf'), dpi=300, transparent=True)
+# plt.close()
