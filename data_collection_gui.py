@@ -1,3 +1,4 @@
+import asyncio
 import ctypes
 import json
 import math
@@ -22,12 +23,15 @@ from typing import Union
 import bleak.exc
 import matplotlib
 import matplotlib.pyplot as plt
+import muselsl.backends
 import numpy as np
 import psutil
 import pyqtgraph as pg
 import scipy.signal as signal
 import seaborn as sns
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from muselsl.muse import Muse
+from muselsl.stream import find_muse  # Adjust this import as needed
 from pydantic import ValidationError
 from pylsl import StreamInfo, StreamInlet, resolve_byprop
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -56,9 +60,6 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-import muselsl.backends
-from muselsl.muse import Muse
-from muselsl.stream import find_muse  # Adjust this import as needed
 from utils import (
     CHANNEL_NAMES,
     CHUNK_SIZE,
@@ -414,8 +415,19 @@ class ConnectionWidget(QWidget):
     def randomize_phase(self):
         self.target_phase = random.uniform(0.0, 2*np.pi)
 
+    async def play_audio_async(self, delay):
+        await asyncio.sleep(delay)  # Non-blocking sleep
+        await self._start_audio()
+
+    async def _start_audio(self):
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.audio.play) 
+
     def play_audio(self, delay):
-        QTimer.singleShot(delay * 1000, self.audio.run)
+        asyncio.create_task(self.play_audio_async(delay))
+
+    def _start_audio(self):
+        QThreadPool.globalInstance().start(self.audio)
 
     def update_plot(self):
         while not self._queue.empty():

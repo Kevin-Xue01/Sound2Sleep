@@ -1,3 +1,4 @@
+import asyncio
 import math
 import sys
 
@@ -36,6 +37,12 @@ class Audio(QRunnable):
 
         self.sound = sa.WaveObject(noisedata, 1, 2, fs)
 
-    def run(self):
+    async def play(self):
+        """Non-blocking audio playback using asyncio."""
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._blocking_play)
+
+    def _blocking_play(self):
+        """Plays the sound in a blocking way (but wrapped in an executor)."""
         handle = self.sound.play()
         handle.wait_done()
