@@ -20,12 +20,13 @@ class TruncatedWaveletConfig(BaseModel):
 class AudioConfig(BaseModel):
     ramp_s: float = 1.0
     total_s: float = 3.0
+    volume: float = 0.001
 
 class SessionConfig(BaseModel):
     _session_key: str = PrivateAttr(default_factory=lambda: datetime.now().strftime("%m-%d_%H-%M-%S"))
     _created_at: str = PrivateAttr(default_factory=lambda: datetime.now().isoformat())
     _audio: AudioConfig = PrivateAttr(default_factory=AudioConfig)
-    experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_OFF
+    experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_ON
     truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
     
     mean_subtraction_window_len_s: float = 15.0
