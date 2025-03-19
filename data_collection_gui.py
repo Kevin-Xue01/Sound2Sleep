@@ -499,7 +499,6 @@ class ConnectionWidget(QWidget):
             self.quality_check_enabled = False
             self.processing_enabled = True
             
-            # Update button to show processing state
             self.CLAS_button.setEnabled(True)
             self.CLAS_button.setText("I'm awake")
             
@@ -508,7 +507,13 @@ class ConnectionWidget(QWidget):
             else:
                 self.logger.warning(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
         else:
-            pass
+            self.quality_check_enabled = False
+            self.processing_enabled = False
+            if self.recording_process.is_alive():
+                self.recording_process.terminate()
+                print("Recording process terminated")
+            self.update_timer.stop()
+            self._parent.stacked_widget.setCurrentWidget(self._parent.mood_page)
 
     def update_button_state(self):
         elapsed_time = time.time() - self.quality_check_start_time
@@ -581,138 +586,3 @@ class ConnectionWidget(QWidget):
             self.recording_process.terminate()
             print("Recording process terminated")
         super().__del__()
-
-    # def eventFilter(self, obj, event):
-    #     """Handle key press events for zooming"""
-    #     if event.type() == QtCore.QEvent.Type.KeyPress:
-    #         if event.key() == QtCore.Qt.Key.Key_Plus or event.key() == QtCore.Qt.Key.Key_Equal:
-    #             # Zoom in (decrease range) for all plots
-    #             for graph_widget in self.graph_widgets:
-    #                 y_min, y_max = graph_widget.getViewBox().viewRange()[1]
-    #                 new_min = y_min / self.zoom_factor
-    #                 new_max = y_max / self.zoom_factor
-    #                 graph_widget.setYRange(new_min, new_max)
-    #             return True
-                
-    #         elif event.key() == QtCore.Qt.Key.Key_Minus:
-    #             # Zoom out (increase range) for all plots
-    #             for graph_widget in self.graph_widgets:
-    #                 y_min, y_max = graph_widget.getViewBox().viewRange()[1]
-    #                 new_min = y_min * self.zoom_factor
-    #                 new_max = y_max * self.zoom_factor
-    #                 graph_widget.setYRange(new_min, new_max)
-    #             return True
-                
-    #     return super(ConnectionWidget, self).eventFilter(obj, event)
-
-    # def start_data_quality_monitor(self):
-    #     self.quality_timer = QTimer(self)
-    #     self.quality_timer.timeout.connect(self.check_quality)
-    #     self.quality_timer.start(1000) 
-
-    # def update_plot(self):
-    #     """Update the plot with new data from the queue"""
-    #     try:
-    #         # Get all available data from the queue
-    #         while not self._queue.empty():
-    #             samples, timestamps = self._queue.get_nowait()
-                
-    #             # Update data buffers with the new samples
-    #             # samples shape: (4, num_samples)
-    #             for i in range(self.num_channels):
-    #                 self.eeg_data[i].extend(samples[i])
-    #                 # Keep only the most recent buffer_size samples
-    #                 while len(self.eeg_data[i]) > self.buffer_size:
-    #                     self.eeg_data[i].popleft()
-                
-    #         # Update the plot curves with the current data
-    #         for i in range(self.num_channels):
-    #             self.curves[i].setData(self.time_data, list(self.eeg_data[i]))
-                
-    #     except (Empty, OSError):
-    #         # No data available or queue closed
-    #         pass
-    
-    # def closeEvent(self, event):
-    #     """Clean up before closing the window"""
-    #     if self.recording_process and self.recording_process.is_alive():
-    #         self.recording_process.terminate()
-    #         self.recording_process.join(timeout=1.0)
-            
-    #     # Clean up queue
-    #     self._queue.close()
-        
-    #     event.accept()
-
-
-
-    # def on_quality_check(self, quality):
-    #     self.main_layout.removeWidget(self.loading_screen)
-    #     self.loading_screen.deleteLater()
-    #     self.eeg_simulation = RealTimeEEGPlotWidget()
-    #     self.main_layout.addWidget(self.eeg_simulation)
-    #     self.main_layout.setStretchFactor(self.eeg_simulation, 3)
-
-    #     control_container = QWidget()
-    #     control_layout = QVBoxLayout(control_container)
-    #     control_layout.setContentsMargins(0, 0, 0, 0)
-    #     control_layout.setSpacing(10)
-
-    #     status_layout = QHBoxLayout()
-    #     status_layout.setContentsMargins(0, 0, 0, 0)
-    #     status_layout.setSpacing(5)
-    #     status_layout.addStretch(1)
-
-    #     self.status_widget = StatusWidget(status=quality)
-    #     status_layout.addWidget(self.status_widget, alignment=Qt.AlignmentFlag.AlignCenter)
-    #     status_layout.addStretch(1)
-    #     control_layout.addLayout(status_layout)
-
-    #     self.sleep_button = QPushButton("Start Sleep Algorithm")
-    #     self.sleep_button.setFont(QFont("Arial", 16))
-
-    #     if quality == "green":
-    #         self.sleep_button.setEnabled(True)
-    #         self.sleep_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
-    #     else:
-    #         self.sleep_button.setEnabled(False)
-    #         self.sleep_button.setStyleSheet("background-color: gray; color: white; padding: 10px; border-radius: 10px;")
-    #     self.sleep_button.setMaximumWidth(400)
-    #     self.sleep_button.clicked.connect(self.start_sleep_algorithm)
-
-    #     control_layout.addWidget(self.sleep_button, alignment=Qt.AlignHCenter | Qt.AlignTop)
-
-    #     self.main_layout.addWidget(control_container)
-
-    #     self.main_layout.setStretchFactor(control_container, 1)
-
-    # def start_sleep_algorithm(self):
-    #     self.sleep_button.setText("I'm Awake!")
-    #     self.sleep_button.setStyleSheet("background-color: red; color: white; padding: 10px; border-radius: 10px;")
-    #     if hasattr(self, "quality_timer"):
-    #         self.quality_timer.stop()
-    #     try:
-    #         self.sleep_button.clicked.disconnect()
-    #     except Exception:
-    #         pass
-    #     self.sleep_button.clicked.connect(lambda: self._parent.stacked_widget.setCurrentWidget(self._parent.mood_page))
-
-    # def check_quality(self):
-    #     try:
-    #         with open("data_quality.json", "r") as f:
-    #             data = json.load(f)
-    #         quality = data.get("quality", "yellow")
-    #     except Exception:
-    #         print("Error reading data_quality.json")
-    #         quality = "yellow"
-
-    #     if hasattr(self, "status_widget"):
-    #         self.status_widget.setStatus(quality)
-    #         if quality == "green":
-    #             self.sleep_button.setEnabled(True)
-    #             self.sleep_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
-    #         else:
-    #             self.sleep_button.setEnabled(False)
-    #             self.sleep_button.setStyleSheet("background-color: gray; color: white; padding: 10px; border-radius: 10px;")
-    #     else:
-    #         self.switch_to_eeg_simulation(quality)
