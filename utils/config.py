@@ -51,8 +51,8 @@ class SessionConfig(BaseModel):
     bpf_order: int = 4
 
     switch_channel_period_s: float = 15.0
-    stim1_prediction_limit_sec: float = 2.0
-    stim2_prediction_limit_sec: float = 2.0
+    stim1_prediction_limit_sec: float = 0.1
+    stim2_prediction_limit_sec: float = 0.1
 
     time_to_target_offset: float = 0.002
     
