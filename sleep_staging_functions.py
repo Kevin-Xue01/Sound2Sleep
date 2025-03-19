@@ -1,4 +1,3 @@
-# Your MNE imports for the staging
 import mne
 import yasa
 import numpy as np
@@ -19,8 +18,33 @@ from PyQt5.QtCore import Qt
 
 from matplotlib.patches import Arc, FancyArrowPatch
 
-from utils import hypnogramCreation
-from config import Config
+from utils import SessionConfig, FileReader
+
+def hypnogramCreation(file_reader: FileReader, chosen_channel="Ch2", num_channels=4, sfreq=256, epoch_length=30):
+    eeg_data = []
+    for curr_eeg_data, curr_timestamps in file_reader.read_all_frames():
+        eeg_data.append(curr_eeg_data.transpose())
+    eeg_data = np.array(eeg_data).reshape(4, -1)
+
+    # eeg_data, timestamps = file_reader.read_all_frames()
+    # Create MNE Info object
+    ch_names = [f"Ch{i + 1}" for i in range(num_channels)]
+    info = mne.create_info(ch_names, sfreq, ch_types="eeg")
+
+    # Create MNE RawArray object
+    raw = mne.io.RawArray(eeg_data, info)
+
+    # Apply a bandpass filter (optional but recommended for sleep staging)
+    raw.filter(0.3, 40., fir_design="firwin")
+
+    # Predict sleep stages with YASA
+    sls = yasa.SleepStaging(raw, eeg_name=chosen_channel)  # Assuming Ch1 is a reliable sleep channel
+    hypnogram = sls.predict()
+
+    # Convert hypnogram to YASA format (seconds-based)
+    hypnogram_sec = yasa.hypno_str_to_int(hypnogram)
+
+    return hypnogram_sec
 
 def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=1.05, is_ls=False, is_deep=False):
     arc = Arc((0, 0), width=2*r_arrow, height=2*r_arrow,
@@ -52,15 +76,10 @@ def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=
                             color=arrow_color, lw=2, shrinkA=0, shrinkB=0)
     ax.add_patch(arrow)
 
-def generate_sleep_figure():
+def generate_sleep_figure(file_reader):
+    hypno_pred = hypnogramCreation(file_reader, "Ch2")
 
-    #session_key = Config.get_session_key()  # Access session key
-    directory = f"data/{session_key = config.get_session_key()  # Access session key}"
-
-    os.makedirs(directory, exist_ok=True)
-    hypno_pred = hypnogramCreation(data_dir, "Ch2")
-
-    # 4. Prepare donut chart data
+    # Prepare donut chart data
     stage_names = ["Awake", "REM", "N1", "N2", "N3"]
     counts = {name: 0 for name in stage_names}
     for s in hypno_pred:
@@ -111,7 +130,7 @@ def generate_sleep_figure():
         0: "#95C8F1",  # N3
     }
 
-    # 6. Create the figure and subplots
+    # Create the figure and subplots
     fig, (ax0, ax1) = plt.subplots(nrows=2, figsize=(10, 10))
     fig.patch.set_facecolor("#1A0033")
     ax0.set_facecolor("#1A0033")
@@ -222,9 +241,13 @@ def generate_sleep_figure():
     return fig, total_sleep_str
 
 class SleepStageReportPage(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, config: SessionConfig, parent=None):
         super().__init__(parent)
+        self.config = config
+        self.file_reader = FileReader("03-19_04-04-33")
         self.parent_app = parent  
+
+
         self.setStyleSheet("background-color: #1A0033;")
 
         self.layout = QVBoxLayout()
@@ -233,7 +256,7 @@ class SleepStageReportPage(QWidget):
         self.greeting_label = QLabel("Good Morning Brandon! Here is your sleep report!")
         self.greeting_label.setFont(QFont("Arial", 24, QFont.Weight.Bold))
         self.greeting_label.setAlignment(Qt.AlignCenter)
-        self.greeting_label.setStyleSheet("color: white;")  
+        self.greeting_label.setStyleSheet("color: white;")
         self.layout.addWidget(self.greeting_label)
 
         self.figure_label = QLabel()
@@ -251,8 +274,8 @@ class SleepStageReportPage(QWidget):
         self.back_button.clicked.connect(self.go_back_home)
         self.layout.addWidget(self.back_button, alignment=Qt.AlignCenter)
 
-    def generate_and_display_report(self):
-        fig, total_sleep_str = generate_sleep_figure()
+    def generate_and_display_report(self, file_reader: FileReader):
+        fig, total_sleep_str = generate_sleep_figure(file_reader)
 
         buf = io.BytesIO()
         fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
@@ -265,7 +288,7 @@ class SleepStageReportPage(QWidget):
 
         self.figure_label.setPixmap(pixmap)
         self.asleep_label.setText(f"You were asleep for {total_sleep_str}")
-        self.asleep_label.setStyleSheet("color: white;")  
+        self.asleep_label.setStyleSheet("color: white;")
 
     def go_back_home(self):
         if self.parent_app:

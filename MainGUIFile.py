@@ -34,7 +34,7 @@ from PyQt5.QtWidgets import (
 from data_collection_gui import ConnectionWidget
 from loading_screen import LoadingScreen
 from sleep_staging_functions import SleepStageReportPage, generate_sleep_figure
-from utils import SessionConfig
+from utils import SessionConfig, FileReader
 
 RANKING_DIR = "gui_data/"
 if not os.path.exists(RANKING_DIR):
@@ -45,6 +45,7 @@ class SleepStudyApp(QWidget):
     def __init__(self):
         super().__init__()
         self.config = SessionConfig()
+        self.file_reader = FileReader("03-19_04-04-33")
         self.setWindowTitle("Overnight Sounds Research Study")
         self.setStyleSheet("background-color: #1A0033;")
         
@@ -76,7 +77,7 @@ class SleepStudyApp(QWidget):
         self.setLayout(main_layout)
 
     def create_sleep_stage_report_page(self):
-        return SleepStageReportPage(self)
+        return SleepStageReportPage(self.config, self)
     
     def show_sleep_stage_report(self):
         self.show_loading_screen()
@@ -90,7 +91,7 @@ class SleepStudyApp(QWidget):
 
     def show_sleep_report_after_loading(self):
         self.stacked_widget.setCurrentWidget(self.sleep_stage_report_page)
-        self.sleep_stage_report_page.generate_and_display_report()
+        self.sleep_stage_report_page.generate_and_display_report(self.file_reader)
         self.stacked_widget.removeWidget(self.loading_screen)
 
     # --------------------- UI Page Creation Functions --------------------- #

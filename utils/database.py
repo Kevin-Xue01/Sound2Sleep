@@ -65,7 +65,7 @@ class FileReader:
         self.timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_timestamp.bin")
         self.data_file_path = os.path.join(directory, f"{self.muse_data_type.name}_data.bin")
         self.stim_timestamp = os.path.join(directory, f"{self.muse_data_type.name}_stim_timestamp.txt")
-        
+
         # Define expected shapes and dtypes
         self.data_shape = (CHUNK_SIZE[MuseDataType.EEG], len(CHANNEL_NAMES[MuseDataType.EEG]))
         self.data_dtype = np.float32
@@ -153,7 +153,7 @@ class FileReader:
 
             eeg_data = np.frombuffer(eeg_bytes, dtype=self.data_dtype).reshape((self.total_frames,) + self.data_shape)
             timestamps = np.frombuffer(timestamp_bytes, dtype=self.timestamp_dtype).reshape((self.total_frames,) + self.timestamp_shape)
-
+            print(eeg_data.shape, timestamps.shape)
             return eeg_data, timestamps  # Returns full dataset in unsafe mode
     
     def read_stim_timestamp(self):
