@@ -33,16 +33,16 @@ class SessionConfig(BaseModel):
     processing_window_len_s: float = 2.0 # [seconds], duration of processing window
     
     hl_ratio_buffer_len: int = 2
-    hl_ratio_buffer_mean_threshold: float = 0.0
-    hl_ratio_latest_threshold: float = -1.0
+    hl_ratio_buffer_mean_threshold: float = -1.0
+    hl_ratio_latest_threshold: float = -2.0
 
     amp_buffer_len: int = 2
-    amp_buffer_mean_min: float = 50.0
-    amp_buffer_mean_max: float = 150.0
+    amp_buffer_mean_min: float = 75.0
+    amp_buffer_mean_max: float = 400.0
 
     target_phase: float = 0.0 # radians
     
-    backoff_time: float = 3.0
+    backoff_time: float = 2.0
     stim2_start_delay: float = 2.0
     stim2_end_delay: float = 2.0
 
@@ -51,8 +51,8 @@ class SessionConfig(BaseModel):
     bpf_order: int = 4
 
     switch_channel_period_s: float = 15.0
-    stim1_prediction_limit_sec: float = 1.0
-    stim2_prediction_limit_sec: float = 1.0
+    stim1_prediction_limit_sec: float = 0.1
+    stim2_prediction_limit_sec: float = 0.1
 
     time_to_target_offset: float = 0.002
     
