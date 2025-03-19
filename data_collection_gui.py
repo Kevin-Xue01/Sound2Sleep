@@ -221,10 +221,15 @@ class ConnectionWidget(QWidget):
         self.zi_low = signal.sosfilt_zi(self.sos_low)
         self.zi_high = signal.sosfilt_zi(self.sos_high)
 
-        self.wavelet_freqs = np.linspace(self.config.truncated_wavelet.low, self.config.truncated_wavelet.high, self.config.truncated_wavelet.n)
         trunc_wavelet_len = self.processing_window_len_n * 2 # double the length of the signal
+        self.wavelet_freqs = np.linspace(self.config.truncated_wavelet.low, self.config.truncated_wavelet.high, self.config.truncated_wavelet.n)
         self.trunc_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = self.config.truncated_wavelet.w)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
         
+        low_freqs = np.linspace(0.5, 4, 5)
+        self.low_freq_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = 5)[:trunc_wavelet_len // 2] for f in low_freqs]
+        high_freqs = np.linspace(8, 12, 5)
+        self.high_freq_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = 5)[:trunc_wavelet_len // 2] for f in high_freqs]
+
         # Rolling mean buffer
         self.rolling_buffer = np.zeros((self.window_len_n, 4))
         self.rolling_idx = 0
@@ -313,18 +318,27 @@ class ConnectionWidget(QWidget):
         self.installEventFilter(self)
 
     def get_hl_ratio(self, selected_channel_data):
-        lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
-        hp_signal, self.zi_high = signal.sosfilt(self.sos_high, selected_channel_data, zi = self.zi_high)
+        # lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
+        # hp_signal, self.zi_high = signal.sosfilt(self.sos_high, selected_channel_data, zi = self.zi_high)
 
-        envelope_lp = np.abs(signal.hilbert(lp_signal[SAMPLING_RATE[MuseDataType.EEG]:]))
-        power_lf = envelope_lp**2
+        # envelope_lp = np.abs(signal.hilbert(lp_signal[SAMPLING_RATE[MuseDataType.EEG]:]))
+        # power_lf = envelope_lp**2
 
-        envelope_hf = np.abs(signal.hilbert(hp_signal[SAMPLING_RATE[MuseDataType.EEG]:]))
-        power_hf = envelope_hf**2
+        # envelope_hf = np.abs(signal.hilbert(hp_signal[SAMPLING_RATE[MuseDataType.EEG]:]))
+        # power_hf = envelope_hf**2
 
-        hl_ratio = np.mean(power_hf) / np.mean(power_lf)
+        # hl_ratio = np.mean(power_hf) / np.mean(power_lf)
+        # hl_ratio = np.log10(hl_ratio)
+        # return hl_ratio
+        low_conv_vals = [np.dot(selected_channel_data, w) for w in self.low_freq_wavelets]
+        high_conv_vals = [np.dot(selected_channel_data, w) for w in self.high_freq_wavelets]
+
+        low_amp = np.nanmean(np.abs(low_conv_vals) **2)
+        high_amp = np.nanmean(np.abs(high_conv_vals) **2)
+        hl_ratio = high_amp / low_amp
         hl_ratio = np.log10(hl_ratio)
         return hl_ratio
+
     
     def estimate_phase(self, selected_channel): 
         conv_vals = [np.dot(selected_channel, w) for w in self.trunc_wavelets]
