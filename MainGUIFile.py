@@ -104,7 +104,7 @@ class SleepStudyApp(QWidget):
         # Left side: logo and text
         left_layout = QHBoxLayout()
         logo_label = QLabel()
-        logo_pixmap = QPixmap("data/logo.png")
+        logo_pixmap = QPixmap("logo.png")
         if not logo_pixmap.isNull():
             # Keep the logo size small regardless of full screen.
             logo_label.setPixmap(logo_pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio))
@@ -363,7 +363,7 @@ class SleepStudyApp(QWidget):
         self.game_process.start(sys.executable, [full_script_path])
         
         # Immediately hide the main window while the game is running
-        self.hide()
+        # self.hide()
 
     def game_finished(self):
         # When the game finishes, clear the process and show the main window again.
