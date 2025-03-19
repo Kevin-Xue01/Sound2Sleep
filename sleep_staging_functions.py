@@ -24,9 +24,8 @@ def hypnogramCreation(file_reader: FileReader, chosen_channel="Ch2", num_channel
     eeg_data = []
     for curr_eeg_data, curr_timestamps in file_reader.read_all_frames():
         eeg_data.append(curr_eeg_data.transpose())
-    eeg_data = np.array(eeg_data).reshape(4, -1)
+    eeg_data = np.array(eeg_data).reshape(num_channels, -1)
 
-    # eeg_data, timestamps = file_reader.read_all_frames()
     # Create MNE Info object
     ch_names = [f"Ch{i + 1}" for i in range(num_channels)]
     info = mne.create_info(ch_names, sfreq, ch_types="eeg")
@@ -54,11 +53,11 @@ def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=
     mid_angle = (theta_start + theta_end) / 2.0
     mid_rad = np.deg2rad(mid_angle)
     if is_ls:
-        x_text = (r_arrow + 0.15) * np.cos(mid_rad)
-        y_text = (r_arrow + 0.15) * np.sin(mid_rad)
-    elif is_deep:
         x_text = (r_arrow + 0.4) * np.cos(mid_rad)
         y_text = (r_arrow + 0.4) * np.sin(mid_rad)
+    elif is_deep:
+        x_text = (r_arrow + 0.15) * np.cos(mid_rad)
+        y_text = (r_arrow + 0.15) * np.sin(mid_rad)
     else:
         x_text = (r_arrow + 0.3) * np.cos(mid_rad)
         y_text = (r_arrow + 0.3) * np.sin(mid_rad)
@@ -130,8 +129,19 @@ def generate_sleep_figure(file_reader):
         0: "#95C8F1",  # N3
     }
 
-    # Create the figure and subplots
-    fig, (ax0, ax1) = plt.subplots(nrows=2, figsize=(10, 10))
+    # Get the current screen size using QApplication (assumes a QApplication is running)
+    screen = QApplication.primaryScreen()
+    size = screen.size()
+    screen_width = size.width()
+    screen_height = size.height()
+
+    # Define a DPI and compute a figure size (in inches) that is 80% of the screen dimensions
+    dpi = 100
+    fig_width = (screen_width / dpi) * 0.8
+    fig_height = (screen_height / dpi) * 0.8
+
+    # Create the figure and subplots using the computed size
+    fig, (ax0, ax1) = plt.subplots(nrows=2, figsize=(fig_width, fig_height), dpi=dpi)
     fig.patch.set_facecolor("#1A0033")
     ax0.set_facecolor("#1A0033")
     ax1.set_facecolor("#1A0033")
@@ -149,10 +159,9 @@ def generate_sleep_figure(file_reader):
     ax0.set_xticks([])
     ax0.set_yticks([])
 
-    ax0.text(0.5, 1.1, "Welcome to your sleep report!", ha='center', va='bottom',
-             fontsize=14, fontweight='bold', color='white', transform=ax0.transAxes)
-    ax0.text(0.5, 1.02, f"Sleep Score: {sleep_score}", ha='center', va='bottom',
-             fontsize=13, fontweight='bold', color='white', transform=ax0.transAxes)
+    # Move the Sleep Score text above the hypnogram by increasing the y coordinate.
+    ax0.text(0.5, 1.15, f"Sleep Score: {sleep_score}", ha='center', va='bottom',
+             fontsize=16, fontweight='bold', color='white', transform=ax0.transAxes)
     
     for wedge, label_name in zip(wedges, stage_names):
         angle = (wedge.theta2 + wedge.theta1) / 2.0
@@ -169,7 +178,7 @@ def generate_sleep_figure(file_reader):
              color='white', transform=ax0.transAxes)
 
     ax0.text(0, 0, f"Total Sleep Time:\n{total_sleep_str}", 
-             ha='center', va='center', fontsize=12, color='white', fontweight='bold')
+             ha='center', va='center', fontsize=11, color='white', fontweight='bold')
 
     gap_deg = 5 
 
@@ -187,6 +196,9 @@ def generate_sleep_figure(file_reader):
     wedge_N3 = wedges[4]
     theta_deep_start = wedge_N3.theta1 + gap_deg/2
     theta_deep_end   = wedge_N3.theta2 - 2*gap_deg/2
+    if wedge_N3.theta2 == wedge_N3.theta1: # If N3 is empty
+        theta_deep_start = wedge_N3.theta1
+        theta_deep_end = wedge_N3.theta2
     add_group_arc(ax0, theta_deep_start, theta_deep_end, "Deep Sleep", arrow_color='#959FEB', r_arrow=1.05, is_deep=True)   
 
     window = 30
@@ -244,9 +256,9 @@ class SleepStageReportPage(QWidget):
     def __init__(self, config: SessionConfig, parent=None):
         super().__init__(parent)
         self.config = config
+        # Initialize the file reader with a specific identifier (adjust as needed)
         self.file_reader = FileReader("03-19_04-04-33")
         self.parent_app = parent  
-
 
         self.setStyleSheet("background-color: #1A0033;")
 
@@ -269,7 +281,7 @@ class SleepStageReportPage(QWidget):
         self.layout.addWidget(self.asleep_label)
 
         self.back_button = QPushButton("Back")
-        self.back_button.setFont(QFont("Arial", 16))
+        self.back_button.setFont(QFont("Arial", 20))
         self.back_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
         self.back_button.clicked.connect(self.go_back_home)
         self.layout.addWidget(self.back_button, alignment=Qt.AlignCenter)
