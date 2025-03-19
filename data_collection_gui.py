@@ -81,6 +81,8 @@ from utils import (
     SessionConfig,
 )
 
+sys.coinit_flags = 0  # 0 means MTA
+
 
 class ConnectionQuality(Enum):
     HIGH = 'High'
