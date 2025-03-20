@@ -1,5 +1,6 @@
 import asyncio
 import ctypes
+import datetime
 import json
 import math
 import random
@@ -14,14 +15,6 @@ from functools import partial
 from math import ceil, floor, isnan, nan, pi
 from multiprocessing import Event, Process, Queue, queues, shared_memory
 from multiprocessing.synchronize import Event as EventType
-
-import datetime
-import numpy as np
-import pyqtgraph as pg
-from pyqtgraph import DateAxisItem
-from PyQt5.QtWidgets import QWidget, QVBoxLayout
-from PyQt5.QtCore import QTimer
-from scipy import signal
 
 # from multiprocessing.synchronize import Event
 from queue import Empty
@@ -67,6 +60,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from pyqtgraph import DateAxisItem
+from scipy import signal
 
 from utils import (
     CHANNEL_NAMES,
@@ -227,6 +222,7 @@ class ConnectionWidget(QWidget):
         self.file_writer = FileWriter(self.config._session_key)
         self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
+
         self.running_clas_algo = False
 
         self.main_layout = QVBoxLayout(self)
@@ -320,6 +316,10 @@ class ConnectionWidget(QWidget):
         self.main_layout.addWidget(self.plot_widget)
 
 
+    def play_audio(self):
+        if not self.audio.playing:
+            self.audio.play()
+
     def check_connection(self):
         # Non-blocking check for connection flag
         if self.connected_flag.is_set():
@@ -384,6 +384,37 @@ class ConnectionWidget(QWidget):
         # Install event filter for key press events
         self.installEventFilter(self)
         self.__init_plotting__()
+
+    def on_CLAS_button_clicked(self):
+        if not self.processing_enabled:
+            self.quality_check_enabled = False
+            self.processing_enabled = True
+            
+            self.CLAS_button.setEnabled(True)
+            self.CLAS_button.setText("I'm awake")
+            
+            if self.status_widget.connection_quality == ConnectionQuality.HIGH:
+                self.logger.info(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
+            else:
+                self.logger.warning(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
+        else:
+            self.quality_check_enabled = False
+            self.processing_enabled = False
+            if self.recording_process.is_alive():
+                self.recording_process.terminate()
+                print("Recording process terminated")
+            self.update_timer.stop()
+            self._parent.stacked_widget.setCurrentWidget(self._parent.mood_page)
+
+    def update_button_state(self):
+        elapsed_time = time.time() - self.quality_check_start_time
+        quality = self.status_widget.connection_quality
+        
+        self.CLAS_button.setText(CONNECTION_QUALITY_LABELS[quality])
+        
+        # Enable button based on quality and elapsed time
+        enable_button = (quality == ConnectionQuality.HIGH or (quality == ConnectionQuality.MEDIUM and elapsed_time >= self.min_quality_check_duration))
+        self.CLAS_button.setEnabled(enable_button)
 
     def get_hl_ratio(self, selected_channel_data):
         # lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
@@ -492,16 +523,11 @@ class ConnectionWidget(QWidget):
             return EEGProcessorOutput.STIM2, delta_t, phase, freq, amp, amp_buffer_mean
     
     def process_eeg_step_2(self, time_to_target):
-        if self.config.experiment_mode == ExperimentMode.CLAS_AUDIO_ON or self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_ON: self.play_audio(time_to_target)
+        if self.config.experiment_mode == ExperimentMode.CLAS_AUDIO_ON or self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_ON: 
+            self.play_audio(time_to_target)
 
     def randomize_phase(self):
         self.target_phase = random.uniform(0.0, 2*np.pi)
-
-    # def play_audio(self, delay):
-    #     asyncio.create_task(self.play_audio_async(delay))
-
-    # def _start_audio(self):
-    #     QThreadPool.globalInstance().start(self.audio)
 
     def update_plot(self):
         while not self._queue.empty():
