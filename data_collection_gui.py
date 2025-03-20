@@ -32,7 +32,7 @@ import psutil
 import pyqtgraph as pg
 import scipy.signal as signal
 import seaborn as sns
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from muselsl.muse import Muse
 from muselsl.stream import find_muse  # Adjust this import as needed
 from pydantic import ValidationError
@@ -150,83 +150,13 @@ class CustomDateAxis(DateAxisItem):
                 last_label = label
         return out
     
-class LSLViewerWidget(QWidget):
-    def __init__(self, window, scale, parent=None):
-        super().__init__(parent)
-        self.window = window
-        self.scale = scale
-        self.init_ui()
-        self.setup_lsl()
-        self.viewer_thread = LSLViewerThread(self.inlet, self.fig, self.ax, self.window, self.scale)
-
-    def init_ui(self):
-        self.layout = QVBoxLayout(self)
-        self.fig, self.ax = plt.subplots(figsize=(10, 5))
-        self.canvas = FigureCanvas(self.fig)
-        self.layout.addWidget(self.canvas)
-        self.setLayout(self.layout)
-        sns.set(style="whitegrid")
-
-    def setup_lsl(self):
-        print("Looking for an EEG stream...")
-        streams = resolve_byprop('type', 'EEG', timeout=5)
-        if len(streams) == 0:
-            raise RuntimeError("Can't find EEG stream.")
-        print("Start acquiring data.")
-        self.inlet = StreamInlet(streams[0])
-
-    def start(self):
-        self.viewer_thread.start()
-
-    def stop(self):
-        self.viewer_thread.running = False
-
-class LSLViewerThread(QThread):
-    update_signal = pyqtSignal()
-
-    def __init__(self, inlet, fig, axes, window, scale):
-        super().__init__()
-        self.inlet = inlet
-        self.fig = fig
-        self.axes = axes
-        self.window = window
-        self.scale = scale
-        self.running = True
-        self.init_plot()
-
-    def init_plot(self):
-        info = self.inlet.info()
-        self.sfreq = info.nominal_srate()
-        self.n_samples = int(self.sfreq * self.window)
-        self.n_chan = info.channel_count()
-        self.times = np.arange(-self.window, 0, 1. / self.sfreq)
-        self.data = np.zeros((self.n_samples, self.n_chan))
-        self.lines = [self.axes.plot(self.times, self.data[:, i] - i, lw=1)[0] for i in range(self.n_chan)]
-        self.axes.set_ylim(-self.n_chan + 0.5, 0.5)
-        self.bf = firwin(32, np.array([1, 40]) / (self.sfreq / 2.), width=0.05, pass_zero=False)
-        self.af = [1.0]
-        self.filt_state = np.tile(lfilter_zi(self.bf, self.af), (self.n_chan, 1)).transpose()
-        self.update_signal.connect(self.fig.canvas.draw)
-
-    def run(self):
-        while self.running:
-            samples, timestamps = self.inlet.pull_chunk(timeout=1.0, max_samples=256)
-            if timestamps:
-                self.times = np.concatenate([self.times, timestamps])[-self.n_samples:]
-                self.data = np.vstack([self.data, samples])[-self.n_samples:]
-                filt_samples, self.filt_state = lfilter(self.bf, self.af, samples, axis=0, zi=self.filt_state)
-                for i in range(self.n_chan):
-                    self.lines[i].set_xdata(self.times - self.times[-1])
-                    self.lines[i].set_ydata(filt_samples[:, i] / self.scale - i)
-                self.update_signal.emit()
-            else:
-                sleep(0.2)
-
 
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
-    def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode=ConnectionMode.REALTIME):
+    def __init__(self, parent, config: SessionConfig):
+
         super().__init__(parent)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._parent = parent
         self.config = config
         self.connection_mode = connection_mode
@@ -291,6 +221,7 @@ class ConnectionWidget(QWidget):
         # Create a queue for communication between processes
         self._queue = Queue()
         self.connected_flag = Event()
+        
         # Start the Muse LSL recording process
         self.recording_process = Process(
             target=ConnectionWidget.record,
@@ -305,16 +236,45 @@ class ConnectionWidget(QWidget):
         
         self.initially_connected = False
         self.display_every_counter = 0
-        self.display_every_counter_max = 5
+        self.display_every_counter_max = 2
+
+    def __init_plotting__(self):
+        sns.set(style="whitegrid")
+        self.scale = 100
+        self.figure, self.ax = plt.subplots()
+        self.canvas = FigureCanvasQTAgg(self.figure)
+        self.main_layout.addWidget(self.canvas)
+
+        self.eeg_data_f = np.zeros((DISPLAY_WINDOW_LEN_N, 4))
+        self.times = np.arange(-DISPLAY_WINDOW_LEN_S, 0, 1. / SAMPLING_RATE[MuseDataType.EEG])
+        impedances = np.std(self.eeg_data_f, axis=0)
+        lines = []
+
+        for ii in range(4):
+            line, = self.ax.plot(self.times[::2], self.eeg_data_f[::2, ii] - ii, lw=1)
+            lines.append(line)
+        self.lines = lines
+
+        self.ax.set_ylim(-4 + 0.5, 0.5)
+        ticks = np.arange(0, -4, -1)
+
+        self.ax.set_xlabel('Time (s)')
+        self.ax.xaxis.grid(False)
+        self.ax.set_yticks(ticks)
+
+        ticks_labels = ['%s - %.1f' % (CHANNEL_NAMES[MuseDataType.EEG][ii], impedances[ii]) for ii in range(4)]
+        self.ax.set_yticklabels(ticks_labels)
+
+        self.bf = firwin(32, np.array([1, 40]) / (SAMPLING_RATE[MuseDataType.EEG] / 2.), width=0.05, pass_zero=False)
+        self.af = [1.0]
+
+        zi = lfilter_zi(self.bf, self.af)
+        self.filt_state = np.tile(zi, (4, 1)).transpose()
 
     def play_audio(self, time_to_target):
         self.audio.play(time_to_target)
         # Run the audio playback in a separate thread to avoid blocking the UI
         # Thread(target=self.audio.play, args=(time_to_target,), daemon=True).start()
-
-    def play_audio(self):
-        if not self.audio.playing:
-            self.audio.play()
 
     def check_connection(self):
         # Non-blocking check for connection flag
@@ -375,11 +335,23 @@ class ConnectionWidget(QWidget):
         # Setup the timer for real-time updates
         self.update_timer = QtCore.QTimer()
         self.update_timer.timeout.connect(self.update_plot)
-        self.update_timer.start(50)  # 50 fps update rate
+
+        self.update_timer.start(45)  # 50 fps update rate
         
         # Install event filter for key press events
         self.installEventFilter(self)
         self.__init_plotting__()
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Plus or event.key() == Qt.Key.Key_Equal:  # Handle both '+' and '=' keys
+                self.scale *= 1.1  # Increase scale by 10%
+                print(f"Scale increased to: {self.scale}")
+            elif event.key() == Qt.Key.Key_Minus:
+                self.scale /= 1.1  # Decrease scale by 10%
+                print(f"Scale decreased to: {self.scale}")
+            return True  # Indicate that the event was handled
+        return super().eventFilter(obj, event)
 
     def on_CLAS_button_clicked(self):
         if not self.processing_enabled:
@@ -548,18 +520,23 @@ class ConnectionWidget(QWidget):
 
     def update_plot(self):
         while not self._queue.empty():
-            
+          
             try:
                 new_samples, new_timestamps = self._queue.get_nowait()
 
+                filt_samples, self.filt_state = lfilter(self.bf, self.af, new_samples, axis=0, zi=self.filt_state)
+
                 if len(self.eeg_data) == 0:
                     self.eeg_data = new_samples
+                    self.eeg_data_f = filt_samples
                     self.timestamps = new_timestamps
                 else:
                     self.eeg_data = np.vstack((self.eeg_data, new_samples))
+                    self.eeg_data_f = np.vstack((self.eeg_data_f, filt_samples))
                     self.timestamps = np.append(self.timestamps, new_timestamps)
 
                 self.eeg_data = self.eeg_data[-self.window_len_n:, :]
+                self.eeg_data_f = self.eeg_data_f[-DISPLAY_WINDOW_LEN_N:]
                 self.timestamps = self.timestamps[-self.window_len_n:]
 
                 # If we're still in quality check period
@@ -572,7 +549,7 @@ class ConnectionWidget(QWidget):
                 self.file_writer.write_chunk(new_samples, new_timestamps)
 
                 result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1(mean_to_subtract)
-                self.logger.info(f"Result {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
+                # self.logger.info(f"Result {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
 
                 if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
                     time_to_target = time_to_target - self.config.time_to_target_offset
@@ -580,15 +557,18 @@ class ConnectionWidget(QWidget):
                     self.file_writer.write_stim(self.processor_elapsed_time + time_to_target)
                 
                 if self.display_every_counter == self.display_every_counter_max:
-                    eeg_data = self.eeg_data[-self.display_window_len_n:, 1]
-                    timestamps = self.timestamps[-self.display_window_len_n:]
-                    eeg_data = (eeg_data - np.mean(eeg_data))[::2]
-                    timestamps = timestamps[::2]
+                    for ii in range(4):
+                        self.lines[ii].set_xdata(self.timestamps[-DISPLAY_WINDOW_LEN_N:][::2] - self.timestamps[-DISPLAY_WINDOW_LEN_N:][-1])
+                        self.lines[ii].set_ydata(self.eeg_data_f[::2, ii] / self.scale - ii)
+                        impedances = np.std(self.eeg_data_f, axis=0)
 
-                    filtered_signal = signal.filtfilt(self.b, self.a, eeg_data)
+                    ticks_labels = ['%s - %.2f' % (CHANNEL_NAMES[MuseDataType.EEG][ii], impedances[ii])
+                                    for ii in range(4)]
+                    self.ax.set_yticklabels(ticks_labels)
+                    self.ax.set_xlim(-5, 0)
+                    self.figure.canvas.draw()
+                    self.display_every_counter = 0
 
-                    # Update the plot using the downsampled data.
-                    self.curve.setData(timestamps, filtered_signal)
                 else:
                     self.display_every_counter += 1
             except Empty:
@@ -621,14 +601,10 @@ class ConnectionWidget(QWidget):
             self._on_connected.emit()
         self.CLAS_button.setEnabled(enable_button)
             
-    def eventFilter(self, obj, event):
-        if event.type() == QEvent.Type.KeyPress:
-            # Handle key press events
-            # Add your key handling code here
-            return True
-        return super().eventFilter(obj, event)
+    
 
     @classmethod
+
     def record(cls, _queue: Queue, _connected_flag: EventType, connection_mode: ConnectionMode=ConnectionMode.GENERATED):
         if connection_mode == ConnectionMode.REALTIME:
             found_muse = None
