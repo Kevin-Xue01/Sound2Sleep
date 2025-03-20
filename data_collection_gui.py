@@ -131,7 +131,16 @@ class StatusWidget(QWidget):
 # Custom DateAxisItem that formats tick values as "Hour:Minute:Second"
 class CustomDateAxis(DateAxisItem):
     def tickStrings(self, values, scale, spacing):
-        return [datetime.datetime.fromtimestamp(value).strftime("%H:%M:%S") for value in values]
+        out = []
+        last_label = None
+        for value in values:
+            label = datetime.fromtimestamp(value).strftime("%H:%M:%S")
+            if label == last_label:
+                out.append("")
+            else:
+                out.append(label)
+                last_label = label
+        return out
 
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
@@ -220,8 +229,13 @@ class ConnectionWidget(QWidget):
     def __init_plotting__(self):
         self.plot_widget = pg.PlotWidget()
 
+        # Create a custom DateAxis for the x-axis to display time in HH:MM:SS format
+        date_axis = CustomDateAxis(orientation='bottom')
+        self.plot_widget = pg.PlotWidget(axisItems={'bottom': date_axis})
+        self.plot_widget.setYRange(-50, 50)
+
         self.lowcut = 1.0
-        self.highcut = 40.0
+        self.highcut = 4.0
         self.order = 4
         nyq = 0.5 * SAMPLING_RATE[MuseDataType.EEG]
         low = self.lowcut / nyq
@@ -235,6 +249,8 @@ class ConnectionWidget(QWidget):
 
     def play_audio(self, time_to_target):
         self.audio.play(time_to_target)
+        # Run the audio playback in a separate thread to avoid blocking the UI
+        # Thread(target=self.audio.play, args=(time_to_target,), daemon=True).start()
 
     def check_connection(self):
         # Non-blocking check for connection flag
@@ -535,7 +551,7 @@ class ConnectionWidget(QWidget):
 
         muse.start()
         t_init = time.time()
-        print(f"Start recording at {datetime.datetime.now().strftime('%y-%m-%d_%H-%M-%S')}")
+        print(f"Start recording at {datetime.now().strftime('%y-%m-%d_%H-%M-%S')}")
         last_update = t_init
         _connected_flag.set()
         while True:
