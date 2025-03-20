@@ -56,7 +56,7 @@ class LoadingWidget(QWidget):
         painter.drawEllipse(center.x() - radius, center.y() - radius, 2 * radius, 2 * radius)
 
         # Draw progress arc in white
-        pen.setColor(Qt.white)
+        pen.setColor(Qt.green)
         painter.setPen(pen)
         # Start at -90 degrees, span is based on progress
         span_angle = int(360 * self.progress / 100)

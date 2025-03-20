@@ -64,7 +64,7 @@ class LSLSimulatorDataGenerator(QObject):
             num_samples, 
             endpoint=False
         )
-        print(t)
+        
         # Update the time index for next call
         self.current_time_index += num_samples
         
@@ -121,6 +121,7 @@ class LSLSimulatorDataGenerator(QObject):
         while self.parent_app.streaming:
             # Check if output type changed and regenerate signal if needed
             current_output_type = self.parent_app.simulator_output_type
+            
             # If there isn't enough data left for the next chunk, or output type changed, regenerate signal
             if generated_signal.shape[0] < CHUNK_SIZE[self.muse_data_type] or current_output_type == SimulatorOutputType.PLAYBACK:
                 # For playback mode, always get the latest frame

@@ -1,4 +1,3 @@
-# Your MNE imports for the staging
 import mne
 import yasa
 import numpy as np
@@ -19,6 +18,33 @@ from PyQt5.QtCore import Qt
 
 from matplotlib.patches import Arc, FancyArrowPatch
 
+from utils import SessionConfig, FileReader
+
+def hypnogramCreation(file_reader: FileReader, chosen_channel="Ch2", num_channels=4, sfreq=256, epoch_length=30):
+    eeg_data = []
+    for curr_eeg_data, curr_timestamps in file_reader.read_all_frames():
+        eeg_data.append(curr_eeg_data.transpose())
+    eeg_data = np.array(eeg_data).reshape(num_channels, -1)
+
+    # Create MNE Info object
+    ch_names = [f"Ch{i + 1}" for i in range(num_channels)]
+    info = mne.create_info(ch_names, sfreq, ch_types="eeg")
+
+    # Create MNE RawArray object
+    raw = mne.io.RawArray(eeg_data, info)
+
+    # Apply a bandpass filter (optional but recommended for sleep staging)
+    raw.filter(0.3, 40., fir_design="firwin")
+
+    # Predict sleep stages with YASA
+    sls = yasa.SleepStaging(raw, eeg_name=chosen_channel)  # Assuming Ch1 is a reliable sleep channel
+    hypnogram = sls.predict()
+
+    # Convert hypnogram to YASA format (seconds-based)
+    hypnogram_sec = yasa.hypno_str_to_int(hypnogram)
+
+    return hypnogram_sec
+
 def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=1.05, is_ls=False, is_deep=False):
     arc = Arc((0, 0), width=2*r_arrow, height=2*r_arrow,
               angle=0, theta1=theta_start, theta2=theta_end, lw=2, color=arrow_color)
@@ -27,11 +53,11 @@ def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=
     mid_angle = (theta_start + theta_end) / 2.0
     mid_rad = np.deg2rad(mid_angle)
     if is_ls:
-        x_text = (r_arrow + 0.15) * np.cos(mid_rad)
-        y_text = (r_arrow + 0.15) * np.sin(mid_rad)
-    elif is_deep:
         x_text = (r_arrow + 0.4) * np.cos(mid_rad)
         y_text = (r_arrow + 0.4) * np.sin(mid_rad)
+    elif is_deep:
+        x_text = (r_arrow + 0.15) * np.cos(mid_rad)
+        y_text = (r_arrow + 0.15) * np.sin(mid_rad)
     else:
         x_text = (r_arrow + 0.3) * np.cos(mid_rad)
         y_text = (r_arrow + 0.3) * np.sin(mid_rad)
@@ -49,28 +75,10 @@ def add_group_arc(ax, theta_start, theta_end, group_label, arrow_color, r_arrow=
                             color=arrow_color, lw=2, shrinkA=0, shrinkB=0)
     ax.add_patch(arrow)
 
-def generate_sleep_figure():
-    # 1. Download EDF file and load data
-    data_dir = "./sleep_data"
-    os.makedirs(data_dir, exist_ok=True)
-    records = fetch_data(subjects=[0], recording=[1], path=data_dir)
-    edf_file = records[0]  # First file
+def generate_sleep_figure(file_reader):
+    hypno_pred = hypnogramCreation(file_reader, "Ch2")
 
-    raw = mne.io.read_raw_edf(edf_file[0], preload=True)
-    raw.resample(100)  # Downsample to 100 Hz
-
-    # 2. Select EEG channel
-    eeg_channels = [ch for ch in raw.ch_names if "EEG" in ch or "CH" in ch]
-    selected_channel = "CH 2" if "CH 2" in eeg_channels else eeg_channels[0]
-    raw.pick_channels([selected_channel])
-
-    # 3. Run Sleep Staging
-    sls = yasa.SleepStaging(raw, eeg_name=selected_channel)
-    hypno_pred = sls.predict()
-    hypno_pred = yasa.hypno_str_to_int(hypno_pred)
-    hypno_pred = hypno_pred[900:1750]
-
-    # 4. Prepare donut chart data
+    # Prepare donut chart data
     stage_names = ["Awake", "REM", "N1", "N2", "N3"]
     counts = {name: 0 for name in stage_names}
     for s in hypno_pred:
@@ -121,8 +129,19 @@ def generate_sleep_figure():
         0: "#95C8F1",  # N3
     }
 
-    # 6. Create the figure and subplots
-    fig, (ax0, ax1) = plt.subplots(nrows=2, figsize=(10, 10))
+    # Get the current screen size using QApplication (assumes a QApplication is running)
+    screen = QApplication.primaryScreen()
+    size = screen.size()
+    screen_width = size.width()
+    screen_height = size.height()
+
+    # Define a DPI and compute a figure size (in inches) that is 80% of the screen dimensions
+    dpi = 100
+    fig_width = (screen_width / dpi) * 0.8
+    fig_height = (screen_height / dpi) * 0.8
+
+    # Create the figure and subplots using the computed size
+    fig, (ax0, ax1) = plt.subplots(nrows=2, figsize=(fig_width, fig_height), dpi=dpi)
     fig.patch.set_facecolor("#1A0033")
     ax0.set_facecolor("#1A0033")
     ax1.set_facecolor("#1A0033")
@@ -140,10 +159,9 @@ def generate_sleep_figure():
     ax0.set_xticks([])
     ax0.set_yticks([])
 
-    ax0.text(0.5, 1.1, "Welcome to your sleep report!", ha='center', va='bottom',
-             fontsize=14, fontweight='bold', color='white', transform=ax0.transAxes)
-    ax0.text(0.5, 1.02, f"Sleep Score: {sleep_score}", ha='center', va='bottom',
-             fontsize=13, fontweight='bold', color='white', transform=ax0.transAxes)
+    # Move the Sleep Score text above the hypnogram by increasing the y coordinate.
+    ax0.text(0.5, 1.15, f"Sleep Score: {sleep_score}", ha='center', va='bottom',
+             fontsize=16, fontweight='bold', color='white', transform=ax0.transAxes)
     
     for wedge, label_name in zip(wedges, stage_names):
         angle = (wedge.theta2 + wedge.theta1) / 2.0
@@ -160,7 +178,7 @@ def generate_sleep_figure():
              color='white', transform=ax0.transAxes)
 
     ax0.text(0, 0, f"Total Sleep Time:\n{total_sleep_str}", 
-             ha='center', va='center', fontsize=12, color='white', fontweight='bold')
+             ha='center', va='center', fontsize=11, color='white', fontweight='bold')
 
     gap_deg = 5 
 
@@ -178,6 +196,9 @@ def generate_sleep_figure():
     wedge_N3 = wedges[4]
     theta_deep_start = wedge_N3.theta1 + gap_deg/2
     theta_deep_end   = wedge_N3.theta2 - 2*gap_deg/2
+    if wedge_N3.theta2 == wedge_N3.theta1: # If N3 is empty
+        theta_deep_start = wedge_N3.theta1
+        theta_deep_end = wedge_N3.theta2
     add_group_arc(ax0, theta_deep_start, theta_deep_end, "Deep Sleep", arrow_color='#959FEB', r_arrow=1.05, is_deep=True)   
 
     window = 30
@@ -232,9 +253,13 @@ def generate_sleep_figure():
     return fig, total_sleep_str
 
 class SleepStageReportPage(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, config: SessionConfig, parent=None):
         super().__init__(parent)
+        self.config = config
+        # Initialize the file reader with a specific identifier (adjust as needed)
+        self.file_reader = FileReader("03-19_04-04-33")
         self.parent_app = parent  
+
         self.setStyleSheet("background-color: #1A0033;")
 
         self.layout = QVBoxLayout()
@@ -243,7 +268,7 @@ class SleepStageReportPage(QWidget):
         self.greeting_label = QLabel("Good Morning Brandon! Here is your sleep report!")
         self.greeting_label.setFont(QFont("Arial", 24, QFont.Weight.Bold))
         self.greeting_label.setAlignment(Qt.AlignCenter)
-        self.greeting_label.setStyleSheet("color: white;")  
+        self.greeting_label.setStyleSheet("color: white;")
         self.layout.addWidget(self.greeting_label)
 
         self.figure_label = QLabel()
@@ -256,13 +281,13 @@ class SleepStageReportPage(QWidget):
         self.layout.addWidget(self.asleep_label)
 
         self.back_button = QPushButton("Back")
-        self.back_button.setFont(QFont("Arial", 16))
+        self.back_button.setFont(QFont("Arial", 20))
         self.back_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
         self.back_button.clicked.connect(self.go_back_home)
         self.layout.addWidget(self.back_button, alignment=Qt.AlignCenter)
 
-    def generate_and_display_report(self):
-        fig, total_sleep_str = generate_sleep_figure()
+    def generate_and_display_report(self, file_reader: FileReader):
+        fig, total_sleep_str = generate_sleep_figure(file_reader)
 
         buf = io.BytesIO()
         fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
@@ -275,7 +300,7 @@ class SleepStageReportPage(QWidget):
 
         self.figure_label.setPixmap(pixmap)
         self.asleep_label.setText(f"You were asleep for {total_sleep_str}")
-        self.asleep_label.setStyleSheet("color: white;")  
+        self.asleep_label.setStyleSheet("color: white;")
 
     def go_back_home(self):
         if self.parent_app:

@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use("Agg")  # For headless use, if needed
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import QProcess, Qt, QTimer
 from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
@@ -31,10 +31,10 @@ from PyQt5.QtWidgets import (
 )
 
 # Import the headband connection workflow from your separate file.
-from data_collection_gui import ConnectionWidget
+from data_collection_gui import ConnectionMode, ConnectionWidget
 from loading_screen import LoadingScreen
 from sleep_staging_functions import SleepStageReportPage, generate_sleep_figure
-from utils import SessionConfig
+from utils import FileReader, SessionConfig
 
 RANKING_DIR = "gui_data/"
 if not os.path.exists(RANKING_DIR):
@@ -45,6 +45,7 @@ class SleepStudyApp(QWidget):
     def __init__(self):
         super().__init__()
         self.config = SessionConfig()
+        self.file_reader = FileReader("03-19_04-04-33")
         self.setWindowTitle("Overnight Sounds Research Study")
         self.setStyleSheet("background-color: #1A0033;")
         
@@ -76,7 +77,7 @@ class SleepStudyApp(QWidget):
         self.setLayout(main_layout)
 
     def create_sleep_stage_report_page(self):
-        return SleepStageReportPage(self)
+        return SleepStageReportPage(self.config, self)
     
     def show_sleep_stage_report(self):
         self.show_loading_screen()
@@ -90,7 +91,7 @@ class SleepStudyApp(QWidget):
 
     def show_sleep_report_after_loading(self):
         self.stacked_widget.setCurrentWidget(self.sleep_stage_report_page)
-        self.sleep_stage_report_page.generate_and_display_report()
+        self.sleep_stage_report_page.generate_and_display_report(self.file_reader)
         self.stacked_widget.removeWidget(self.loading_screen)
 
     # --------------------- UI Page Creation Functions --------------------- #
@@ -103,17 +104,17 @@ class SleepStudyApp(QWidget):
         # Left side: logo and text
         left_layout = QHBoxLayout()
         logo_label = QLabel()
-        logo_pixmap = QPixmap("/Users/seandmello/Downloads/The_Hospital_for_Sick_Children_Logo.svg.png")
+        logo_pixmap = QPixmap("logo.png")
         if not logo_pixmap.isNull():
             # Keep the logo size small regardless of full screen.
-            logo_label.setPixmap(logo_pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio))
+            logo_label.setPixmap(logo_pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio))
         left_layout.addWidget(logo_label)
         text_layout = QVBoxLayout()
         lab_label = QLabel("Ibrahim Lab")
-        lab_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        lab_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
         lab_label.setStyleSheet("color: white;")
         study_label = QLabel("Overnight sounds research study")
-        study_label.setFont(QFont("Arial", 10))
+        study_label.setFont(QFont("Arial", 18))
         study_label.setStyleSheet("color: white;")
         text_layout.addWidget(lab_label)
         text_layout.addWidget(study_label)
@@ -124,19 +125,19 @@ class SleepStudyApp(QWidget):
         # Right side: status and stop button
         status_layout = QVBoxLayout()
         status_label = QLabel("Status:")
-        status_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        status_label.setFont(QFont("Arial", 15, QFont.Weight.Bold))
         eeg_status = QLabel("\u25CB EEG Paused")
-        eeg_status.setFont(QFont("Arial", 12))
+        eeg_status.setFont(QFont("Arial", 15))
         eeg_status.setStyleSheet("color: grey;")
         sounds_status = QLabel("\u25CB Sounds Paused")
-        sounds_status.setFont(QFont("Arial", 12))
+        sounds_status.setFont(QFont("Arial", 15))
         sounds_status.setStyleSheet("color: grey;")
         status_layout.addWidget(status_label)
         status_layout.addWidget(eeg_status)
         status_layout.addWidget(sounds_status)
         top_layout.addLayout(status_layout)
         stop_button = QPushButton("Press to STOP")
-        stop_button.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        stop_button.setFont(QFont("Arial", 15, QFont.Weight.Bold))
         stop_button.setStyleSheet("background-color: #8B4513; color: white; padding: 10px; border-radius: 10px;")
         stop_button.clicked.connect(QApplication.instance().quit)
         top_layout.addWidget(stop_button)
@@ -156,24 +157,24 @@ class SleepStudyApp(QWidget):
         center_layout = QVBoxLayout()
         center_layout.setAlignment(Qt.AlignCenter)
         title_label = QLabel("Night 1 of 2")
-        title_label.setFont(QFont("Arial", 24, QFont.Weight.Bold))
+        title_label.setFont(QFont("Arial", 32, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         center_layout.addWidget(title_label)
         start_button = QPushButton("Start setup for sleep")
-        start_button.setFont(QFont("Arial", 16))
+        start_button.setFont(QFont("Arial", 25))
         start_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
         # Set a maximum width to preserve ratio
         start_button.setMaximumWidth(400)
         start_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.data_collection_page))
         center_layout.addWidget(start_button)
         sleepiness_button = QPushButton("Do the sleepiness test")
-        sleepiness_button.setFont(QFont("Arial", 14))
+        sleepiness_button.setFont(QFont("Arial", 25))
         sleepiness_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
         sleepiness_button.setMaximumWidth(400)
         sleepiness_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.game_launch_page))
         center_layout.addWidget(sleepiness_button)
-        report_button = QPushButton("View Sleep Stage Report")
-        report_button.setFont(QFont("Arial", 14))
+        report_button = QPushButton("View sleep stage report")
+        report_button.setFont(QFont("Arial", 25))
         report_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
         report_button.setMaximumWidth(400)
         report_button.clicked.connect(self.show_sleep_stage_report)
@@ -310,17 +311,17 @@ class SleepStudyApp(QWidget):
         center_layout = QVBoxLayout()
         center_layout.setAlignment(Qt.AlignCenter)
         launch_game1_button = QPushButton("Launch Game 1")
-        launch_game1_button.setFont(QFont("Arial", 16))
+        launch_game1_button.setFont(QFont("Arial", 25))
         launch_game1_button.setStyleSheet("background-color: purple; color: white; padding: 10px; border-radius: 10px;")
         launch_game1_button.setMaximumWidth(400)
         launch_game1_button.clicked.connect(lambda: self.launch_game("CognitiveTesting/Go-Nogo/game.py"))
         launch_game2_button = QPushButton("Launch Game 2")
-        launch_game2_button.setFont(QFont("Arial", 16))
+        launch_game2_button.setFont(QFont("Arial", 25))
         launch_game2_button.setStyleSheet("background-color: purple; color: white; padding: 10px; border-radius: 10px;")
         launch_game2_button.setMaximumWidth(400)
         launch_game2_button.clicked.connect(lambda: self.launch_game("CognitiveTesting/VPAT/vpat6.py"))
         scoreboard_button = QPushButton("Scoreboard")
-        scoreboard_button.setFont(QFont("Arial", 16))
+        scoreboard_button.setFont(QFont("Arial", 25))
         scoreboard_button.setStyleSheet("background-color: purple; color: white; padding: 10px; border-radius: 10px;")
         scoreboard_button.setMaximumWidth(400)
         scoreboard_button.clicked.connect(self.show_scoreboard)
@@ -329,12 +330,12 @@ class SleepStudyApp(QWidget):
         center_layout.addWidget(scoreboard_button)
         bottom_layout = QHBoxLayout()
         back_button = QPushButton("Back")
-        back_button.setFont(QFont("Arial", 14))
+        back_button.setFont(QFont("Arial", 20))
         back_button.setStyleSheet("background-color: gray; color: white; padding: 10px; border-radius: 5px;")
         back_button.setMaximumWidth(200)
         back_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.main_page))
         done_button = QPushButton("Done")
-        done_button.setFont(QFont("Arial", 14))
+        done_button.setFont(QFont("Arial", 20))
         done_button.setStyleSheet("background-color: green; color: white; padding: 10px; border-radius: 5px;")
         done_button.setMaximumWidth(200)
         bottom_layout.addWidget(back_button)
@@ -345,17 +346,29 @@ class SleepStudyApp(QWidget):
         game_launcher_widget.setLayout(layout)
         return game_launcher_widget
 
+
     def launch_game(self, script_path):
-        go_nogo_calibration_file = os.path.join("CognitiveTesting", "Go-Nogo", "calibration.txt")
-        if script_path.endswith("game.py") and not os.path.exists(go_nogo_calibration_file):
-            calibration_script = os.path.abspath(os.path.join("CognitiveTesting", "Go-Nogo", "calibration.py"))
-        else:
-            calibration_script = None
-        if calibration_script:
-            calibration_process = subprocess.Popen([sys.executable, calibration_script])
-            calibration_process.wait()
+        # If a game is already running, ignore subsequent clicks.
+        if hasattr(self, "game_process") and self.game_process is not None and self.game_process.state() == QProcess.Running:
+            return
+
+        # (Optional) Handle calibration if needed here. For simplicity, we assume calibration is not blocking.
         project_root = os.path.dirname(os.path.abspath(__file__))
-        subprocess.Popen([sys.executable, os.path.abspath(script_path)], cwd=project_root)
+        full_script_path = os.path.abspath(script_path)
+        
+        # Create a QProcess to launch the game
+        self.game_process = QProcess(self)
+        self.game_process.finished.connect(self.game_finished)
+        self.game_process.setWorkingDirectory(project_root)
+        self.game_process.start(sys.executable, [full_script_path])
+        
+        # Immediately hide the main window while the game is running
+        # self.hide()
+
+    def game_finished(self):
+        # When the game finishes, clear the process and show the main window again.
+        self.game_process = None
+        self.showFullScreen()
 
     def show_scoreboard(self):
         self.update_scoreboard()
