@@ -15,6 +15,14 @@ from math import ceil, floor, isnan, nan, pi
 from multiprocessing import Event, Process, Queue, queues, shared_memory
 from multiprocessing.synchronize import Event as EventType
 
+import datetime
+import numpy as np
+import pyqtgraph as pg
+from pyqtgraph import DateAxisItem
+from PyQt5.QtWidgets import QWidget, QVBoxLayout
+from PyQt5.QtCore import QTimer
+from scipy import signal
+
 # from multiprocessing.synchronize import Event
 from queue import Empty
 from threading import Thread, Timer
@@ -125,6 +133,63 @@ class StatusWidget(QWidget):
         self.indicator.setStyleSheet(f"background-color: {CONNECTION_QUALITY_COLORS[self.connection_quality]}; border-radius: 7px;")
         self.text.setText(CONNECTION_QUALITY_LABELS[self.connection_quality])
 
+# Custom DateAxisItem that formats tick values as "Hour:Minute:Second"
+class CustomDateAxis(DateAxisItem):
+    def tickStrings(self, values, scale, spacing):
+        return [datetime.datetime.fromtimestamp(value).strftime("%H:%M:%S") for value in values]
+
+class RealTimeEEGPlotWidget(QWidget):
+
+    def __init__(self, parent: 'ConnectionWidget'):
+        """
+        Parameters:
+          parent: the parent widget.
+          connection_widget: reference to the widget holding the 'eeg_data' and 'timestamps' buffers.
+        """
+        super().__init__(parent)
+        self._parent = parent
+
+        # Use the custom date axis so the x-axis displays time in HH:MM:SS format.
+        date_axis = CustomDateAxis(orientation='bottom')
+        self.plot_widget = pg.PlotWidget(title="Real Time EEG Signal (Channel 1, Bandpass 1-40 Hz)",
+                                          axisItems={'bottom': date_axis})
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.plot_widget)
+        self.setLayout(layout)
+
+        # Set up a 4th order Butterworth bandpass filter from 1 Hz to 40 Hz.
+        self.lowcut = 1.0
+        self.highcut = 40.0
+        self.order = 4
+        nyq = 0.5 * SAMPLING_RATE[MuseDataType.EEG]
+        low = self.lowcut / nyq
+        high = self.highcut / nyq
+        self.b, self.a = signal.butter(self.order, [low, high], btype='band')
+
+        # Create the curve (line) for the plot.
+        self.curve = self.plot_widget.plot(pen='c')
+
+        # Set up a timer to update the plot every 20 ms (~50 fps).
+        
+        self._parent._on_connected.connect(self.on_connected)
+
+    def on_connected(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_plot)
+        self.timer.start(20)
+
+    def update_plot(self):
+        # Get the latest data from the connection widget's buffers.
+        eeg_data = self._parent.eeg_data[-self._parent.display_window_len_n:, 1]
+        timestamps = self._parent.timestamps[-self._parent.display_window_len_n:, ]
+        eeg_data = (eeg_data - np.mean(eeg_data))[::2]
+        timestamps = timestamps[::2]
+
+        filtered_signal = signal.filtfilt(self.b, self.a, eeg_data)
+
+        # Update the plot using the downsampled data.
+        self.curve.setData(timestamps, filtered_signal)
+
 # class RealTimeEEGPlotWidget(QWidget):
 #     def __init__(self, parent=None):
 #         super().__init__(parent)
@@ -153,32 +218,8 @@ class StatusWidget(QWidget):
 #         for i in range(len(points) - 1):
 #             painter.drawLine(points[i][0], points[i][1], points[i+1][0], points[i+1][1])
 
-class StatusWidget(QWidget):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.connection_quality = ConnectionQuality.LOW
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
-
-        self.indicator = QLabel()
-        self.indicator.setFixedSize(15, 15)
-        self.indicator.setStyleSheet(f"background-color: {CONNECTION_QUALITY_COLORS[self.connection_quality]}; border-radius: 7px;")
-
-        self.text = QLabel(CONNECTION_QUALITY_LABELS[self.connection_quality])
-        self.text.setFont(QFont("Arial", 16))
-        self.text.setStyleSheet("color: white;")  # Set display text to white
-        layout.addWidget(self.indicator)
-        layout.addWidget(self.text)
-        self.setLayout(layout)
-
-    def setStatus(self, status):
-        self.connection_quality = status
-        self.indicator.setStyleSheet(f"background-color: {CONNECTION_QUALITY_COLORS[self.connection_quality]}; border-radius: 7px;")
-        self.text.setText(CONNECTION_QUALITY_LABELS[self.connection_quality])
-
-
 class ConnectionWidget(QWidget):
+    _on_connected = pyqtSignal()
     def __init__(self, parent, config: SessionConfig):
         super().__init__(parent)
         self._parent = parent
@@ -215,6 +256,7 @@ class ConnectionWidget(QWidget):
         self.window_len_s = max(self.config.processing_window_len_s, self.config.mean_subtraction_window_len_s)
         self.window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.window_len_s)
         self.processing_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config.processing_window_len_s)
+        self.display_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S)
         self.amp_buffer = np.zeros(self.config.amp_buffer_len)
         self.hl_ratio_buffer = np.zeros(self.config.hl_ratio_buffer_len)
 
@@ -254,6 +296,29 @@ class ConnectionWidget(QWidget):
         self.connection_check_timer = QtCore.QTimer()
         self.connection_check_timer.timeout.connect(self.check_connection)
         self.connection_check_timer.start(100)  # Check every 100ms
+        
+        self.initially_connected = False
+        self.display_every_counter = 0
+        self.display_every_counter_max = 5
+
+    def __init_plotting__(self):
+        self.plot_widget = pg.PlotWidget()
+        # layout = QVBoxLayout(self)
+        # layout.addWidget(self.plot_widget)
+        # self.setLayout(layout)
+
+        self.lowcut = 1.0
+        self.highcut = 40.0
+        self.order = 4
+        nyq = 0.5 * SAMPLING_RATE[MuseDataType.EEG]
+        low = self.lowcut / nyq
+        high = self.highcut / nyq
+        self.b, self.a = signal.butter(self.order, [low, high], btype='band')
+
+        # Create the curve (line) for the plot.
+        self.curve = self.plot_widget.plot(pen='c')
+        self.main_layout.addWidget(self.plot_widget)
+
 
     def check_connection(self):
         # Non-blocking check for connection flag
@@ -318,6 +383,7 @@ class ConnectionWidget(QWidget):
         
         # Install event filter for key press events
         self.installEventFilter(self)
+        self.__init_plotting__()
 
     def get_hl_ratio(self, selected_channel_data):
         # lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
@@ -431,22 +497,15 @@ class ConnectionWidget(QWidget):
     def randomize_phase(self):
         self.target_phase = random.uniform(0.0, 2*np.pi)
 
-    async def play_audio_async(self, delay):
-        await asyncio.sleep(delay)  # Non-blocking sleep
-        await self._start_audio()
+    # def play_audio(self, delay):
+    #     asyncio.create_task(self.play_audio_async(delay))
 
-    async def _start_audio(self):
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self.audio.play) 
-
-    def play_audio(self, delay):
-        asyncio.create_task(self.play_audio_async(delay))
-
-    def _start_audio(self):
-        QThreadPool.globalInstance().start(self.audio)
+    # def _start_audio(self):
+    #     QThreadPool.globalInstance().start(self.audio)
 
     def update_plot(self):
         while not self._queue.empty():
+            
             try:
                 new_samples, new_timestamps = self._queue.get_nowait()
 
@@ -477,6 +536,18 @@ class ConnectionWidget(QWidget):
                     self.process_eeg_step_2(time_to_target)
                     self.file_writer.write_stim(self.processor_elapsed_time + time_to_target)
                 
+                if self.display_every_counter == self.display_every_counter_max:
+                    eeg_data = self.eeg_data[-self.display_window_len_n:, 1]
+                    timestamps = self.timestamps[-self.display_window_len_n:]
+                    eeg_data = (eeg_data - np.mean(eeg_data))[::2]
+                    timestamps = timestamps[::2]
+
+                    filtered_signal = signal.filtfilt(self.b, self.a, eeg_data)
+
+                    # Update the plot using the downsampled data.
+                    self.curve.setData(timestamps, filtered_signal)
+                else:
+                    self.display_every_counter += 1
             except Empty:
                 break
     
@@ -496,17 +567,20 @@ class ConnectionWidget(QWidget):
         
     def on_CLAS_button_clicked(self):
         if not self.processing_enabled:
+            # End quality check and begin processing.
             self.quality_check_enabled = False
             self.processing_enabled = True
-            
             self.CLAS_button.setEnabled(True)
             self.CLAS_button.setText("I'm awake")
             
+            # Log current signal quality.
             if self.status_widget.connection_quality == ConnectionQuality.HIGH:
                 self.logger.info(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
             else:
                 self.logger.warning(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
+            
         else:
+            # Cleanup code if stopping processing.
             self.quality_check_enabled = False
             self.processing_enabled = False
             if self.recording_process.is_alive():
@@ -514,7 +588,7 @@ class ConnectionWidget(QWidget):
                 print("Recording process terminated")
             self.update_timer.stop()
             self._parent.stacked_widget.setCurrentWidget(self._parent.mood_page)
-
+            
     def update_button_state(self):
         elapsed_time = time.time() - self.quality_check_start_time
         quality = self.status_widget.connection_quality
@@ -523,6 +597,9 @@ class ConnectionWidget(QWidget):
         
         # Enable button based on quality and elapsed time
         enable_button = (quality == ConnectionQuality.HIGH or (quality == ConnectionQuality.MEDIUM and elapsed_time >= self.min_quality_check_duration))
+        if enable_button and not self.initially_connected:
+            self.initially_connected = True
+            self._on_connected.emit()
         self.CLAS_button.setEnabled(enable_button)
             
     def eventFilter(self, obj, event):
@@ -550,7 +627,7 @@ class ConnectionWidget(QWidget):
 
         muse.start()
         t_init = time.time()
-        print(f"Start recording at {datetime.now().strftime('%y-%m-%d_%H-%M-%S')}")
+        print(f"Start recording at {datetime.datetime.now().strftime('%y-%m-%d_%H-%M-%S')}")
         last_update = t_init
         _connected_flag.set()
         while True:
