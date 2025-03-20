@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from enum import Enum, auto
 from functools import partial
 from math import ceil, floor, isnan, nan, pi
-from multiprocessing import Event, Process, Queue, queues, shared_memory
+from multiprocessing import Event, Manager, Process, Queue, queues, shared_memory
 from multiprocessing.synchronize import Event as EventType
 
 # from multiprocessing.synchronize import Event
@@ -58,6 +58,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
+    QSlider,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -153,9 +154,10 @@ class CustomDateAxis(DateAxisItem):
 
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
-    def __init__(self, parent, config: SessionConfig):
+    def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode.GENERATED):
 
         super().__init__(parent)
+        self.connection_mode = connection_mode
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._parent = parent
         self.config = config
@@ -221,10 +223,16 @@ class ConnectionWidget(QWidget):
         self._queue = Queue()
         self.connected_flag = Event()
         
+        self.simulation_params = Manager().dict({
+            'pure_amp': 30,
+            'pure_freq': 1,
+            'pure_noise': 0.0
+        })
+
         # Start the Muse LSL recording process
         self.recording_process = Process(
             target=ConnectionWidget.record,
-            args=(self._queue, self.connected_flag),
+            args=(self._queue, self.connected_flag, self.connection_mode),
             daemon=True
         )
         self.recording_process.start()
@@ -236,6 +244,71 @@ class ConnectionWidget(QWidget):
         self.initially_connected = False
         self.display_every_counter = 0
         self.display_every_counter_max = 2
+
+    def create_parameter_controls(self):
+        param_layout = QHBoxLayout()
+        
+        # Amplitude control
+        amp_layout = QVBoxLayout()
+        amp_label = QLabel("Amplitude:")
+        self.amp_slider = QSlider(Qt.Orientation.Horizontal)
+        self.amp_slider.setMinimum(1)
+        self.amp_slider.setMaximum(100)
+        self.amp_slider.setValue(int(self.simulation_params['pure_amp']))
+        self.amp_value = QLabel(f"{self.simulation_params['pure_amp']}")
+        self.amp_slider.valueChanged.connect(self.update_amplitude)
+        amp_layout.addWidget(amp_label)
+        amp_layout.addWidget(self.amp_slider)
+        amp_layout.addWidget(self.amp_value)
+        
+        # Frequency control
+        freq_layout = QVBoxLayout()
+        freq_label = QLabel("Frequency (Hz):")
+        self.freq_slider = QSlider(Qt.Orientation.Horizontal)
+        self.freq_slider.setMinimum(1)
+        self.freq_slider.setMaximum(20)
+        self.freq_slider.setValue(int(self.simulation_params['pure_freq']))
+        self.freq_value = QLabel(f"{self.simulation_params['pure_freq']}")
+        self.freq_slider.valueChanged.connect(self.update_frequency)
+        freq_layout.addWidget(freq_label)
+        freq_layout.addWidget(self.freq_slider)
+        freq_layout.addWidget(self.freq_value)
+        
+        # Noise control
+        noise_layout = QVBoxLayout()
+        noise_label = QLabel("Noise:")
+        self.noise_slider = QSlider(Qt.Orientation.Horizontal)
+        self.noise_slider.setMinimum(0)
+        self.noise_slider.setMaximum(100)
+        self.noise_slider.setValue(int(self.simulation_params['pure_noise'] * 100))
+        self.noise_value = QLabel(f"{self.simulation_params['pure_noise']:.2f}")
+        self.noise_slider.valueChanged.connect(self.update_noise)
+        noise_layout.addWidget(noise_label)
+        noise_layout.addWidget(self.noise_slider)
+        noise_layout.addWidget(self.noise_value)
+        
+        # Add controls to parameter layout
+        param_layout.addLayout(amp_layout)
+        param_layout.addLayout(freq_layout)
+        param_layout.addLayout(noise_layout)
+        
+        # Add parameter controls to main layout
+        param_widget = QWidget()
+        param_widget.setLayout(param_layout)
+        self.main_layout.addWidget(param_widget)
+
+    def update_amplitude(self, value):
+        self.simulation_params['pure_amp'] = value
+        self.amp_value.setText(f"{value}")
+        
+    def update_frequency(self, value):
+        self.simulation_params['pure_freq'] = value
+        self.freq_value.setText(f"{value}")
+        
+    def update_noise(self, value):
+        noise_value = value / 100.0
+        self.simulation_params['pure_noise'] = noise_value
+        self.noise_value.setText(f"{noise_value:.2f}")
 
     def __init_plotting__(self):
         sns.set(style="whitegrid")
@@ -270,6 +343,9 @@ class ConnectionWidget(QWidget):
 
         zi = lfilter_zi(self.bf, self.af)
         self.filt_state = np.tile(zi, (4, 1)).transpose()
+
+        # Add parameter tuning UI elements
+        self.create_parameter_controls()
 
     def play_audio(self, time_to_target):
         self.audio.play(time_to_target)
@@ -603,7 +679,7 @@ class ConnectionWidget(QWidget):
         self.CLAS_button.setEnabled(enable_button)
             
     @classmethod
-    def record(cls, _queue: Queue, _connected_flag: EventType, connection_mode: ConnectionMode=ConnectionMode.GENERATED):
+    def record(cls, _queue: Queue, _connected_flag: EventType, connection_mode: ConnectionMode):
         if connection_mode == ConnectionMode.REALTIME:
             found_muse = None
             while not found_muse:
