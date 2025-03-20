@@ -242,6 +242,7 @@ class ConnectionWidget(QWidget):
         self.scale = 100
         self.figure, self.ax = plt.subplots()
         self.canvas = FigureCanvasQTAgg(self.figure)
+        self.canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.main_layout.addWidget(self.canvas)
 
         self.eeg_data_f = np.zeros((DISPLAY_WINDOW_LEN_N, 4))
@@ -287,6 +288,7 @@ class ConnectionWidget(QWidget):
 
         # Create and add StatusWidget
         self.status_widget = StatusWidget(self)
+        self.status_widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)  # Minimize space usage
         self.main_layout.addWidget(self.status_widget, alignment=Qt.AlignmentFlag.AlignCenter)
         
         # Set initial status to checking
@@ -300,6 +302,7 @@ class ConnectionWidget(QWidget):
         
         # Create start button (initially disabled)
         self.CLAS_button = QPushButton("Start Processing")
+        self.CLAS_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)  # Prevent expanding
         self.CLAS_button.setFixedSize(200, 40)
         self.CLAS_button.setEnabled(False)
         self.CLAS_button.clicked.connect(self.on_CLAS_button_clicked)
@@ -324,12 +327,7 @@ class ConnectionWidget(QWidget):
             }
         """)
         
-        # Add button to layout
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        button_layout.addWidget(self.CLAS_button)
-        button_layout.addStretch()
-        self.main_layout.addLayout(button_layout)
+        
         
         # Setup the timer for real-time updates
         self.update_timer = QtCore.QTimer()
@@ -340,6 +338,12 @@ class ConnectionWidget(QWidget):
         # Install event filter for key press events
         self.installEventFilter(self)
         self.__init_plotting__()
+        # Add button to layout
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(self.CLAS_button)
+        button_layout.addStretch()
+        self.main_layout.addLayout(button_layout)
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress:
