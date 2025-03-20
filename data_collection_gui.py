@@ -314,6 +314,7 @@ class ConnectionWidget(QWidget):
         sns.set(style="whitegrid")
         self.scale = 100
         self.figure, self.ax = plt.subplots()
+        self.ax.spines['top', 'right'].set_visible(False)
         self.canvas = FigureCanvasQTAgg(self.figure)
         self.canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.main_layout.addWidget(self.canvas)
@@ -323,8 +324,8 @@ class ConnectionWidget(QWidget):
         impedances = np.std(self.eeg_data_f, axis=0)
         lines = []
 
-        for ii in range(4):
-            line, = self.ax.plot(self.times[::2], self.eeg_data_f[::2, ii] - ii, lw=1)
+        for ii in range(1,3):
+            line, = self.ax.plot(self.times[::2], self.eeg_data_f[::2, ii] - ii, lw=2, palette = 'Set2')
             lines.append(line)
         self.lines = lines
 
