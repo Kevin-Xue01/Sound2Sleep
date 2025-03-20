@@ -154,7 +154,8 @@ class CustomDateAxis(DateAxisItem):
 
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
-    def __init__(self, parent, config: SessionConfig, connection_mode:ConnectionMode = ConnectionMode.GENERATED):
+    def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode = ConnectionMode.GENERATED):
+
 
         super().__init__(parent)
         self.connection_mode = connection_mode
@@ -264,23 +265,12 @@ class ConnectionWidget(QWidget):
         # Frequency control
         freq_layout = QVBoxLayout()
         freq_label = QLabel("Frequency (Hz):")
-        # self.freq_slider = QSlider(Qt.Orientation.Horizontal)
-        # self.freq_slider.setMinimum(0.5)
-        # self.freq_slider.setMaximum(2.5)
-        # self.freq_slider.setTickInterval(0.25)
-        # self.freq_slider.setValue(int(self.simulation_params['pure_freq']))
-        # self.freq_value = QLabel(f"{self.simulation_params['pure_freq']}")
-        # self.freq_slider.valueChanged.connect(self.update_frequency)
-        # freq_layout.addWidget(freq_label)
-        # freq_layout.addWidget(self.freq_slider)
-        # freq_layout.addWidget(self.freq_value)
         self.freq_slider = QSlider(Qt.Orientation.Horizontal)
         self.freq_slider.setMinimum(int(0.5 * 100))  # 50
         self.freq_slider.setMaximum(int(2.5 * 100))  # 250
         self.freq_slider.setSingleStep(int(0.25 * 100))  # 25
         self.freq_slider.setTickInterval(int(0.25 * 100))  # 25
         self.freq_slider.setValue(int(self.simulation_params['pure_freq'] * 100))
-
         self.freq_value = QLabel(f"{self.simulation_params['pure_freq']:.2f} Hz")
 
         self.freq_slider.valueChanged.connect(self.update_frequency)
@@ -288,7 +278,7 @@ class ConnectionWidget(QWidget):
         freq_layout.addWidget(freq_label)
         freq_layout.addWidget(self.freq_slider)
         freq_layout.addWidget(self.freq_value)
-        
+
         # Noise control
         noise_layout = QVBoxLayout()
         noise_label = QLabel("Noise:")
@@ -753,9 +743,6 @@ class ConnectionWidget(QWidget):
 
             current_time = 0.0  # Maintain a continuously increasing time variable
 
-            pure_amp = 30
-            pure_freq = 1
-            pure_noise = 0.0
             channel_phase_offsets = [i * (np.pi / 4) for i in range(NUM_CHANNELS[MuseDataType.EEG])]
 
             def simulate_pure_sine(_current_time, num_samples=CHUNK_SIZE[MuseDataType.EEG], simulation_params=simulation_params, _channel_phase_offsets=channel_phase_offsets):
@@ -763,7 +750,6 @@ class ConnectionWidget(QWidget):
                 _pure_amp = simulation_params['pure_amp']
                 _pure_freq = simulation_params['pure_freq']
                 _pure_noise = simulation_params['pure_noise']
-
                 timestamps = np.arange(CHUNK_SIZE[MuseDataType.EEG]) / SAMPLING_RATE[MuseDataType.EEG] + _current_time
                 
                 signals = []
