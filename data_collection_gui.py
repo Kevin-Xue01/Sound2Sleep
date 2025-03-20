@@ -257,6 +257,10 @@ class ConnectionWidget(QWidget):
         # Run the audio playback in a separate thread to avoid blocking the UI
         # Thread(target=self.audio.play, args=(time_to_target,), daemon=True).start()
 
+    def play_audio(self):
+        if not self.audio.playing:
+            self.audio.play()
+
     def check_connection(self):
         # Non-blocking check for connection flag
         if self.connected_flag.is_set():
@@ -342,6 +346,37 @@ class ConnectionWidget(QWidget):
                 print("Recording process terminated")
             self.update_timer.stop()
             self._parent.stacked_widget.setCurrentWidget(self._parent.mood_page)
+
+    def on_CLAS_button_clicked(self):
+        if not self.processing_enabled:
+            self.quality_check_enabled = False
+            self.processing_enabled = True
+            
+            self.CLAS_button.setEnabled(True)
+            self.CLAS_button.setText("I'm awake")
+            
+            if self.status_widget.connection_quality == ConnectionQuality.HIGH:
+                self.logger.info(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
+            else:
+                self.logger.warning(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
+        else:
+            self.quality_check_enabled = False
+            self.processing_enabled = False
+            if self.recording_process.is_alive():
+                self.recording_process.terminate()
+                print("Recording process terminated")
+            self.update_timer.stop()
+            self._parent.stacked_widget.setCurrentWidget(self._parent.mood_page)
+
+    def update_button_state(self):
+        elapsed_time = time.time() - self.quality_check_start_time
+        quality = self.status_widget.connection_quality
+        
+        self.CLAS_button.setText(CONNECTION_QUALITY_LABELS[quality])
+        
+        # Enable button based on quality and elapsed time
+        enable_button = (quality == ConnectionQuality.HIGH or (quality == ConnectionQuality.MEDIUM and elapsed_time >= self.min_quality_check_duration))
+        self.CLAS_button.setEnabled(enable_button)
 
     def get_hl_ratio(self, selected_channel_data):
         # lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
