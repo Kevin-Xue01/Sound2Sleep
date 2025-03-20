@@ -10,7 +10,7 @@ import time
 import traceback
 from collections import deque
 from datetime import datetime, timedelta
-from enum import Enum
+from enum import Enum, auto
 from functools import partial
 from math import ceil, floor, isnan, nan, pi
 from multiprocessing import Event, Process, Queue, queues, shared_memory
@@ -92,6 +92,11 @@ class ConnectionQuality(Enum):
     MEDIUM = 'Medium'
     LOW = 'Low'
 
+class ConnectionMode(Enum):
+    GENERATED = auto()
+    PLAYBACK = auto()
+    REALTIME = auto()
+
 CONNECTION_QUALITY_COLORS = {
     ConnectionQuality.HIGH: 'green',
     ConnectionQuality.MEDIUM: 'yellow',
@@ -144,7 +149,7 @@ class CustomDateAxis(DateAxisItem):
 
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
-    def __init__(self, parent, config: SessionConfig):
+    def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode=ConnectionMode.REALTIME):
         super().__init__(parent)
         self._parent = parent
         self.config = config

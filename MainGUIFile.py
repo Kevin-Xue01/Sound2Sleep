@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use("Agg")  # For headless use, if needed
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import QProcess, Qt, QTimer
 from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
@@ -29,12 +29,12 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PyQt5.QtCore import QProcess
+
 # Import the headband connection workflow from your separate file.
-from data_collection_gui import ConnectionWidget
+from data_collection_gui import ConnectionMode, ConnectionWidget
 from loading_screen import LoadingScreen
 from sleep_staging_functions import SleepStageReportPage, generate_sleep_figure
-from utils import SessionConfig, FileReader
+from utils import FileReader, SessionConfig
 
 RANKING_DIR = "gui_data/"
 if not os.path.exists(RANKING_DIR):
