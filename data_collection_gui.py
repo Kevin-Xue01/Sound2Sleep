@@ -307,42 +307,6 @@ class ConnectionWidget(QWidget):
         self.display_every_counter = 0
         self.display_every_counter_max = 5
 
-    def __init_plotting__(self):
-        self.plot_widget = pg.PlotWidget()
-        
-        # Configure the plot for performance
-        self.plot_widget.setDownsampling(auto=True, mode='peak')
-        self.plot_widget.setClipToView(True)
-        self.plot_widget.setMouseEnabled(x=False, y=False)  # Disable mouse interactions for performance
-        
-        # Anti-aliasing can cause performance issues - disable for real-time plotting
-        self.plot_widget.setAntialiasing(False)
-        
-        # Create the plot with a width that balances performance and aesthetics
-        pen = pg.mkPen(color='c', width=1.5)
-        self.curve = self.plot_widget.plot(pen=pen)
-        
-        # Configure the plot appearance
-        self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        self.plot_widget.setLabel('left', 'Amplitude', units='µV')
-        self.plot_widget.setLabel('bottom', 'Time', units='s')
-        
-        # Set initial Y range
-        self.plot_widget.setYRange(-50, 50)
-        
-        # Configure the butter filter
-        self.lowcut = 1.0
-        self.highcut = 4.0
-        self.order = 4
-        nyq = 0.5 * SAMPLING_RATE[MuseDataType.EEG]
-        low = self.lowcut / nyq
-        high = self.highcut / nyq
-        self.b, self.a = signal.butter(self.order, [low, high], btype='band')
-        
-        # Add the plot widget to the layout
-        self.main_layout.addWidget(self.plot_widget)
-
-
     def play_audio(self, time_to_target):
         self.audio.play(time_to_target)
         # Run the audio playback in a separate thread to avoid blocking the UI
