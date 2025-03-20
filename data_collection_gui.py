@@ -159,7 +159,6 @@ class ConnectionWidget(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._parent = parent
         self.config = config
-        self.connection_mode = connection_mode
         self.file_writer = FileWriter(self.config._session_key)
         self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
@@ -520,7 +519,6 @@ class ConnectionWidget(QWidget):
 
     def update_plot(self):
         while not self._queue.empty():
-          
             try:
                 new_samples, new_timestamps = self._queue.get_nowait()
 
@@ -562,8 +560,7 @@ class ConnectionWidget(QWidget):
                         self.lines[ii].set_ydata(self.eeg_data_f[::2, ii] / self.scale - ii)
                         impedances = np.std(self.eeg_data_f, axis=0)
 
-                    ticks_labels = ['%s - %.2f' % (CHANNEL_NAMES[MuseDataType.EEG][ii], impedances[ii])
-                                    for ii in range(4)]
+                    ticks_labels = ['%s - %.2f' % (CHANNEL_NAMES[MuseDataType.EEG][ii], impedances[ii]) for ii in range(4)]
                     self.ax.set_yticklabels(ticks_labels)
                     self.ax.set_xlim(-5, 0)
                     self.figure.canvas.draw()
@@ -601,10 +598,7 @@ class ConnectionWidget(QWidget):
             self._on_connected.emit()
         self.CLAS_button.setEnabled(enable_button)
             
-    
-
     @classmethod
-
     def record(cls, _queue: Queue, _connected_flag: EventType, connection_mode: ConnectionMode=ConnectionMode.GENERATED):
         if connection_mode == ConnectionMode.REALTIME:
             found_muse = None
@@ -656,64 +650,6 @@ class ConnectionWidget(QWidget):
         elif connection_mode == ConnectionMode.GENERATED:
             _connected_flag.set()
 
-            CSV_FILENAME = "eeg_data.csv"
-
-            # Check if CSV file exists, if not create it with header
-            if not os.path.isfile(CSV_FILENAME):
-                df_init = pd.DataFrame(columns=[f"Channel_{i+1}" for i in range(NUM_CHANNELS[MuseDataType.EEG])])
-                df_init.to_csv(CSV_FILENAME, index=False)
-                print(f"Created new file: {CSV_FILENAME}")
-            # current_time_index = 0
-
-            # pure_amp = 30
-            # pure_freq = 1
-            # pure_noise = 0.0
-            # channel_phase_offsets = [i * (np.pi / 4) for i in range(NUM_CHANNELS[MuseDataType.EEG])]
-
-            # def simulate_pure_sine(_current_time_index, num_samples, _pure_amp=pure_amp, _pure_freq=pure_freq, _pure_noise=pure_noise, _channel_phase_offsets=channel_phase_offsets):
-            #     timestamps = np.linspace(
-            #         _current_time_index / SAMPLING_RATE[MuseDataType.EEG],
-            #         (_current_time_index + num_samples) / SAMPLING_RATE[MuseDataType.EEG],
-            #         num_samples, 
-            #         endpoint=False
-            #     )
-                
-            #     signals = []
-            #     for i in range(NUM_CHANNELS[MuseDataType.EEG]):
-            #         phase_offset = _channel_phase_offsets[i]
-            #         signal = _pure_amp * np.sin(2 * np.pi * _pure_freq * timestamps + phase_offset)
-                    
-            #         if _pure_noise > 0:
-            #             signal += _pure_amp * np.random.normal(0, _pure_noise / 2, len(timestamps))
-                    
-            #         signals.append(signal)
-                
-            #     output = np.array(signals).T
-            #     return output, _current_time_index + num_samples
-
-            # eeg_data, current_time_index = simulate_pure_sine(current_time_index, SAMPLING_RATE[MuseDataType.EEG])
-
-            # counter = 1
-            # with open(CSV_FILENAME, mode='a', newline='') as file:
-            #     while True:
-            #         if eeg_data.shape[0] < CHUNK_SIZE[MuseDataType.EEG]:
-            #             needed_samples = CHUNK_SIZE[MuseDataType.EEG] - eeg_data.shape[0] + CHUNK_SIZE[MuseDataType.EEG]
-            #             new_eeg_data, current_time_index = simulate_pure_sine(current_time_index, needed_samples)
-            #             eeg_data = np.vstack([eeg_data, new_eeg_data])
-
-            #         generated_eeg_data_chunk = eeg_data[:CHUNK_SIZE[MuseDataType.EEG], ...]
-            #         generated_timestamp_chunk = TIMESTAMPS[MuseDataType.EEG] + counter * DELAYS[MuseDataType.EEG]
-
-            #         _queue.put((generated_eeg_data_chunk, generated_timestamp_chunk)) 
-            #         eeg_data = eeg_data[CHUNK_SIZE[MuseDataType.EEG]:, ...]  
-                    
-            #         df = pd.DataFrame(eeg_data, columns=[f"Channel_{i+1}" for i in range(NUM_CHANNELS[MuseDataType.EEG])])
-
-            #         # Append data
-            #         df.to_csv(file, mode='a', header=False, index=False)
-
-            #         time.sleep(CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG])
-            #         counter += 1
             current_time = 0.0  # Maintain a continuously increasing time variable
 
             pure_amp = 30
@@ -739,28 +675,11 @@ class ConnectionWidget(QWidget):
                 current_time = timestamps[-1] + 1 / SAMPLING_RATE[MuseDataType.EEG]  # Ensure continuous timestamps
                 return output, timestamps, current_time
 
-            # eeg_data = simulate_pure_sine(current_time)
-
-            with open(CSV_FILENAME, mode='a', newline='') as file:
-                while True:
-                    new_eeg_data, new_timestamps, current_time = simulate_pure_sine(current_time)
-                    # if eeg_data.shape[0] < CHUNK_SIZE[MuseDataType.EEG]:
-                    #     needed_samples = CHUNK_SIZE[MuseDataType.EEG] - eeg_data.shape[0] + CHUNK_SIZE[MuseDataType.EEG]
-                    #     new_eeg_data = simulate_pure_sine(current_time, needed_samples)
-                    # eeg_data = np.vstack([eeg_data, new_eeg_data])
-
-                    # generated_eeg_data_chunk = eeg_data[:CHUNK_SIZE[MuseDataType.EEG], ...]
-                    # generated_timestamp_chunk = TIMESTAMPS[MuseDataType.EEG] + counter * DELAYS[MuseDataType.EEG]
-
-                    _queue.put((new_eeg_data, new_timestamps)) 
-                    # eeg_data = eeg_data[CHUNK_SIZE[MuseDataType.EEG]:, ...]  
-
-                    df = pd.DataFrame(new_eeg_data, columns=[f"Channel_{i+1}" for i in range(NUM_CHANNELS[MuseDataType.EEG])])
-
-                    # Append data
-                    df.to_csv(file, mode='a', header=False, index=False)
-
-                    time.sleep(CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG])
+            while True:
+                new_eeg_data, new_timestamps, current_time = simulate_pure_sine(current_time)
+                _queue.put((new_eeg_data, new_timestamps)) 
+                
+                time.sleep(DELAYS[MuseDataType.EEG])
         else:
             pass
 
