@@ -156,6 +156,7 @@ class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
     def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode = ConnectionMode.GENERATED):
 
+
         super().__init__(parent)
         self.connection_mode = connection_mode
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -264,13 +265,6 @@ class ConnectionWidget(QWidget):
         # Frequency control
         freq_layout = QVBoxLayout()
         freq_label = QLabel("Frequency (Hz):")
-        # self.freq_slider = QSlider(Qt.Orientation.Horizontal)
-        # self.freq_slider.setMinimum(1)
-        # self.freq_slider.setMaximum(20)
-        # self.freq_slider.setValue(int(self.simulation_params['pure_freq']))
-        # self.freq_value = QLabel(f"{self.simulation_params['pure_freq']}")
-        # self.freq_slider.valueChanged.connect(self.update_frequency)
-
         self.freq_slider = QSlider(Qt.Orientation.Horizontal)
         self.freq_slider.setMinimum(int(0.5 * 100))  # 50
         self.freq_slider.setMaximum(int(2.5 * 100))  # 250
@@ -278,7 +272,9 @@ class ConnectionWidget(QWidget):
         self.freq_slider.setTickInterval(int(0.25 * 100))  # 25
         self.freq_slider.setValue(int(self.simulation_params['pure_freq'] * 100))
         self.freq_value = QLabel(f"{self.simulation_params['pure_freq']:.2f} Hz")
+
         self.freq_slider.valueChanged.connect(self.update_frequency)
+
         freq_layout.addWidget(freq_label)
         freq_layout.addWidget(self.freq_slider)
         freq_layout.addWidget(self.freq_value)
@@ -310,6 +306,9 @@ class ConnectionWidget(QWidget):
         self.simulation_params['pure_amp'] = value
         self.amp_value.setText(f"{value}")
         
+    # def update_frequency(self, value):
+    #     self.simulation_params['pure_freq'] = value
+    #     self.freq_value.setText(f"{value}")
     def update_frequency(self, value):
         freq = value / 100.0  # Convert back to float
         self.simulation_params['pure_freq'] = freq
@@ -324,6 +323,7 @@ class ConnectionWidget(QWidget):
         sns.set(style="whitegrid")
         self.scale = 100
         self.figure, self.ax = plt.subplots()
+        self.ax.spines['top', 'right'].set_visible(False)
         self.canvas = FigureCanvasQTAgg(self.figure)
         self.canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.main_layout.addWidget(self.canvas)
@@ -333,8 +333,8 @@ class ConnectionWidget(QWidget):
         impedances = np.std(self.eeg_data_f, axis=0)
         lines = []
 
-        for ii in range(4):
-            line, = self.ax.plot(self.times[::2], self.eeg_data_f[::2, ii] - ii, lw=1)
+        for ii in range(1,3):
+            line, = self.ax.plot(self.times[::2], self.eeg_data_f[::2, ii] - ii, lw=2, palette = 'Set2')
             lines.append(line)
         self.lines = lines
 
