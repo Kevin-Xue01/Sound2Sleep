@@ -3,6 +3,7 @@ import ctypes
 import datetime
 import json
 import math
+import os
 import random
 import subprocess
 import sys
@@ -26,6 +27,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import muselsl.backends
 import numpy as np
+import pandas as pd
 import psutil
 import pyqtgraph as pg
 import scipy.signal as signal
@@ -62,6 +64,7 @@ from PyQt5.QtWidgets import (
 )
 from pyqtgraph import DateAxisItem
 from scipy import signal
+from scipy.signal import firwin, lfilter, lfilter_zi
 
 from utils import (
     CHANNEL_NAMES,
@@ -146,6 +149,79 @@ class CustomDateAxis(DateAxisItem):
                 out.append(label)
                 last_label = label
         return out
+    
+class LSLViewerWidget(QWidget):
+    def __init__(self, window, scale, parent=None):
+        super().__init__(parent)
+        self.window = window
+        self.scale = scale
+        self.init_ui()
+        self.setup_lsl()
+        self.viewer_thread = LSLViewerThread(self.inlet, self.fig, self.ax, self.window, self.scale)
+
+    def init_ui(self):
+        self.layout = QVBoxLayout(self)
+        self.fig, self.ax = plt.subplots(figsize=(10, 5))
+        self.canvas = FigureCanvas(self.fig)
+        self.layout.addWidget(self.canvas)
+        self.setLayout(self.layout)
+        sns.set(style="whitegrid")
+
+    def setup_lsl(self):
+        print("Looking for an EEG stream...")
+        streams = resolve_byprop('type', 'EEG', timeout=5)
+        if len(streams) == 0:
+            raise RuntimeError("Can't find EEG stream.")
+        print("Start acquiring data.")
+        self.inlet = StreamInlet(streams[0])
+
+    def start(self):
+        self.viewer_thread.start()
+
+    def stop(self):
+        self.viewer_thread.running = False
+
+class LSLViewerThread(QThread):
+    update_signal = pyqtSignal()
+
+    def __init__(self, inlet, fig, axes, window, scale):
+        super().__init__()
+        self.inlet = inlet
+        self.fig = fig
+        self.axes = axes
+        self.window = window
+        self.scale = scale
+        self.running = True
+        self.init_plot()
+
+    def init_plot(self):
+        info = self.inlet.info()
+        self.sfreq = info.nominal_srate()
+        self.n_samples = int(self.sfreq * self.window)
+        self.n_chan = info.channel_count()
+        self.times = np.arange(-self.window, 0, 1. / self.sfreq)
+        self.data = np.zeros((self.n_samples, self.n_chan))
+        self.lines = [self.axes.plot(self.times, self.data[:, i] - i, lw=1)[0] for i in range(self.n_chan)]
+        self.axes.set_ylim(-self.n_chan + 0.5, 0.5)
+        self.bf = firwin(32, np.array([1, 40]) / (self.sfreq / 2.), width=0.05, pass_zero=False)
+        self.af = [1.0]
+        self.filt_state = np.tile(lfilter_zi(self.bf, self.af), (self.n_chan, 1)).transpose()
+        self.update_signal.connect(self.fig.canvas.draw)
+
+    def run(self):
+        while self.running:
+            samples, timestamps = self.inlet.pull_chunk(timeout=1.0, max_samples=256)
+            if timestamps:
+                self.times = np.concatenate([self.times, timestamps])[-self.n_samples:]
+                self.data = np.vstack([self.data, samples])[-self.n_samples:]
+                filt_samples, self.filt_state = lfilter(self.bf, self.af, samples, axis=0, zi=self.filt_state)
+                for i in range(self.n_chan):
+                    self.lines[i].set_xdata(self.times - self.times[-1])
+                    self.lines[i].set_ydata(filt_samples[:, i] / self.scale - i)
+                self.update_signal.emit()
+            else:
+                sleep(0.2)
+
 
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
@@ -153,6 +229,7 @@ class ConnectionWidget(QWidget):
         super().__init__(parent)
         self._parent = parent
         self.config = config
+        self.connection_mode = connection_mode
         self.file_writer = FileWriter(self.config._session_key)
         self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
@@ -171,7 +248,6 @@ class ConnectionWidget(QWidget):
 
         # Configuration
         self.running = False
-        self.reset_attempt_count = 0
         
         self.last_stim = 0.0
         self.processor_elapsed_time = 0.0
@@ -233,12 +309,28 @@ class ConnectionWidget(QWidget):
 
     def __init_plotting__(self):
         self.plot_widget = pg.PlotWidget()
-
-        # Create a custom DateAxis for the x-axis to display time in HH:MM:SS format
-        date_axis = CustomDateAxis(orientation='bottom')
-        self.plot_widget = pg.PlotWidget(axisItems={'bottom': date_axis})
+        
+        # Configure the plot for performance
+        self.plot_widget.setDownsampling(auto=True, mode='peak')
+        self.plot_widget.setClipToView(True)
+        self.plot_widget.setMouseEnabled(x=False, y=False)  # Disable mouse interactions for performance
+        
+        # Anti-aliasing can cause performance issues - disable for real-time plotting
+        self.plot_widget.setAntialiasing(False)
+        
+        # Create the plot with a width that balances performance and aesthetics
+        pen = pg.mkPen(color='c', width=1.5)
+        self.curve = self.plot_widget.plot(pen=pen)
+        
+        # Configure the plot appearance
+        self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
+        self.plot_widget.setLabel('left', 'Amplitude', units='µV')
+        self.plot_widget.setLabel('bottom', 'Time', units='s')
+        
+        # Set initial Y range
         self.plot_widget.setYRange(-50, 50)
-
+        
+        # Configure the butter filter
         self.lowcut = 1.0
         self.highcut = 4.0
         self.order = 4
@@ -246,9 +338,8 @@ class ConnectionWidget(QWidget):
         low = self.lowcut / nyq
         high = self.highcut / nyq
         self.b, self.a = signal.butter(self.order, [low, high], btype='band')
-
-        # Create the curve (line) for the plot.
-        self.curve = self.plot_widget.plot(pen='c')
+        
+        # Add the plot widget to the layout
         self.main_layout.addWidget(self.plot_widget)
 
 
@@ -320,7 +411,7 @@ class ConnectionWidget(QWidget):
         # Setup the timer for real-time updates
         self.update_timer = QtCore.QTimer()
         self.update_timer.timeout.connect(self.update_plot)
-        self.update_timer.start(20)  # 50 fps update rate
+        self.update_timer.start(50)  # 50 fps update rate
         
         # Install event filter for key press events
         self.installEventFilter(self)
@@ -574,53 +665,165 @@ class ConnectionWidget(QWidget):
         return super().eventFilter(obj, event)
 
     @classmethod
-    def record(cls, _queue: Queue, _connected_flag: EventType):
-        found_muse = None
-        while not found_muse:
-            found_muse = find_muse()
-        address = found_muse["address"]
-        print(f'Connecting to Muse: {address}')
+    def record(cls, _queue: Queue, _connected_flag: EventType, connection_mode: ConnectionMode=ConnectionMode.GENERATED):
+        if connection_mode == ConnectionMode.REALTIME:
+            found_muse = None
+            while not found_muse:
+                found_muse = find_muse()
+            address = found_muse["address"]
+            print(f'Connecting to Muse: {address}')
 
-        def save_eeg(new_samples: np.ndarray, new_timestamps: np.ndarray):
-            new_samples = new_samples.transpose()[:, :-1].astype(np.float32) # IGNORE RIGHT AUX Final shape of queue input = ((12, 4), (12,))
-            _queue.put((new_samples, new_timestamps)) 
+            def save_eeg(new_samples: np.ndarray, new_timestamps: np.ndarray):
+                new_samples = new_samples.transpose()[:, :-1].astype(np.float32) # IGNORE RIGHT AUX Final shape of queue input = ((12, 4), (12,))
+                _queue.put((new_samples, new_timestamps)) 
 
-        muse = Muse(address, save_eeg)
-        while not muse.connect():
+            muse = Muse(address, save_eeg)
+            while not muse.connect():
+                pass
+
+            muse.start()
+            t_init = time.time()
+            print(f"Start recording at {datetime.now().strftime('%y-%m-%d_%H-%M-%S')}")
+            last_update = t_init
+            _connected_flag.set()
+            while True:
+                try:
+                    try:
+                        while True:
+                            muselsl.backends.sleep(1) # NOTE: this is not time.sleep(), it is asyncio.sleep(). Therefore, it is non-blocking
+                            if time.time() - last_update > 10:
+                                last_update = time.time()
+                                muse.keep_alive()
+                    except bleak.exc.BleakError:
+                        print('Disconnected. Attempting to reconnect...')
+                        while True:
+                            muse.connect(retries=3)
+                            try:
+                                muse.resume()
+                            except bleak.exc.BleakDBusError:
+                                print('DBus error occurred. Reconnecting.')
+                                muse.disconnect()
+                                continue
+                            else:
+                                break
+                        print('Connected. Continuing with data collection...')
+                except KeyboardInterrupt:
+                    print('Interrupt received. Exiting data collection.')
+                    break
+
+            muse.stop()
+            muse.disconnect()
+        elif connection_mode == ConnectionMode.GENERATED:
+            _connected_flag.set()
+
+            CSV_FILENAME = "eeg_data.csv"
+
+            # Check if CSV file exists, if not create it with header
+            if not os.path.isfile(CSV_FILENAME):
+                df_init = pd.DataFrame(columns=[f"Channel_{i+1}" for i in range(NUM_CHANNELS[MuseDataType.EEG])])
+                df_init.to_csv(CSV_FILENAME, index=False)
+                print(f"Created new file: {CSV_FILENAME}")
+            # current_time_index = 0
+
+            # pure_amp = 30
+            # pure_freq = 1
+            # pure_noise = 0.0
+            # channel_phase_offsets = [i * (np.pi / 4) for i in range(NUM_CHANNELS[MuseDataType.EEG])]
+
+            # def simulate_pure_sine(_current_time_index, num_samples, _pure_amp=pure_amp, _pure_freq=pure_freq, _pure_noise=pure_noise, _channel_phase_offsets=channel_phase_offsets):
+            #     timestamps = np.linspace(
+            #         _current_time_index / SAMPLING_RATE[MuseDataType.EEG],
+            #         (_current_time_index + num_samples) / SAMPLING_RATE[MuseDataType.EEG],
+            #         num_samples, 
+            #         endpoint=False
+            #     )
+                
+            #     signals = []
+            #     for i in range(NUM_CHANNELS[MuseDataType.EEG]):
+            #         phase_offset = _channel_phase_offsets[i]
+            #         signal = _pure_amp * np.sin(2 * np.pi * _pure_freq * timestamps + phase_offset)
+                    
+            #         if _pure_noise > 0:
+            #             signal += _pure_amp * np.random.normal(0, _pure_noise / 2, len(timestamps))
+                    
+            #         signals.append(signal)
+                
+            #     output = np.array(signals).T
+            #     return output, _current_time_index + num_samples
+
+            # eeg_data, current_time_index = simulate_pure_sine(current_time_index, SAMPLING_RATE[MuseDataType.EEG])
+
+            # counter = 1
+            # with open(CSV_FILENAME, mode='a', newline='') as file:
+            #     while True:
+            #         if eeg_data.shape[0] < CHUNK_SIZE[MuseDataType.EEG]:
+            #             needed_samples = CHUNK_SIZE[MuseDataType.EEG] - eeg_data.shape[0] + CHUNK_SIZE[MuseDataType.EEG]
+            #             new_eeg_data, current_time_index = simulate_pure_sine(current_time_index, needed_samples)
+            #             eeg_data = np.vstack([eeg_data, new_eeg_data])
+
+            #         generated_eeg_data_chunk = eeg_data[:CHUNK_SIZE[MuseDataType.EEG], ...]
+            #         generated_timestamp_chunk = TIMESTAMPS[MuseDataType.EEG] + counter * DELAYS[MuseDataType.EEG]
+
+            #         _queue.put((generated_eeg_data_chunk, generated_timestamp_chunk)) 
+            #         eeg_data = eeg_data[CHUNK_SIZE[MuseDataType.EEG]:, ...]  
+                    
+            #         df = pd.DataFrame(eeg_data, columns=[f"Channel_{i+1}" for i in range(NUM_CHANNELS[MuseDataType.EEG])])
+
+            #         # Append data
+            #         df.to_csv(file, mode='a', header=False, index=False)
+
+            #         time.sleep(CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG])
+            #         counter += 1
+            current_time = 0.0  # Maintain a continuously increasing time variable
+
+            pure_amp = 30
+            pure_freq = 1
+            pure_noise = 0.0
+            channel_phase_offsets = [i * (np.pi / 4) for i in range(NUM_CHANNELS[MuseDataType.EEG])]
+
+            def simulate_pure_sine(_current_time, num_samples=CHUNK_SIZE[MuseDataType.EEG], _pure_amp=pure_amp, _pure_freq=pure_freq, _pure_noise=pure_noise, _channel_phase_offsets=channel_phase_offsets):
+
+                timestamps = np.arange(CHUNK_SIZE[MuseDataType.EEG]) / SAMPLING_RATE[MuseDataType.EEG] + _current_time
+                
+                signals = []
+                for i in range(NUM_CHANNELS[MuseDataType.EEG]):
+                    phase_offset = _channel_phase_offsets[i]
+                    signal = _pure_amp * np.sin(2 * np.pi * _pure_freq * timestamps + phase_offset)
+
+                    if _pure_noise > 0:
+                        signal += _pure_amp * np.random.normal(0, _pure_noise / 2, len(timestamps))
+
+                    signals.append(signal)
+
+                output = np.array(signals).T
+                current_time = timestamps[-1] + 1 / SAMPLING_RATE[MuseDataType.EEG]  # Ensure continuous timestamps
+                return output, timestamps, current_time
+
+            # eeg_data = simulate_pure_sine(current_time)
+
+            with open(CSV_FILENAME, mode='a', newline='') as file:
+                while True:
+                    new_eeg_data, new_timestamps, current_time = simulate_pure_sine(current_time)
+                    # if eeg_data.shape[0] < CHUNK_SIZE[MuseDataType.EEG]:
+                    #     needed_samples = CHUNK_SIZE[MuseDataType.EEG] - eeg_data.shape[0] + CHUNK_SIZE[MuseDataType.EEG]
+                    #     new_eeg_data = simulate_pure_sine(current_time, needed_samples)
+                    # eeg_data = np.vstack([eeg_data, new_eeg_data])
+
+                    # generated_eeg_data_chunk = eeg_data[:CHUNK_SIZE[MuseDataType.EEG], ...]
+                    # generated_timestamp_chunk = TIMESTAMPS[MuseDataType.EEG] + counter * DELAYS[MuseDataType.EEG]
+
+                    _queue.put((new_eeg_data, new_timestamps)) 
+                    # eeg_data = eeg_data[CHUNK_SIZE[MuseDataType.EEG]:, ...]  
+
+                    df = pd.DataFrame(new_eeg_data, columns=[f"Channel_{i+1}" for i in range(NUM_CHANNELS[MuseDataType.EEG])])
+
+                    # Append data
+                    df.to_csv(file, mode='a', header=False, index=False)
+
+                    time.sleep(CHUNK_SIZE[MuseDataType.EEG] / SAMPLING_RATE[MuseDataType.EEG])
+        else:
             pass
 
-        muse.start()
-        t_init = time.time()
-        print(f"Start recording at {datetime.now().strftime('%y-%m-%d_%H-%M-%S')}")
-        last_update = t_init
-        _connected_flag.set()
-        while True:
-            try:
-                try:
-                    while True:
-                        muselsl.backends.sleep(1) # NOTE: this is not time.sleep(), it is asyncio.sleep(). Therefore, it is non-blocking
-                        if time.time() - last_update > 10:
-                            last_update = time.time()
-                            muse.keep_alive()
-                except bleak.exc.BleakError:
-                    print('Disconnected. Attempting to reconnect...')
-                    while True:
-                        muse.connect(retries=3)
-                        try:
-                            muse.resume()
-                        except bleak.exc.BleakDBusError:
-                            print('DBus error occurred. Reconnecting.')
-                            muse.disconnect()
-                            continue
-                        else:
-                            break
-                    print('Connected. Continuing with data collection...')
-            except KeyboardInterrupt:
-                print('Interrupt received. Exiting data collection.')
-                break
-
-        muse.stop()
-        muse.disconnect()
 
     def __del__(self):
         if self.recording_process.is_alive():
