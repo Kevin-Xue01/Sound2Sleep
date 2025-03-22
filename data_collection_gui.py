@@ -71,12 +71,12 @@ from utils import (
     DISPLAY_WINDOW_LEN_N,
     DISPLAY_WINDOW_LEN_S,
     EEG_PLOTTING_SHARED_MEMORY,
-    LSL_SCAN_TIMEOUT,
     NUM_CHANNELS,
     SAMPLING_RATE,
     TIMESTAMPS,
     AppState,
     Audio,
+    ConnectionMode,
     EEGProcessorOutput,
     ExperimentMode,
     FileWriter,
@@ -93,10 +93,6 @@ class ConnectionQuality(Enum):
     MEDIUM = 'Medium'
     LOW = 'Low'
 
-class ConnectionMode(Enum):
-    GENERATED = auto()
-    PLAYBACK = auto()
-    REALTIME = auto()
 
 CONNECTION_QUALITY_COLORS = {
     ConnectionQuality.HIGH: 'green',
@@ -137,9 +133,8 @@ class StatusWidget(QWidget):
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
 
-    def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode = ConnectionMode.REALTIME):
+    def __init__(self, parent, config: SessionConfig):
         super().__init__(parent)
-        self.connection_mode = connection_mode
         self.display_every_counter = 0
         self.display_every_counter_max = 2
         self.connected = False
@@ -225,7 +220,7 @@ class ConnectionWidget(QWidget):
         # Start the Muse LSL recording process
         self.recording_process = Process(
             target=ConnectionWidget.record,
-            args=(self._queue, self.connected_flag, self.connection_mode, self.simulation_params),
+            args=(self._queue, self.connected_flag, self.config.connection_mode, self.simulation_params),
             daemon=True
         )
         self.recording_process.start()
@@ -335,7 +330,7 @@ class ConnectionWidget(QWidget):
         self.filt_state = np.tile(zi, (4, 1)).transpose()
 
         # Add parameter tuning UI elements
-        if self.connection_mode == ConnectionMode.GENERATED:
+        if self.config.connection_mode == ConnectionMode.GENERATED:
             self.create_parameter_controls()
 
     def check_connection(self):

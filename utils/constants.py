@@ -74,6 +74,10 @@ class ExperimentMode(Enum):
     CLAS_AUDIO_OFF = "CLAS Audio Off" # CLAS with specific target phase + configurable delay and audio on
     CLAS_AUDIO_ON = "CLAS Audio On" # CLAS with specific target phase + configurable delay and audio on
 
+class ConnectionMode(Enum):
+    GENERATED = "Generated"
+    PLAYBACK = "Playback"
+    REALTIME = "Realtime"
 
 # NOTE: Old Running modes. SHAM_DELAY vs SHAM_PHASE? Seems to have no difference.
 # **CLAS**: (The full algorithm) Target specific phase and attempt to deliver stimulation exactly on target phase.  
@@ -95,6 +99,5 @@ class EEGProcessorOutput(Enum):
     FUTURE2 = auto()
 
 DISPLAY_WINDOW_LEN_S = 5.0
-LSL_SCAN_TIMEOUT = 10.5
 DISPLAY_WINDOW_LEN_N = int(SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S)
 EEG_PLOTTING_SHARED_MEMORY = "eeg_plotting_shared_memory"

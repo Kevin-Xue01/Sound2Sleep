@@ -7,7 +7,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, PrivateAttr
 
-from .constants import ExperimentMode
+from .constants import ConnectionMode, ExperimentMode
 
 load_dotenv()
 
@@ -29,6 +29,7 @@ class SessionConfig(BaseModel):
 
     data_dir: str = Field(default_factory=lambda: os.path.join("data", os.getenv('SUBJECT_NAME')))
     experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_ON
+    connection_mode: ConnectionMode = ConnectionMode.REALTIME
     
     mean_subtraction_window_len_s: float = 15.0
     processing_window_len_s: float = 2.0 # [seconds], duration of processing window
@@ -63,11 +64,12 @@ class SessionConfig(BaseModel):
         self.data_dir = os.path.join(self.data_dir, self._session_key)
         os.makedirs(self.data_dir, exist_ok=True)
 
-        self._session_config_filename = os.path.join(self.data_dir, 'session_config.json')
+        self._session_config_filename = os.path.join(self.data_dir, 'config.json')
         with open(self._session_config_filename, 'w') as file:
             json.dump(self.model_dump(), file, indent=4)
     
     def model_dump(self, **kwargs):
         base_dict = super().model_dump(**kwargs)
         base_dict["experiment_mode"] = self.experiment_mode.value  # Ensure .value is used
+        base_dict["connection_mode"] = self.connection_mode.value  # Ensure .value is used
         return base_dict

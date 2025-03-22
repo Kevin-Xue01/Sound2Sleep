@@ -22,6 +22,7 @@ import pyqtgraph as pg
 import scipy.signal as signal
 import seaborn as sns
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from muselsl.constants import LSL_SCAN_TIMEOUT
 from pydantic import ValidationError
 from pylsl import StreamInfo, StreamInlet, resolve_byprop
 from PyQt5.QtCore import (
@@ -49,7 +50,6 @@ from PyQt5.QtWidgets import (
 )
 from scipy.signal import butter, filtfilt
 
-# from muselsl.constants import LSL_SCAN_TIMEOUT
 from utils import (
     CHANNEL_NAMES,
     CHUNK_SIZE,
@@ -57,7 +57,6 @@ from utils import (
     DISPLAY_WINDOW_LEN_N,
     DISPLAY_WINDOW_LEN_S,
     EEG_PLOTTING_SHARED_MEMORY,
-    LSL_SCAN_TIMEOUT,
     NUM_CHANNELS,
     SAMPLING_RATE,
     TIMESTAMPS,
