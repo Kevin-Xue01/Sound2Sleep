@@ -18,7 +18,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import psutil
-import pylsl
 import pyqtgraph as pg
 import scipy.signal as signal
 import seaborn as sns
