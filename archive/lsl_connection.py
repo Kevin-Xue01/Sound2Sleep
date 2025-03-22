@@ -404,7 +404,6 @@ class EEGApp(QWidget):
 
     #             stim_time = self.processor_elapsed_time + time_to_target
     #             if isnan(stim_time): self.logger.critical(f"Stim Time is NaN. EEG Timestamp: {self.eeg_timestamp[-1]}")
-    #             self.file_writer.write_stim(stim_time)
 
     #     self.file_writer.write_chunk(data, timestamp)
     def handle_eeg_data(self, eeg_chunk: np.ndarray, timestamp_chunk: np.ndarray):
@@ -447,7 +446,6 @@ class EEGApp(QWidget):
 
             stim_time = self.processor_elapsed_time + time_to_target
             if isnan(stim_time): self.logger.critical(f"Stim Time is NaN. EEG Timestamp: {self.plotter_timestamps[-1]}")
-            self.file_writer.write_stim(stim_time)
 
     def switch_channel(self):
         selected_channel_ind = np.argmin(np.sqrt(np.mean(self.plotter_eeg_data**2, axis=0)))

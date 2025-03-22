@@ -66,3 +66,8 @@ class SessionConfig(BaseModel):
         self._session_config_filename = os.path.join(self.data_dir, 'session_config.json')
         with open(self._session_config_filename, 'w') as file:
             json.dump(self.model_dump(), file, indent=4)
+    
+    def model_dump(self, **kwargs):
+        base_dict = super().model_dump(**kwargs)
+        base_dict["experiment_mode"] = self.experiment_mode.value  # Ensure .value is used
+        return base_dict

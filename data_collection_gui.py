@@ -582,7 +582,6 @@ class ConnectionWidget(QWidget):
                 if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
                     time_to_target = time_to_target - self.config.time_to_target_offset
                     self.process_eeg_step_2(time_to_target)
-                    self.file_writer.write_stim(self.processor_elapsed_time + time_to_target)
                 
                 if self.display_every_counter == self.display_every_counter_max:
                     for ii in range(4):
