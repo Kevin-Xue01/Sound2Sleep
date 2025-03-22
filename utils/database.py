@@ -12,7 +12,6 @@ class FileWriter:
         self.muse_data_type = muse_data_type
         self.timestamp_file_path = os.path.join(config.data_dir, f"{self.muse_data_type.name}_timestamp.bin")
         self.data_file_path = os.path.join(config.data_dir, f"{self.muse_data_type.name}_data.bin")
-        self.stim_timestamp_file_path = os.path.join(config.data_dir, f"{self.muse_data_type.name}_stim_timestamp.txt")
         
         self.data_shape = (CHUNK_SIZE[MuseDataType.EEG], len(CHANNEL_NAMES[MuseDataType.EEG]))
         self.data_dtype = np.float32
@@ -24,7 +23,6 @@ class FileWriter:
         
         self.data_file = open(self.data_file_path, 'wb')
         self.timestamp_file = open(self.timestamp_file_path, 'wb')
-        self.stim_timestamp_file = open(self.stim_timestamp_file_path, 'w')
         
     def write_chunk(self, data: np.ndarray, timestamp: np.ndarray):
         self.data_file.write(data.tobytes())
@@ -33,14 +31,9 @@ class FileWriter:
         self.data_file.flush()
         self.timestamp_file.flush()
 
-    def write_stim(self, stim_timestamp):
-        self.stim_timestamp_file.write(f"{stim_timestamp}\n")
-        self.stim_timestamp_file.flush()
-    
     def __del__(self):
         self.data_file.close()
         self.timestamp_file.close()
-        self.stim_timestamp_file.close()
 
 
 class FileReader:
@@ -49,7 +42,6 @@ class FileReader:
         self.muse_data_type = muse_data_type
         self.timestamp_file_path = os.path.join(self.config.data_dir, f"{self.muse_data_type.name}_timestamp.bin")
         self.data_file_path = os.path.join(self.config.data_dir, f"{self.muse_data_type.name}_data.bin")
-        self.stim_timestamp = os.path.join(self.config.data_dir, f"{self.muse_data_type.name}_stim_timestamp.txt")
 
         # Define expected shapes and dtypes
         self.data_shape = (CHUNK_SIZE[MuseDataType.EEG], len(CHANNEL_NAMES[MuseDataType.EEG]))
@@ -141,26 +133,9 @@ class FileReader:
             print(eeg_data.shape, timestamps.shape)
             return eeg_data, timestamps  # Returns full dataset in unsafe mode
     
-    def read_stim_timestamp(self):
-        # Load data, forcing errors='coerce' to convert invalid values to NaN
-        data = np.genfromtxt(self.stim_timestamp, dtype=np.float64, invalid_raise=False)
-        # Filter out NaN values
-        return data[~np.isnan(data)]
-    
     def get_total_frames(self):
         return self.total_frames
     
-    def close(self):
-        if hasattr(self, 'data_file') and self.data_file:
-            self.data_file.close()
-        
-        if hasattr(self, 'timestamp_file') and self.timestamp_file:
-            self.timestamp_file.close()
-    
-    def __enter__(self):
-        """Context manager entry."""
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        self.close()
+    def __del__(self):
+        self.data_file.close()
+        self.timestamp_file.close()
