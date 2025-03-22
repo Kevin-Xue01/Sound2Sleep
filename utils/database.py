@@ -16,7 +16,6 @@ class FileWriter:
         self.muse_data_type = muse_data_type
         self.session_key = session_key
         self.subject_name = os.getenv("SUBJECT_NAME")
-        print(self.subject_name)
         directory = f"data/{self.subject_name}/{session_key}"
         os.makedirs(directory, exist_ok=True)
         self.timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_timestamp.bin")
