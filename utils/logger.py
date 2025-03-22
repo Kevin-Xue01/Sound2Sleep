@@ -1,6 +1,9 @@
 import logging
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Logger:
     log_format = logging.Formatter(
@@ -13,6 +16,7 @@ class Logger:
             return False
     
     def __init__(self, session_key: str, logger_name: str):
+        self.subject_name = os.getenv("SUBJECT_NAME")
         self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(logging.DEBUG)
         self.session_key = session_key
@@ -28,7 +32,7 @@ class Logger:
 
     def _setup_file_handler(self):
         if self.session_key:
-            session_log_file_path = os.path.join("data", self.session_key, "log.txt")
+            session_log_file_path = os.path.join("data", self.subject_name, self.session_key, "log.txt")
             self.file_handler = logging.FileHandler(session_log_file_path, mode='a')
             self.file_handler.setLevel(logging.INFO)
             self.file_handler.setFormatter(self.log_format)

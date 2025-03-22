@@ -137,26 +137,9 @@ class StatusWidget(QWidget):
         self.indicator.setStyleSheet(f"background-color: {CONNECTION_QUALITY_COLORS[self.connection_quality]}; border-radius: 7px;")
         self.text.setText(CONNECTION_QUALITY_LABELS[self.connection_quality])
 
-# Custom DateAxisItem that formats tick values as "Hour:Minute:Second"
-class CustomDateAxis(DateAxisItem):
-    def tickStrings(self, values, scale, spacing):
-        out = []
-        last_label = None
-        for value in values:
-            label = datetime.fromtimestamp(value).strftime("%H:%M:%S")
-            if label == last_label:
-                out.append("")
-            else:
-                out.append(label)
-                last_label = label
-        return out
-    
-
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
     def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode = ConnectionMode.GENERATED):
-
-
         super().__init__(parent)
         self.connection_mode = connection_mode
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -306,9 +289,6 @@ class ConnectionWidget(QWidget):
         self.simulation_params['pure_amp'] = value
         self.amp_value.setText(f"{value}")
         
-    # def update_frequency(self, value):
-    #     self.simulation_params['pure_freq'] = value
-    #     self.freq_value.setText(f"{value}")
     def update_frequency(self, value):
         freq = value / 100.0  # Convert back to float
         self.simulation_params['pure_freq'] = freq
@@ -323,7 +303,6 @@ class ConnectionWidget(QWidget):
         sns.set(style="whitegrid")
         self.scale = 100
         self.figure, self.ax = plt.subplots()
-        self.ax.spines['top', 'right'].set_visible(False)
         self.canvas = FigureCanvasQTAgg(self.figure)
         self.canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.main_layout.addWidget(self.canvas)
@@ -333,8 +312,8 @@ class ConnectionWidget(QWidget):
         impedances = np.std(self.eeg_data_f, axis=0)
         lines = []
 
-        for ii in range(1,3):
-            line, = self.ax.plot(self.times[::2], self.eeg_data_f[::2, ii] - ii, lw=2, palette = 'Set2')
+        for ii in range(4):
+            line, = self.ax.plot(self.times[::2], self.eeg_data_f[::2, ii] - ii, lw=1)
             lines.append(line)
         self.lines = lines
 
