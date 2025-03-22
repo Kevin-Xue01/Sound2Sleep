@@ -338,9 +338,6 @@ class ConnectionWidget(QWidget):
         if self.connection_mode == ConnectionMode.GENERATED:
             self.create_parameter_controls()
 
-    def play_audio(self, time_to_target):
-        self.audio.play(time_to_target)
-
     def check_connection(self):
         if self.connected_flag.is_set():
             self.connection_check_timer.stop()
@@ -542,7 +539,7 @@ class ConnectionWidget(QWidget):
     
     def process_eeg_step_2(self, time_to_target):
         if self.config.experiment_mode == ExperimentMode.CLAS_AUDIO_ON or self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_ON: 
-            self.play_audio(time_to_target)
+            self.audio.play(time_to_target)
 
     def randomize_phase(self):
         self.target_phase = random.uniform(0.0, 2*np.pi)
