@@ -1,7 +1,6 @@
 from enum import Enum, auto
 
 import numpy as np
-
 from muselsl.constants import (
     LSL_ACC_CHUNK,
     LSL_EEG_CHUNK,
@@ -76,7 +75,7 @@ class ExperimentMode(Enum):
     CLAS_AUDIO_ON = "CLAS Audio On" # CLAS with specific target phase + configurable delay and audio on
 
 
-# ## Running modes
+# NOTE: Old Running modes. SHAM_DELAY vs SHAM_PHASE? Seems to have no difference.
 # **CLAS**: (The full algorithm) Target specific phase and attempt to deliver stimulation exactly on target phase.  
 # **SHAM Muted**: (The full algorith, no auditory stim) Target specific phase and attempt to deliver stimulation exactly on target phase, but do not actually output any audio. Parallel port markers are are still outputted.
 # **SHAM Phase**: (previously "vary") Deliver stimulation on random phase. Rerandomize the target phase after each stimulation.

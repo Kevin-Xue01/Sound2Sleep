@@ -18,8 +18,8 @@ class TruncatedWaveletConfig(BaseModel):
     high: float = 2.0
 
 class AudioConfig(BaseModel):
-    ramp_s: float = 1.0
-    total_s: float = 3.0
+    ramp_s: float = 0.01
+    total_s: float = 0.05
     volume: float = 0.001
 
 class SessionConfig(BaseModel):

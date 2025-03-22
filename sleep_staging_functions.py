@@ -1,24 +1,32 @@
-import mne
-import yasa
-import numpy as np
-from matplotlib.patches import Arc, FancyArrowPatch, Rectangle
-from mne.datasets.sleep_physionet.age import fetch_data
-import matplotlib.pyplot as plt
-import os
 import io
-from matplotlib.patches import Patch
+import os
+
+import matplotlib.pyplot as plt
+import mne
+import numpy as np
+import yasa
+from matplotlib.patches import Arc, FancyArrowPatch, Patch, Rectangle
+from mne.datasets.sleep_physionet.age import fetch_data
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QStackedWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 from scipy.ndimage import convolve1d
 
-from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
-    QPushButton, QFrame, QStackedWidget, QSizePolicy, QTextEdit, QScrollArea
-)
-from PyQt5.QtGui import QFont, QPixmap
-from PyQt5.QtCore import Qt
+from utils import FileReader, SessionConfig
 
-from matplotlib.patches import Arc, FancyArrowPatch
-
-from utils import SessionConfig, FileReader
 
 def hypnogramCreation(file_reader: FileReader, chosen_channel="Ch2", num_channels=4, sfreq=256, epoch_length=30):
     eeg_data = []
@@ -256,8 +264,7 @@ class SleepStageReportPage(QWidget):
     def __init__(self, config: SessionConfig, parent=None):
         super().__init__(parent)
         self.config = config
-        # Initialize the file reader with a specific identifier (adjust as needed)
-        self.file_reader = FileReader("03-19_04-04-33")
+        self.file_reader = FileReader(self.config._session_key)
         self.parent_app = parent  
 
         self.setStyleSheet("background-color: #1A0033;")

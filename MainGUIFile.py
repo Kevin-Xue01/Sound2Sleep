@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from multiprocessing import freeze_support
 
 import matplotlib
+import psutil
 
 matplotlib.use("Agg")  # For headless use, if needed
 import matplotlib.pyplot as plt
@@ -34,7 +35,7 @@ from PyQt5.QtWidgets import (
 from data_collection_gui import ConnectionMode, ConnectionWidget
 from loading_screen import LoadingScreen
 from sleep_staging_functions import SleepStageReportPage, generate_sleep_figure
-from utils import FileReader, SessionConfig
+from utils import FileReader, FileWriter, SessionConfig
 
 RANKING_DIR = "gui_data/"
 if not os.path.exists(RANKING_DIR):
@@ -45,7 +46,8 @@ class SleepStudyApp(QWidget):
     def __init__(self):
         super().__init__()
         self.config = SessionConfig()
-        self.file_reader = FileReader("03-19_04-04-33")
+        self.file_writer = FileWriter(self.config._session_key)
+        self.file_reader = FileReader(self.config._session_key)
         self.setWindowTitle("Overnight Sounds Research Study")
         self.setStyleSheet("background-color: #1A0033;")
         

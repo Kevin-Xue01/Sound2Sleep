@@ -1,15 +1,23 @@
 import os
 
 import numpy as np
+from dotenv import load_dotenv
 
 from .constants import CHANNEL_NAMES, CHUNK_SIZE, MuseDataType
+
+# Load .env file
+load_dotenv()
+
+# Get SUBJECT_NAME
 
 
 class FileWriter:
     def __init__(self, session_key, muse_data_type=MuseDataType.EEG):
         self.muse_data_type = muse_data_type
         self.session_key = session_key
-        directory = f"data/{session_key}"
+        self.subject_name = os.getenv("SUBJECT_NAME")
+        print(self.subject_name)
+        directory = f"data/{self.subject_name}/{session_key}"
         os.makedirs(directory, exist_ok=True)
         self.timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_timestamp.bin")
         self.data_file_path = os.path.join(directory, f"{self.muse_data_type.name}_data.bin")
@@ -34,7 +42,7 @@ class FileWriter:
             if not self.timestamp_file.closed:
                 self.timestamp_file.close()
             self.session_key = session_key
-            directory = f"data/{session_key}"
+            directory = f"data/{self.subject_name}/{session_key}"
             os.makedirs(directory, exist_ok=True)
             self.timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_timestamp.bin")
             self.data_file_path = os.path.join(directory, f"{self.muse_data_type.name}_data.bin")
@@ -60,7 +68,8 @@ class FileReader:
     def __init__(self, session_key, muse_data_type=MuseDataType.EEG):
         self.muse_data_type = muse_data_type
         self.session_key = session_key
-        directory = f"data/{session_key}"
+        self.subject_name = os.getenv("SUBJECT_NAME")
+        directory = f"data/{self.subject_name}/{session_key}"
         os.makedirs(directory, exist_ok=True)
         self.timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_timestamp.bin")
         self.data_file_path = os.path.join(directory, f"{self.muse_data_type.name}_data.bin")
