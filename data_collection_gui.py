@@ -155,7 +155,18 @@ class ConnectionWidget(QWidget):
     def init_ui(self):
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(0)
+        self.main_layout.setSpacing(1)
+
+        # Connecting text label
+        self.connecting_label = QLabel("Connecting to Muse ...", self)
+        self.connecting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # Increase font size
+        font = self.connecting_label.font()
+        font.setPointSize(32)  # Adjust size as needed
+        self.connecting_label.setFont(font)
+
+        self.main_layout.addWidget(self.connecting_label)
 
         self.loading_screen = QLabel(self)
         self.loading_movie = QMovie("assets/loading.gif")  # Replace with your GIF file
@@ -340,6 +351,7 @@ class ConnectionWidget(QWidget):
 
     def on_connected(self):
         self.loading_movie.stop()
+        self.connecting_label.setVisible(False)
         self.loading_screen.setVisible(False)
 
         # Create and add StatusWidget

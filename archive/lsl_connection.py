@@ -348,8 +348,9 @@ class EEGApp(QWidget):
 
     def on_config_update(self, config: SessionConfig):
         self.config = config
-        self.logger.update_session_key(self.config._session_key)
-        self.file_writer.update_session_key(config._session_key)
+        # NOTE: update session key no longer valid
+        # self.logger.update_session_key(self.config._session_key)
+        # self.file_writer.update_session_key(config._session_key)
 
     def save_config(self):
         """Parse the JSON from the editor and update the config model."""

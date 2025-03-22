@@ -29,16 +29,6 @@ class Logger:
         self.file_handler.setFormatter(self.log_format)
         self.logger.addHandler(self.file_handler)
     
-    def update_session_key(self, new_session_key: str):
-        """Update session key and reconfigure the logger."""
-        if self.session_key != new_session_key:
-            self.session_key = new_session_key  # Update session key
-            if self.file_handler:
-                self.logger.removeHandler(self.file_handler)
-                self.file_handler.close()
-                self.file_handler = None  # Reset file handler
-            self._setup_file_handler()
-
     def debug(self, message: str):
         """Logs a debug message."""
         self.logger.debug(message)
