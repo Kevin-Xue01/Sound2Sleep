@@ -106,7 +106,7 @@ class SleepStudyApp(QWidget):
         # Left side: logo and text
         left_layout = QHBoxLayout()
         logo_label = QLabel()
-        logo_pixmap = QPixmap("logo.png")
+        logo_pixmap = QPixmap("assets/logo.png")
         if not logo_pixmap.isNull():
             # Keep the logo size small regardless of full screen.
             logo_label.setPixmap(logo_pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio))

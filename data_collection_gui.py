@@ -172,7 +172,7 @@ class ConnectionWidget(QWidget):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         self.loading_screen = QLabel(self)
-        self.loading_movie = QMovie("loading.gif")  # Replace with your GIF file
+        self.loading_movie = QMovie("assets/loading.gif")  # Replace with your GIF file
         self.loading_screen.setMovie(self.loading_movie)
         self.loading_screen.setVisible(True)
         self.main_layout.addWidget(self.loading_screen, alignment=Qt.AlignmentFlag.AlignCenter)
