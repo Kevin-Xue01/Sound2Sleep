@@ -1,26 +1,18 @@
 import os
 
 import numpy as np
-from dotenv import load_dotenv
 
+from .config import SessionConfig
 from .constants import CHANNEL_NAMES, CHUNK_SIZE, MuseDataType
-
-# Load .env file
-load_dotenv()
-
-# Get SUBJECT_NAME
 
 
 class FileWriter:
-    def __init__(self, session_key, muse_data_type=MuseDataType.EEG):
+    def __init__(self, config: SessionConfig, muse_data_type=MuseDataType.EEG):
+        self.config = config
         self.muse_data_type = muse_data_type
-        self.session_key = session_key
-        self.subject_name = os.getenv("SUBJECT_NAME")
-        directory = f"data/{self.subject_name}/{session_key}"
-        os.makedirs(directory, exist_ok=True)
-        self.timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_timestamp.bin")
-        self.data_file_path = os.path.join(directory, f"{self.muse_data_type.name}_data.bin")
-        self.stim_timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_stim_timestamp.txt")
+        self.timestamp_file_path = os.path.join(config.data_dir, f"{self.muse_data_type.name}_timestamp.bin")
+        self.data_file_path = os.path.join(config.data_dir, f"{self.muse_data_type.name}_data.bin")
+        self.stim_timestamp_file_path = os.path.join(config.data_dir, f"{self.muse_data_type.name}_stim_timestamp.txt")
         
         self.data_shape = (CHUNK_SIZE[MuseDataType.EEG], len(CHANNEL_NAMES[MuseDataType.EEG]))
         self.data_dtype = np.float32
@@ -34,18 +26,6 @@ class FileWriter:
         self.timestamp_file = open(self.timestamp_file_path, 'wb')
         self.stim_timestamp_file = open(self.stim_timestamp_file_path, 'w')
         
-    def update_session_key(self, session_key: str):
-        if session_key != self.session_key:
-            if not self.data_file.closed:
-                self.data_file.close()
-            if not self.timestamp_file.closed:
-                self.timestamp_file.close()
-            self.session_key = session_key
-            directory = f"data/{self.subject_name}/{session_key}"
-            os.makedirs(directory, exist_ok=True)
-            self.timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_timestamp.bin")
-            self.data_file_path = os.path.join(directory, f"{self.muse_data_type.name}_data.bin")
-    
     def write_chunk(self, data: np.ndarray, timestamp: np.ndarray):
         self.data_file.write(data.tobytes())
         self.timestamp_file.write(timestamp.tobytes())
@@ -64,15 +44,12 @@ class FileWriter:
 
 
 class FileReader:
-    def __init__(self, session_key, muse_data_type=MuseDataType.EEG):
+    def __init__(self, config: SessionConfig, muse_data_type=MuseDataType.EEG):
+        self.config = config
         self.muse_data_type = muse_data_type
-        self.session_key = session_key
-        self.subject_name = os.getenv("SUBJECT_NAME")
-        directory = f"data/{self.subject_name}/{session_key}"
-        os.makedirs(directory, exist_ok=True)
-        self.timestamp_file_path = os.path.join(directory, f"{self.muse_data_type.name}_timestamp.bin")
-        self.data_file_path = os.path.join(directory, f"{self.muse_data_type.name}_data.bin")
-        self.stim_timestamp = os.path.join(directory, f"{self.muse_data_type.name}_stim_timestamp.txt")
+        self.timestamp_file_path = os.path.join(self.config.data_dir, f"{self.muse_data_type.name}_timestamp.bin")
+        self.data_file_path = os.path.join(self.config.data_dir, f"{self.muse_data_type.name}_data.bin")
+        self.stim_timestamp = os.path.join(self.config.data_dir, f"{self.muse_data_type.name}_stim_timestamp.txt")
 
         # Define expected shapes and dtypes
         self.data_shape = (CHUNK_SIZE[MuseDataType.EEG], len(CHANNEL_NAMES[MuseDataType.EEG]))

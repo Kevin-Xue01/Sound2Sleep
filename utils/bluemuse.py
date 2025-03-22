@@ -29,7 +29,7 @@ class BlueMuse(QObject):
 
     def __init__(self, config: SessionConfig):
         super().__init__()
-        self.logger = Logger(config._session_key, self.__class__.__name__)
+        self.logger = Logger(config, self.__class__.__name__)
         self.stream_info: dict[MuseDataType, StreamInfo] = dict()
         self.stream_inlet: dict[MuseDataType, StreamInlet] = dict()
 

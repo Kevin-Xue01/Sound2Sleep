@@ -127,9 +127,9 @@ class EEGApp(QWidget):
     def __init__(self):
         super().__init__()
         self.config = SessionConfig()
-        self.audio = Audio(self.config._audio)
-        self.file_writer = FileWriter(self.config._session_key)
-        self.logger = Logger(self.config._session_key, self.__class__.__name__)
+        self.audio = Audio(self.config.audio)
+        self.file_writer = FileWriter(self.config)
+        self.logger = Logger(self.config, self.__class__.__name__)
 
         self.app_state = AppState.DISCONNECTED
         self.recording_elapsed_time = 0  # Elapsed time in seconds

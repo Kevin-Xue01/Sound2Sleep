@@ -46,8 +46,8 @@ class SleepStudyApp(QWidget):
     def __init__(self):
         super().__init__()
         self.config = SessionConfig()
-        self.file_writer = FileWriter(self.config._session_key)
-        self.file_reader = FileReader(self.config._session_key)
+        self.file_writer = FileWriter(self.config)
+        self.file_reader = FileReader(self.config)
         self.setWindowTitle("Overnight Sounds Research Study")
         self.setStyleSheet("background-color: #1A0033;")
         

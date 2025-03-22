@@ -1,25 +1,18 @@
 import logging
 import os
 
-from dotenv import load_dotenv
+from .config import SessionConfig
 
-load_dotenv()
 
 class Logger:
     log_format = logging.Formatter(
         '%(created)f <%(name)s> [%(levelname)s] %(message)s'
     )
-    def is_valid_path(self, path: str) -> bool:
-        try:
-            return os.path.exists(path) or os.access(os.path.dirname(path), os.W_OK)
-        except Exception:
-            return False
-    
-    def __init__(self, session_key: str, logger_name: str):
-        self.subject_name = os.getenv("SUBJECT_NAME")
+    def __init__(self, config: SessionConfig, logger_name: str):
+        self.config = config
+        self.log_file_path = os.path.join(self.config.data_dir, "log.txt")
         self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(logging.DEBUG)
-        self.session_key = session_key
 
         # Create a console handler for warnings and above
         console_handler = logging.StreamHandler()
@@ -31,12 +24,10 @@ class Logger:
         self._setup_file_handler()
 
     def _setup_file_handler(self):
-        if self.session_key:
-            session_log_file_path = os.path.join("data", self.subject_name, self.session_key, "log.txt")
-            self.file_handler = logging.FileHandler(session_log_file_path, mode='a')
-            self.file_handler.setLevel(logging.INFO)
-            self.file_handler.setFormatter(self.log_format)
-            self.logger.addHandler(self.file_handler)
+        self.file_handler = logging.FileHandler(self.log_file_path, mode='a')
+        self.file_handler.setLevel(logging.INFO)
+        self.file_handler.setFormatter(self.log_format)
+        self.logger.addHandler(self.file_handler)
     
     def update_session_key(self, new_session_key: str):
         """Update session key and reconfigure the logger."""

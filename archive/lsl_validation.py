@@ -336,24 +336,24 @@ class LSLSimulatorGUI(QMainWindow):
         else:
             self.stream_button.setEnabled(True)
 
-    def browse_session(self):
-        """Open a dialog to select a session directory"""
-        session_dir = QFileDialog.getExistingDirectory(
-            self, "Select Session Directory", "data/"
-        )
+    # def browse_session(self):
+    #     """Open a dialog to select a session directory"""
+    #     session_dir = QFileDialog.getExistingDirectory(
+    #         self, "Select Session Directory", "data/"
+    #     )
         
-        if session_dir:
-            session_key = os.path.basename(session_dir)
-            self.file_reader = FileReader(session_key)
-            self.total_frames = self.file_reader.get_total_frames()
-            self.current_frame = 0
-            self.session_label.setText(f"Session: {session_key}")
+    #     if session_dir:
+    #         session_key = os.path.basename(session_dir)
+    #         self.file_reader = FileReader(session_key) # TODO: config object missing
+    #         self.total_frames = self.file_reader.get_total_frames()
+    #         self.current_frame = 0
+    #         self.session_label.setText(f"Session: {session_key}")
             
-            has_frames = self.file_reader.get_total_frames() > 0
-            self.position_slider.setEnabled(bool(has_frames))
-            self.stream_button.setEnabled(has_frames)
+    #         has_frames = self.file_reader.get_total_frames() > 0
+    #         self.position_slider.setEnabled(bool(has_frames))
+    #         self.stream_button.setEnabled(has_frames)
 
-            self.update_position_display()
+    #         self.update_position_display()
     
     def position_slider_released(self):
         """Handle the position slider being released by the user"""

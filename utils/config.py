@@ -1,15 +1,15 @@
+import json
+import os
 import random
 import string
 from datetime import datetime
 
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field, PrivateAttr
 
 from .constants import ExperimentMode
 
-
-def generate_random_key(length=6):
-    """Generates a random alphanumeric key of the specified length."""
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+load_dotenv()
 
 class TruncatedWaveletConfig(BaseModel):
     n: int = 30 # [number of wavelets]
@@ -24,10 +24,11 @@ class AudioConfig(BaseModel):
 
 class SessionConfig(BaseModel):
     _session_key: str = PrivateAttr(default_factory=lambda: datetime.now().strftime("%m-%d_%H-%M-%S"))
-    _created_at: str = PrivateAttr(default_factory=lambda: datetime.now().isoformat())
-    _audio: AudioConfig = PrivateAttr(default_factory=AudioConfig)
-    experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_ON
     truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
+    audio: AudioConfig = Field(default_factory=AudioConfig)
+
+    data_dir: str = Field(default_factory=lambda: os.path.join("data", os.getenv('SUBJECT_NAME')))
+    experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_ON
     
     mean_subtraction_window_len_s: float = 15.0
     processing_window_len_s: float = 2.0 # [seconds], duration of processing window
@@ -55,43 +56,13 @@ class SessionConfig(BaseModel):
     stim2_prediction_limit_sec: float = 0.1
 
     time_to_target_offset: float = 0.002
-    
-    def __eq__(self, other):
-        """Compare two SessionConfig objects, ignoring private attributes."""
-        if not isinstance(other, SessionConfig):
-            return NotImplemented
-        return self.model_dump() == other.model_dump()
-    
-    def model_dump_json(self, *, indent: int = 4, **kwargs) -> str:
-        """Override model_dump_json to exclude 'experiment_mode' from output."""
-        return super().model_dump_json(indent=indent, exclude={'experiment_mode'}, **kwargs)
-    
-    def model_dump(self, **kwargs):
-        """Override model_dump to exclude 'experiment_mode' from output."""
-        kwargs.setdefault("exclude", {"experiment_mode"})
-        return super().model_dump(**kwargs)
 
-    # def update_processing_params(self, **kwargs):
-    #     """Updates processing parameters with provided key-value pairs."""
-    #     for key, value in kwargs.items():
-    #         if hasattr(self.processing_params, key):
-    #             setattr(self.processing_params, key, value)
-    
-    # def update_audio_params(self, **kwargs):
-    #     """Updates audio parameters with provided key-value pairs."""
-    #     self.audio_params.update(kwargs)
-    
-    # def save_to_file(self, file_path: str):
-    #     """Saves the session configuration to a JSON file."""
-    #     with open(file_path, 'w') as file:
-    #         json.dump(self.dict(), file, indent=4)
-    
-    # @classmethod
-    # def load_from_file(cls, file_path: str):
-    #     """Loads session configuration from a JSON file."""
-    #     with open(file_path, 'r') as file:
-    #         data = json.load(file)
-    #     return cls(**data)
-    
-    # def __repr__(self):
-    #     return f"SessionConfig({self.dict()})"
+    def __init__(self, **data):
+        super().__init__(**data)
+        
+        self.data_dir = os.path.join(self.data_dir, self._session_key)
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        self._session_config_filename = os.path.join(self.data_dir, 'session_config.json')
+        with open(self._session_config_filename, 'w') as file:
+            json.dump(self.model_dump(), file, indent=4)

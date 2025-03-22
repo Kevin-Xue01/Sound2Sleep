@@ -19,7 +19,6 @@ from multiprocessing.synchronize import Event as EventType
 
 # from multiprocessing.synchronize import Event
 from queue import Empty
-from threading import Thread, Timer
 from typing import Union
 
 import bleak.exc
@@ -35,8 +34,6 @@ import seaborn as sns
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from muselsl.muse import Muse
 from muselsl.stream import find_muse  # Adjust this import as needed
-from pydantic import ValidationError
-from pylsl import StreamInfo, StreamInlet, resolve_byprop
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import (
     QEvent,
@@ -149,9 +146,9 @@ class ConnectionWidget(QWidget):
 
         self._parent = parent
         self.config = config
-        self.file_writer = FileWriter(self.config._session_key)
-        self.logger = Logger(self.config._session_key, self.__class__.__name__)
-        self.audio = Audio(self.config._audio)
+        self.file_writer = FileWriter(self.config)
+        self.logger = Logger(self.config, self.__class__.__name__)
+        self.audio = Audio(self.config.audio)
 
         self.init_ui()
         self.init_clas_algo()
