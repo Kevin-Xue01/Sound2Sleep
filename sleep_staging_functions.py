@@ -264,7 +264,7 @@ class SleepStageReportPage(QWidget):
     def __init__(self, config: SessionConfig, parent=None):
         super().__init__(parent)
         self.config = config
-        self.file_reader = FileReader(self.config._session_key)
+        self.file_reader = FileReader(self.config)
         self.parent_app = parent  
 
         self.setStyleSheet("background-color: #1A0033;")
