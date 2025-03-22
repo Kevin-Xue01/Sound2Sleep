@@ -71,12 +71,12 @@ from utils import (
     DISPLAY_WINDOW_LEN_N,
     DISPLAY_WINDOW_LEN_S,
     EEG_PLOTTING_SHARED_MEMORY,
-    LSL_SCAN_TIMEOUT,
     NUM_CHANNELS,
     SAMPLING_RATE,
     TIMESTAMPS,
     AppState,
     Audio,
+    ConnectionMode,
     EEGProcessorOutput,
     ExperimentMode,
     FileWriter,
@@ -93,10 +93,6 @@ class ConnectionQuality(Enum):
     MEDIUM = 'Medium'
     LOW = 'Low'
 
-class ConnectionMode(Enum):
-    GENERATED = auto()
-    PLAYBACK = auto()
-    REALTIME = auto()
 
 CONNECTION_QUALITY_COLORS = {
     ConnectionQuality.HIGH: 'green',
@@ -137,9 +133,8 @@ class StatusWidget(QWidget):
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
 
-    def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode = ConnectionMode.REALTIME):
+    def __init__(self, parent, config: SessionConfig):
         super().__init__(parent)
-        self.connection_mode = connection_mode
         self.display_every_counter = 0
         self.display_every_counter_max = 2
         self.connected = False
@@ -160,7 +155,18 @@ class ConnectionWidget(QWidget):
     def init_ui(self):
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(0)
+        self.main_layout.setSpacing(1)
+
+        # Connecting text label
+        self.connecting_label = QLabel("Connecting to Muse ...", self)
+        self.connecting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # Increase font size
+        font = self.connecting_label.font()
+        font.setPointSize(32)  # Adjust size as needed
+        self.connecting_label.setFont(font)
+
+        self.main_layout.addWidget(self.connecting_label)
 
         self.loading_screen = QLabel(self)
         self.loading_movie = QMovie("assets/loading.gif")  # Replace with your GIF file
@@ -225,7 +231,7 @@ class ConnectionWidget(QWidget):
         # Start the Muse LSL recording process
         self.recording_process = Process(
             target=ConnectionWidget.record,
-            args=(self._queue, self.connected_flag, self.connection_mode, self.simulation_params),
+            args=(self._queue, self.connected_flag, self.config.connection_mode, self.simulation_params),
             daemon=True
         )
         self.recording_process.start()
@@ -335,7 +341,7 @@ class ConnectionWidget(QWidget):
         self.filt_state = np.tile(zi, (4, 1)).transpose()
 
         # Add parameter tuning UI elements
-        if self.connection_mode == ConnectionMode.GENERATED:
+        if self.config.connection_mode == ConnectionMode.GENERATED:
             self.create_parameter_controls()
 
     def check_connection(self):
@@ -345,6 +351,7 @@ class ConnectionWidget(QWidget):
 
     def on_connected(self):
         self.loading_movie.stop()
+        self.connecting_label.setVisible(False)
         self.loading_screen.setVisible(False)
 
         # Create and add StatusWidget
