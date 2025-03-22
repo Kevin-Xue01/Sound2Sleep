@@ -137,26 +137,9 @@ class StatusWidget(QWidget):
         self.indicator.setStyleSheet(f"background-color: {CONNECTION_QUALITY_COLORS[self.connection_quality]}; border-radius: 7px;")
         self.text.setText(CONNECTION_QUALITY_LABELS[self.connection_quality])
 
-# Custom DateAxisItem that formats tick values as "Hour:Minute:Second"
-class CustomDateAxis(DateAxisItem):
-    def tickStrings(self, values, scale, spacing):
-        out = []
-        last_label = None
-        for value in values:
-            label = datetime.fromtimestamp(value).strftime("%H:%M:%S")
-            if label == last_label:
-                out.append("")
-            else:
-                out.append(label)
-                last_label = label
-        return out
-    
-
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
     def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode = ConnectionMode.GENERATED):
-
-
         super().__init__(parent)
         self.connection_mode = connection_mode
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
