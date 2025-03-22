@@ -217,24 +217,8 @@ class SleepStudyApp(QWidget):
         return data_widget
 
     def start_headband_connection(self):
-        # This method starts the headband connection workflow.
         self.headband_connection = ConnectionWidget(self, self.config)
         self.stacked_widget.addWidget(self.headband_connection)
-        # Add an "End" button to the headband connection widget layout.
-        # end_button = QPushButton("End")
-        # end_button.setFont(QFont("Arial", 16))
-        # end_button.setStyleSheet("background-color: #8B0000; color: white; padding: 10px; border-radius: 10px;")
-        # end_button.setMaximumWidth(400)
-        # end_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.mood_page))
-        # # Create a container widget for the button
-        # button_container = QWidget()
-        # button_layout = QVBoxLayout(button_container)
-        # button_layout.setContentsMargins(0, 0, 0, 0)
-        # button_layout.addStretch(2)
-        # button_layout.addWidget(end_button, alignment=Qt.AlignHCenter)
-        # button_layout.addStretch(1)
-        # self.headband_connection.main_layout.addWidget(button_container)
-
         self.stacked_widget.setCurrentWidget(self.headband_connection)
 
     def create_mood_selection_page(self):

@@ -139,31 +139,42 @@ class StatusWidget(QWidget):
 
 class ConnectionWidget(QWidget):
     _on_connected = pyqtSignal()
-    def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode = ConnectionMode.GENERATED):
+
+    def __init__(self, parent, config: SessionConfig, connection_mode: ConnectionMode = ConnectionMode.REALTIME):
         super().__init__(parent)
         self.connection_mode = connection_mode
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.display_every_counter = 0
+        self.display_every_counter_max = 2
+        self.connected = False
+
         self._parent = parent
         self.config = config
         self.file_writer = FileWriter(self.config._session_key)
         self.logger = Logger(self.config._session_key, self.__class__.__name__)
         self.audio = Audio(self.config._audio)
 
-        self.running_clas_algo = False
+        self.init_ui()
+        self.init_clas_algo()
+        self.init_recording_process()
+        self.connection_check_timer = QtCore.QTimer()
+        self.connection_check_timer.timeout.connect(self.check_connection)
+        self.connection_check_timer.start(100)  # Check every 100ms
 
+    def init_ui(self):
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
+
         self.loading_screen = QLabel(self)
         self.loading_movie = QMovie("assets/loading.gif")  # Replace with your GIF file
         self.loading_screen.setMovie(self.loading_movie)
         self.loading_screen.setVisible(True)
+        self.loading_movie.start()
         self.main_layout.addWidget(self.loading_screen, alignment=Qt.AlignmentFlag.AlignCenter)
         self.setLayout(self.main_layout)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-        # Configuration
-        self.running = False
-        
+    def init_clas_algo(self):
         self.last_stim = 0.0
         self.processor_elapsed_time = 0.0
         self.target_phase = self.config.target_phase
@@ -177,7 +188,7 @@ class ConnectionWidget(QWidget):
         self.window_len_s = max(self.config.processing_window_len_s, self.config.mean_subtraction_window_len_s)
         self.window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.window_len_s)
         self.processing_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config.processing_window_len_s)
-        self.display_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * DISPLAY_WINDOW_LEN_S)
+
         self.amp_buffer = np.zeros(self.config.amp_buffer_len)
         self.hl_ratio_buffer = np.zeros(self.config.hl_ratio_buffer_len)
 
@@ -203,6 +214,7 @@ class ConnectionWidget(QWidget):
         self.eeg_data = np.array([])
         self.timestamps = np.array([])
 
+    def init_recording_process(self):
         # Create a queue for communication between processes
         self._queue = Queue()
         self.connected_flag = Event()
@@ -220,15 +232,7 @@ class ConnectionWidget(QWidget):
             daemon=True
         )
         self.recording_process.start()
-        self.loading_movie.start()
-        self.connection_check_timer = QtCore.QTimer()
-        self.connection_check_timer.timeout.connect(self.check_connection)
-        self.connection_check_timer.start(100)  # Check every 100ms
         
-        self.initially_connected = False
-        self.display_every_counter = 0
-        self.display_every_counter_max = 2
-
     def create_parameter_controls(self):
         param_layout = QHBoxLayout()
         
@@ -299,7 +303,7 @@ class ConnectionWidget(QWidget):
         self.simulation_params['pure_noise'] = noise_value
         self.noise_value.setText(f"{noise_value:.2f}")
 
-    def __init_plotting__(self):
+    def init_plotting(self):
         sns.set(style="whitegrid")
         self.scale = 100
         self.figure, self.ax = plt.subplots()
@@ -339,11 +343,8 @@ class ConnectionWidget(QWidget):
 
     def play_audio(self, time_to_target):
         self.audio.play(time_to_target)
-        # Run the audio playback in a separate thread to avoid blocking the UI
-        # Thread(target=self.audio.play, args=(time_to_target,), daemon=True).start()
 
     def check_connection(self):
-        # Non-blocking check for connection flag
         if self.connected_flag.is_set():
             self.connection_check_timer.stop()
             self.on_connected()
@@ -393,8 +394,6 @@ class ConnectionWidget(QWidget):
             }
         """)
         
-        
-        
         # Setup the timer for real-time updates
         self.update_timer = QtCore.QTimer()
         self.update_timer.timeout.connect(self.update_plot)
@@ -403,7 +402,8 @@ class ConnectionWidget(QWidget):
         
         # Install event filter for key press events
         self.installEventFilter(self)
-        self.__init_plotting__()
+        self.init_plotting()
+
         # Add button to layout
         button_layout = QHBoxLayout()
         button_layout.addStretch()
@@ -414,10 +414,10 @@ class ConnectionWidget(QWidget):
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.KeyPress:
             if event.key() == Qt.Key.Key_Plus or event.key() == Qt.Key.Key_Equal:  # Handle both '+' and '=' keys
-                self.scale *= 1.1  # Increase scale by 10%
+                self.scale /= 1.1  # Increase scale by 10%
                 print(f"Scale increased to: {self.scale}")
             elif event.key() == Qt.Key.Key_Minus:
-                self.scale /= 1.1  # Decrease scale by 10%
+                self.scale *= 1.1  # Decrease scale by 10%
                 print(f"Scale decreased to: {self.scale}")
             return True  # Indicate that the event was handled
         return super().eventFilter(obj, event)
@@ -429,50 +429,13 @@ class ConnectionWidget(QWidget):
             
             self.CLAS_button.setEnabled(True)
             self.CLAS_button.setText("I'm awake")
-            
-            if self.status_widget.connection_quality == ConnectionQuality.HIGH:
-                self.logger.info(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
-            else:
-                self.logger.warning(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
         else:
             self.quality_check_enabled = False
             self.processing_enabled = False
             if self.recording_process.is_alive():
                 self.recording_process.terminate()
-                print("Recording process terminated")
             self.update_timer.stop()
             self._parent.stacked_widget.setCurrentWidget(self._parent.mood_page)
-
-    def on_CLAS_button_clicked(self):
-        if not self.processing_enabled:
-            self.quality_check_enabled = False
-            self.processing_enabled = True
-            
-            self.CLAS_button.setEnabled(True)
-            self.CLAS_button.setText("I'm awake")
-            
-            if self.status_widget.connection_quality == ConnectionQuality.HIGH:
-                self.logger.info(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
-            else:
-                self.logger.warning(f"Starting EEG processing with {self.status_widget.connection_quality.value} signal quality.")
-        else:
-            self.quality_check_enabled = False
-            self.processing_enabled = False
-            if self.recording_process.is_alive():
-                self.recording_process.terminate()
-                print("Recording process terminated")
-            self.update_timer.stop()
-            self._parent.stacked_widget.setCurrentWidget(self._parent.mood_page)
-
-    def update_button_state(self):
-        elapsed_time = time.time() - self.quality_check_start_time
-        quality = self.status_widget.connection_quality
-        
-        self.CLAS_button.setText(CONNECTION_QUALITY_LABELS[quality])
-        
-        # Enable button based on quality and elapsed time
-        enable_button = (quality == ConnectionQuality.HIGH or (quality == ConnectionQuality.MEDIUM and elapsed_time >= self.min_quality_check_duration))
-        self.CLAS_button.setEnabled(enable_button)
 
     def get_hl_ratio(self, selected_channel_data):
         # lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
@@ -513,10 +476,10 @@ class ConnectionWidget(QWidget):
             self.selected_channel_ind = selected_channel_ind
             
     def process_eeg_step_1(self, mean_to_subtract):
-        self.switch_channel_counter += 1
-        if self.switch_channel_counter == self.switch_channel_counter_max:
-            self.switch_channel()
-            self.switch_channel_counter = 0
+        # self.switch_channel_counter += 1
+        # if self.switch_channel_counter == self.switch_channel_counter_max:
+        #     self.switch_channel()
+        #     self.switch_channel_counter = 0
 
         if self.second_stim_end < self.timestamps[-1]:
             self.second_stim_start = nan
@@ -617,7 +580,7 @@ class ConnectionWidget(QWidget):
                 self.file_writer.write_chunk(new_samples, new_timestamps)
 
                 result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1(mean_to_subtract)
-                # self.logger.info(f"Result {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
+                self.logger.info(f"Result {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
 
                 if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
                     time_to_target = time_to_target - self.config.time_to_target_offset
@@ -648,7 +611,7 @@ class ConnectionWidget(QWidget):
         channel_std = np.min(channel_stds)
         
         # Update status based on minimum channel variance
-        if channel_std > 250:
+        if channel_std > 350:
             self.status_widget.setStatus(ConnectionQuality.LOW)
         elif channel_std > 150:
             self.status_widget.setStatus(ConnectionQuality.MEDIUM)
@@ -663,8 +626,8 @@ class ConnectionWidget(QWidget):
         
         # Enable button based on quality and elapsed time
         enable_button = (quality == ConnectionQuality.HIGH or (quality == ConnectionQuality.MEDIUM and elapsed_time >= self.min_quality_check_duration))
-        if enable_button and not self.initially_connected:
-            self.initially_connected = True
+        if enable_button and not self.connected:
+            self.connected = True
             self._on_connected.emit()
         self.CLAS_button.setEnabled(enable_button)
             
@@ -724,7 +687,7 @@ class ConnectionWidget(QWidget):
 
             channel_phase_offsets = [i * (np.pi / 4) for i in range(NUM_CHANNELS[MuseDataType.EEG])]
 
-            def simulate_pure_sine(_current_time, num_samples=CHUNK_SIZE[MuseDataType.EEG], simulation_params=simulation_params, _channel_phase_offsets=channel_phase_offsets):
+            def simulate_pure_sine(_current_time, simulation_params=simulation_params, _channel_phase_offsets=channel_phase_offsets):
                 # Get current parameter values from shared dictionary
                 _pure_amp = simulation_params['pure_amp']
                 _pure_freq = simulation_params['pure_freq']
