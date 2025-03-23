@@ -14,8 +14,8 @@ load_dotenv()
 class TruncatedWaveletConfig(BaseModel):
     n: int = 30 # [number of wavelets]
     w: int = 5
-    low: float = 0.5
-    high: float = 2.0
+    low: float = 0.4
+    high: float = 2.1
 
 class AudioConfig(BaseModel):
     ramp_s: float = 0.01
@@ -27,9 +27,9 @@ class SessionConfig(BaseModel):
     truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
 
-    data_dir: str = Field(default_factory=lambda: os.path.join("data", os.getenv('SUBJECT_NAME')))
+    _data_dir: str = PrivateAttr(default_factory=lambda: os.path.join("data", os.getenv('SUBJECT_NAME')))
     experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_ON
-    connection_mode: ConnectionMode = ConnectionMode.REALTIME
+    connection_mode: ConnectionMode = ConnectionMode.GENERATED
     
     mean_subtraction_window_len_s: float = 15.0
     processing_window_len_s: float = 2.0 # [seconds], duration of processing window
@@ -61,10 +61,10 @@ class SessionConfig(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         
-        self.data_dir = os.path.join(self.data_dir, self._session_key)
-        os.makedirs(self.data_dir, exist_ok=True)
+        self._data_dir = os.path.join(self._data_dir, self._session_key)
+        os.makedirs(self._data_dir, exist_ok=True)
 
-        self._session_config_filename = os.path.join(self.data_dir, 'config.json')
+        self._session_config_filename = os.path.join(self._data_dir, 'config.json')
         with open(self._session_config_filename, 'w') as file:
             json.dump(self.model_dump(), file, indent=4)
     
@@ -72,4 +72,5 @@ class SessionConfig(BaseModel):
         base_dict = super().model_dump(**kwargs)
         base_dict["experiment_mode"] = self.experiment_mode.value  # Ensure .value is used
         base_dict["connection_mode"] = self.connection_mode.value  # Ensure .value is used
+
         return base_dict
