@@ -38,6 +38,7 @@ class Audio(QObject):
         noisedata -= np.mean(noisedata)
         noisedata /= np.max(np.abs(noisedata))
         noisedata *= 32766
+        noisedata *= self.config.volume
         noisedata = noisedata.astype(np.int16)
 
         self.sound = sa.WaveObject(noisedata, 1, 2, fs)
