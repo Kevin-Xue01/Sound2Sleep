@@ -38,8 +38,8 @@ class PhaseTracker():
         self.time_elapsed_s = 0.0  # float: in seconds, relative to end of last block/start of current block
 
         # store CLAS parameters
-        self.amp_threshold_uv = 150
-        self.amp_limit_uv = 600
+        self.amp_threshold_uv = 75
+        self.amp_limit_uv = 300
         self.prediction_limit_s = 0.15
         self.backoff_time_s = 7
         self.quadrature_thresh = 0.2
