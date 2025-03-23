@@ -10,8 +10,8 @@ class FileWriter:
     def __init__(self, config: SessionConfig, muse_data_type=MuseDataType.EEG):
         self.config = config
         self.muse_data_type = muse_data_type
-        self.timestamp_file_path = os.path.join(config.data_dir, f"{self.muse_data_type.name}_timestamp.bin")
-        self.data_file_path = os.path.join(config.data_dir, f"{self.muse_data_type.name}_data.bin")
+        self.timestamp_file_path = os.path.join(config._data_dir, f"{self.muse_data_type.name}_timestamp.bin")
+        self.data_file_path = os.path.join(config._data_dir, f"{self.muse_data_type.name}_data.bin")
         
         self.data_shape = (CHUNK_SIZE[MuseDataType.EEG], len(CHANNEL_NAMES[MuseDataType.EEG]))
         self.data_dtype = np.float32
@@ -40,8 +40,8 @@ class FileReader:
     def __init__(self, config: SessionConfig, muse_data_type=MuseDataType.EEG):
         self.config = config
         self.muse_data_type = muse_data_type
-        self.timestamp_file_path = os.path.join(self.config.data_dir, f"{self.muse_data_type.name}_timestamp.bin")
-        self.data_file_path = os.path.join(self.config.data_dir, f"{self.muse_data_type.name}_data.bin")
+        self.timestamp_file_path = os.path.join(self.config._data_dir, f"{self.muse_data_type.name}_timestamp.bin")
+        self.data_file_path = os.path.join(self.config._data_dir, f"{self.muse_data_type.name}_data.bin")
 
         # Define expected shapes and dtypes
         self.data_shape = (CHUNK_SIZE[MuseDataType.EEG], len(CHANNEL_NAMES[MuseDataType.EEG]))

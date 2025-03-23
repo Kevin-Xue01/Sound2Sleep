@@ -93,6 +93,7 @@ class EEGProcessorOutput(Enum):
 
     HL_RATIO = auto()
     AMPLITUDE = auto()
+    FREQ = auto()
     BACKOFF = auto()
     BACKOFF2 = auto()
     FUTURE = auto()

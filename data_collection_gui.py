@@ -244,7 +244,7 @@ class ConnectionWidget(QWidget):
         amp_label = QLabel("Amplitude:")
         self.amp_slider = QSlider(Qt.Orientation.Horizontal)
         self.amp_slider.setMinimum(1)
-        self.amp_slider.setMaximum(100)
+        self.amp_slider.setMaximum(500)
         self.amp_slider.setValue(int(self.simulation_params['pure_amp']))
         self.amp_value = QLabel(f"{self.simulation_params['pure_amp']}")
         self.amp_slider.valueChanged.connect(self.update_amplitude)
@@ -257,7 +257,7 @@ class ConnectionWidget(QWidget):
         freq_label = QLabel("Frequency (Hz):")
         self.freq_slider = QSlider(Qt.Orientation.Horizontal)
         self.freq_slider.setMinimum(int(0.5 * 100))  # 50
-        self.freq_slider.setMaximum(int(2.5 * 100))  # 250
+        self.freq_slider.setMaximum(int(3.0 * 100))  # 300
         self.freq_slider.setSingleStep(int(0.25 * 100))  # 25
         self.freq_slider.setTickInterval(int(0.25 * 100))  # 25
         self.freq_slider.setValue(int(self.simulation_params['pure_freq'] * 100))
@@ -506,6 +506,9 @@ class ConnectionWidget(QWidget):
             ### check backoff criteria ###
             if ((self.last_stim + self.config.backoff_time) > (self.processor_elapsed_time + self.config.stim1_prediction_limit_sec)):
                 return EEGProcessorOutput.BACKOFF, 0, phase, freq, amp, amp_buffer_mean
+            
+            if freq > 2.0 or freq < 0.5:
+                return EEGProcessorOutput.FREQ, 0, phase, freq, amp, amp_buffer_mean
 
             ### check amplitude criteria ###
             if (amp_buffer_mean < self.config.amp_buffer_mean_min) or (amp_buffer_mean > self.config.amp_buffer_mean_max):

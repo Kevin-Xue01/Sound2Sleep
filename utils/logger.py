@@ -10,7 +10,7 @@ class Logger:
     )
     def __init__(self, config: SessionConfig, logger_name: str):
         self.config = config
-        self.log_file_path = os.path.join(self.config.data_dir, "log.txt")
+        self.log_file_path = os.path.join(self.config._data_dir, "log.txt")
         self.logger = logging.getLogger(logger_name)
         self.logger.setLevel(logging.DEBUG)
 
