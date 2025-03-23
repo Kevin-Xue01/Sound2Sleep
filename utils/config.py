@@ -28,8 +28,8 @@ class SessionConfig(BaseModel):
     audio: AudioConfig = Field(default_factory=AudioConfig)
 
     _data_dir: str = PrivateAttr(default_factory=lambda: os.path.join("data", os.getenv('SUBJECT_NAME')))
-    experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_ON
-    connection_mode: ConnectionMode = ConnectionMode.GENERATED
+    experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_OFF
+    connection_mode: ConnectionMode = ConnectionMode.REALTIME
     
     mean_subtraction_window_len_s: float = 15.0
     processing_window_len_s: float = 2.0 # [seconds], duration of processing window
@@ -53,8 +53,8 @@ class SessionConfig(BaseModel):
     bpf_order: int = 4
 
     switch_channel_period_s: float = 15.0
-    stim1_prediction_limit_sec: float = 0.1
-    stim2_prediction_limit_sec: float = 0.1
+    stim1_prediction_limit_sec: float = 0.15
+    stim2_prediction_limit_sec: float = 0.15
 
     time_to_target_offset: float = 0.002
 
