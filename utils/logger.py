@@ -12,7 +12,7 @@ class Logger:
         self.config = config
         self.log_file_path = os.path.join(self.config._data_dir, "log.txt")
         self.logger = logging.getLogger(logger_name)
-        self.logger.setLevel(logging.CRITICAL)
+        self.logger.setLevel(logging.DEBUG)
 
         # Create a console handler for warnings and above
         console_handler = logging.StreamHandler()

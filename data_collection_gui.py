@@ -421,7 +421,6 @@ class ConnectionWidget(QWidget):
     #     self.target_phase = random.uniform(0.0, 2*np.pi)
 
     def update_plot(self):
-        print(f"Start: {time.perf_counter()}")
         while not self._queue.empty():
             try:
                 new_samples, new_timestamps = self._queue.get_nowait()
@@ -473,7 +472,6 @@ class ConnectionWidget(QWidget):
                     self.display_every_counter += 1
             except Empty:
                 break
-        print(f"End: {time.perf_counter()}")
     
     def check_signal_quality(self):
         if len(self.eeg_data) < self.processing_window_len_n:  return
