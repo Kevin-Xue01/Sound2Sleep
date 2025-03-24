@@ -85,7 +85,7 @@ class ConnectionMode(Enum):
 # **SHAM Phase**: (previously "vary") Deliver stimulation on random phase. Rerandomize the target phase after each stimulation.
 # **SHAM Delay**: (previuosly "sham") Target specific phase, when stim is triggered, wait a random delay interval then deliver auditory stimuli.  
 
-class EEGProcessorOutput(Enum):
+class CLASAlgoResultType(Enum):
     NOT_RUNNING = auto()
 
     STIM = auto()
@@ -93,7 +93,7 @@ class EEGProcessorOutput(Enum):
 
     HL_RATIO = auto()
     AMPLITUDE = auto()
-    FREQ = auto()
+    QUADRATURE = auto()
     BACKOFF = auto()
     BACKOFF2 = auto()
     FUTURE = auto()

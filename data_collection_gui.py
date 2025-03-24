@@ -76,8 +76,10 @@ from utils import (
     TIMESTAMPS,
     AppState,
     Audio,
+    CLASAlgo,
+    CLASAlgoResult,
+    CLASAlgoResultType,
     ConnectionMode,
-    EEGProcessorOutput,
     ExperimentMode,
     FileWriter,
     Logger,
@@ -145,8 +147,15 @@ class ConnectionWidget(QWidget):
         self.logger = Logger(self.config, self.__class__.__name__)
         self.audio = Audio(self.config.audio)
 
+        self.selected_channel_ind = 1 # AF7
+        self.eeg_data = np.array([])
+        self.timestamps = np.array([])
+        self.window_len_s = max(self.config.clas_algo.processing_window_len_s, self.config.mean_subtraction_window_len_s)
+        self.window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.window_len_s)
+        self.processing_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config.clas_algo.processing_window_len_s)
+        self.clas_algo = CLASAlgo(self.config.clas_algo)
+        
         self.init_ui()
-        self.init_clas_algo()
         self.init_recording_process()
         self.connection_check_timer = QtCore.QTimer()
         self.connection_check_timer.timeout.connect(self.check_connection)
@@ -176,46 +185,6 @@ class ConnectionWidget(QWidget):
         self.main_layout.addWidget(self.loading_screen, alignment=Qt.AlignmentFlag.AlignCenter)
         self.setLayout(self.main_layout)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-
-    def init_clas_algo(self):
-        self.last_stim = 0.0
-        self.processor_elapsed_time = 0.0
-        self.target_phase = self.config.target_phase
-        self.second_stim_start = nan
-        self.second_stim_end = nan
-
-        self.selected_channel_ind = 1 # AF7
-        self.switch_channel_counter = 0
-        self.switch_channel_counter_max = int(self.config.switch_channel_period_s * SAMPLING_RATE[MuseDataType.EEG] / CHUNK_SIZE[MuseDataType.EEG])
-
-        self.window_len_s = max(self.config.processing_window_len_s, self.config.mean_subtraction_window_len_s)
-        self.window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.window_len_s)
-        self.processing_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config.processing_window_len_s)
-
-        self.amp_buffer = np.zeros(self.config.amp_buffer_len)
-        self.hl_ratio_buffer = np.zeros(self.config.hl_ratio_buffer_len)
-
-        self.sos_low = signal.butter(self.config.bpf_order, self.config.low_bpf_cutoff, btype = 'bandpass', output = 'sos', fs = SAMPLING_RATE[MuseDataType.EEG])
-        self.sos_high = signal.butter(self.config.bpf_order, self.config.high_bpf_cutoff, btype = 'bandpass', output = 'sos', fs = SAMPLING_RATE[MuseDataType.EEG])
-        self.zi_low = signal.sosfilt_zi(self.sos_low)
-        self.zi_high = signal.sosfilt_zi(self.sos_high)
-
-        trunc_wavelet_len = self.processing_window_len_n * 2 # double the length of the signal
-        self.wavelet_freqs = np.linspace(self.config.truncated_wavelet.low, self.config.truncated_wavelet.high, self.config.truncated_wavelet.n)
-        self.trunc_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = self.config.truncated_wavelet.w)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
-        
-        low_freqs = np.linspace(0.5, 4, 5)
-        self.low_freq_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = 5)[:trunc_wavelet_len // 2] for f in low_freqs]
-        high_freqs = np.linspace(8, 12, 5)
-        self.high_freq_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = 5)[:trunc_wavelet_len // 2] for f in high_freqs]
-
-        # Rolling mean buffer
-        self.rolling_buffer = np.zeros((self.window_len_n, 4))
-        self.rolling_idx = 0
-        self.buffer_filled = False
-        
-        self.eeg_data = np.array([])
-        self.timestamps = np.array([])
 
     def init_recording_process(self):
         # Create a queue for communication between processes
@@ -438,123 +407,21 @@ class ConnectionWidget(QWidget):
             self.update_timer.stop()
             self._parent.stacked_widget.setCurrentWidget(self._parent.mood_page)
 
-    def get_hl_ratio(self, selected_channel_data):
-        # lp_signal, self.zi_low = signal.sosfilt(self.sos_low, selected_channel_data, zi = self.zi_low)
-        # hp_signal, self.zi_high = signal.sosfilt(self.sos_high, selected_channel_data, zi = self.zi_high)
-
-        # envelope_lp = np.abs(signal.hilbert(lp_signal[SAMPLING_RATE[MuseDataType.EEG]:]))
-        # power_lf = envelope_lp**2
-
-        # envelope_hf = np.abs(signal.hilbert(hp_signal[SAMPLING_RATE[MuseDataType.EEG]:]))
-        # power_hf = envelope_hf**2
-
-        # hl_ratio = np.mean(power_hf) / np.mean(power_lf)
-        # hl_ratio = np.log10(hl_ratio)
-        # return hl_ratio
-        low_conv_vals = [np.dot(selected_channel_data, w) for w in self.low_freq_wavelets]
-        high_conv_vals = [np.dot(selected_channel_data, w) for w in self.high_freq_wavelets]
-
-        low_amp = np.nanmean(np.abs(low_conv_vals) **2)
-        high_amp = np.nanmean(np.abs(high_conv_vals) **2)
-        hl_ratio = high_amp / low_amp
-        hl_ratio = np.log10(hl_ratio)
-        return hl_ratio
-
-    
-    def estimate_phase(self, selected_channel): 
-        conv_vals = [np.dot(selected_channel, w) for w in self.trunc_wavelets]
-        max_idx = np.argmax(np.abs(conv_vals))
-        amp = np.abs(conv_vals[max_idx] / 2)
-        freq = self.wavelet_freqs[max_idx]
-        phase = (-np.angle(conv_vals[max_idx])) % (2 * pi)
-        
-        return phase, freq, amp
-    
     def switch_channel(self):
         selected_channel_ind = np.argmin(np.sqrt(np.mean(self.eeg_data**2, axis=0)))
         if self.selected_channel_ind != selected_channel_ind:
             self.logger.info(f"Switching channels from [{self.selected_channel_ind}] to [{selected_channel_ind}]")
             self.selected_channel_ind = selected_channel_ind
             
-    def process_eeg_step_1(self, mean_to_subtract):
-        # self.switch_channel_counter += 1
-        # if self.switch_channel_counter == self.switch_channel_counter_max:
-        #     self.switch_channel()
-        #     self.switch_channel_counter = 0
-
-        if self.second_stim_end < self.timestamps[-1]:
-            self.second_stim_start = nan
-            self.second_stim_end = nan
-
-        phase, freq, amp = self.estimate_phase(self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind] - mean_to_subtract[self.selected_channel_ind])
-        hl_ratio = self.get_hl_ratio(self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind] - mean_to_subtract[self.selected_channel_ind])
-        self.amp_buffer[:-1] = self.amp_buffer[1:]
-        self.amp_buffer[-1] = amp
-        amp_buffer_mean = self.amp_buffer.mean()
-
-        self.hl_ratio_buffer[:-1] = self.hl_ratio_buffer[1:]
-        self.hl_ratio_buffer[-1] = hl_ratio
-        hl_ratio_buffer_mean = self.hl_ratio_buffer.mean()
-        self.processor_elapsed_time = self.timestamps[-1]
-
-        if self.config.experiment_mode == ExperimentMode.DISABLED:
-            return EEGProcessorOutput.NOT_RUNNING, 0, phase, freq, amp, amp_buffer_mean
-
-        # check if we're waiting for the 2nd stim
-        # if NOT, run normal checks
-        if isnan(self.second_stim_start):
-            ### check backoff criteria ###
-            if ((self.last_stim + self.config.backoff_time) > (self.processor_elapsed_time + self.config.stim1_prediction_limit_sec)):
-                return EEGProcessorOutput.BACKOFF, 0, phase, freq, amp, amp_buffer_mean
-            
-            if freq > 2.0 or freq < 0.5:
-                return EEGProcessorOutput.FREQ, 0, phase, freq, amp, amp_buffer_mean
-
-            ### check amplitude criteria ###
-            if (amp_buffer_mean < self.config.amp_buffer_mean_min) or (amp_buffer_mean > self.config.amp_buffer_mean_max):
-                return EEGProcessorOutput.AMPLITUDE, 0, phase, freq, amp, amp_buffer_mean
-
-            if hl_ratio_buffer_mean > self.config.hl_ratio_buffer_mean_threshold or hl_ratio > self.config.hl_ratio_latest_threshold:
-                return EEGProcessorOutput.HL_RATIO, 0, phase, freq, amp, amp_buffer_mean
-
-        # if we are waiting for 2nd stim, but before the backoff window, only use phase targeting
-        if self.processor_elapsed_time < self.second_stim_start: # self.second_stim_start could be nan (in which case, the condition will be False)
-            return EEGProcessorOutput.BACKOFF2, 0, phase, freq, amp, amp_buffer_mean
-
-        ### perform forward prediction ###
-        delta_t = ((self.target_phase - phase) % (2 * pi)) / (freq * 2 * pi)
-
-        # cue a stim for the next target phase
-        if isnan(self.second_stim_start):
-            if delta_t > self.config.stim1_prediction_limit_sec:
-                return EEGProcessorOutput.FUTURE, delta_t, phase, freq, amp, amp_buffer_mean
-
-            self.last_stim = self.processor_elapsed_time + delta_t
-            self.second_stim_start = self.last_stim + self.config.stim2_start_delay
-            self.second_stim_end = self.last_stim + self.config.stim2_end_delay
-
-            return EEGProcessorOutput.STIM, delta_t, phase, freq, amp, amp_buffer_mean
-
-        else:
-            if delta_t > self.config.stim2_prediction_limit_sec:
-                return EEGProcessorOutput.FUTURE2, delta_t, phase, freq, amp, amp_buffer_mean
-
-            self.second_stim_start = nan
-            self.second_stim_end = nan
-
-            if self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_OFF or self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_ON:
-                self.randomize_phase()
-
-            return EEGProcessorOutput.STIM2, delta_t, phase, freq, amp, amp_buffer_mean
-    
     def process_eeg_step_2(self, time_to_target):
         if self.config.experiment_mode == ExperimentMode.CLAS_AUDIO_ON or self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_ON: 
             self.audio.play(time_to_target)
 
-    def randomize_phase(self):
-        self.target_phase = random.uniform(0.0, 2*np.pi)
+    # def randomize_phase(self):
+    #     self.target_phase = random.uniform(0.0, 2*np.pi)
 
     def update_plot(self):
+        print(f"Start: {time.perf_counter()}")
         while not self._queue.empty():
             try:
                 new_samples, new_timestamps = self._queue.get_nowait()
@@ -579,14 +446,14 @@ class ConnectionWidget(QWidget):
                     self.check_signal_quality()
                     self.update_button_state()
                     continue
-
-                mean_to_subtract = np.mean(self.eeg_data, axis=0)
+                
                 self.file_writer.write_chunk(new_samples, new_timestamps)
+                mean_to_subtract = np.mean(self.eeg_data, axis=0)
 
-                result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1(mean_to_subtract)
-                self.logger.info(f"Result {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
+                clas_algo_result = self.clas_algo.update(self.timestamps[-1], self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind] - mean_to_subtract[self.selected_channel_ind])
+                self.logger.info(clas_algo_result)
 
-                if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
+                if (clas_algo_result.type == CLASAlgoResultType.STIM) or (clas_algo_result.type == CLASAlgoResultType.STIM2):
                     time_to_target = time_to_target - self.config.time_to_target_offset
                     self.process_eeg_step_2(time_to_target)
                 
@@ -606,6 +473,7 @@ class ConnectionWidget(QWidget):
                     self.display_every_counter += 1
             except Empty:
                 break
+        print(f"End: {time.perf_counter()}")
     
     def check_signal_quality(self):
         if len(self.eeg_data) < self.processing_window_len_n:  return

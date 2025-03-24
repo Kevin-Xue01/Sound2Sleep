@@ -62,7 +62,7 @@ from utils import (
     TIMESTAMPS,
     AppState,
     Audio,
-    EEGProcessorOutput,
+    CLASAlgoResultType,
     ExperimentMode,
     FileWriter,
     Logger,
@@ -170,9 +170,9 @@ class EEGApp(QWidget):
         self.zi_low = signal.sosfilt_zi(self.sos_low)
         self.zi_high = signal.sosfilt_zi(self.sos_high)
 
-        self.wavelet_freqs = np.linspace(self.config.truncated_wavelet.low, self.config.truncated_wavelet.high, self.config.truncated_wavelet.n)
+        self.wavelet_freqs = np.linspace(self.config.clas_algo.low, self.config.clas_algo.high, self.config.clas_algo.n)
         trunc_wavelet_len = self.processing_window_len_n * 2 # double the length of the signal
-        self.trunc_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.truncated_wavelet.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = self.config.truncated_wavelet.w)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
+        self.trunc_wavelets = [signal.morlet2(trunc_wavelet_len, self.config.clas_algo.w * SAMPLING_RATE[MuseDataType.EEG] / (2 * f * np.pi), w = self.config.clas_algo.w)[:trunc_wavelet_len // 2] for f in self.wavelet_freqs]
         self.selected_channel_ind = 1 # AF7
         self.switch_channel_counter = 0
         self.switch_channel_counter_max = int(self.config.switch_channel_period_s * SAMPLING_RATE[MuseDataType.EEG] / CHUNK_SIZE[MuseDataType.EEG])
@@ -398,7 +398,7 @@ class EEGApp(QWidget):
 
     #         result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
     #         self.logger.info(f"Result: {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
-    #         if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
+    #         if (result == CLASAlgoResultType.STIM) or (result == CLASAlgoResultType.STIM2):
     #             time_to_target = time_to_target - self.config.time_to_target_offset
     #             self.process_eeg_step_2(time_to_target)
 
@@ -439,7 +439,7 @@ class EEGApp(QWidget):
 
     def process_eeg_data(self):
         result, time_to_target, phase, freq, amp, amp_buffer_mean = self.process_eeg_step_1()
-        if (result == EEGProcessorOutput.STIM) or (result == EEGProcessorOutput.STIM2):
+        if (result == CLASAlgoResultType.STIM) or (result == CLASAlgoResultType.STIM2):
             self.logger.info(f"Result: {result}, Time to target: {time_to_target}, Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
             time_to_target = time_to_target - self.config.time_to_target_offset
             self.process_eeg_step_2(time_to_target)
@@ -494,25 +494,25 @@ class EEGApp(QWidget):
 
         if self.config.experiment_mode == ExperimentMode.DISABLED:
             self.logger.info(f"Phase: {phase}, Freq: {freq}, Amp: {amp}, Amp Buffer Mean: {amp_buffer_mean}")
-            return EEGProcessorOutput.NOT_RUNNING, 0, phase, freq, amp, amp_buffer_mean
+            return CLASAlgoResultType.NOT_RUNNING, 0, phase, freq, amp, amp_buffer_mean
 
         # check if we're waiting for the 2nd stim
         # if NOT, run normal checks
         if isnan(self.second_stim_start):
             ### check backoff criteria ###
             if ((self.last_stim + self.config.backoff_time) > (self.processor_elapsed_time + self.config.stim1_prediction_limit_sec)):
-                return EEGProcessorOutput.BACKOFF, 0, phase, freq, amp, amp_buffer_mean
+                return CLASAlgoResultType.BACKOFF, 0, phase, freq, amp, amp_buffer_mean
 
             ### check amplitude criteria ###
-            if (amp_buffer_mean < self.config.amp_buffer_mean_min) or (amp_buffer_mean > self.config.amp_buffer_mean_max):
-                return EEGProcessorOutput.AMPLITUDE, 0, phase, freq, amp, amp_buffer_mean
+            if (amp_buffer_mean < self.config.amp_threshold) or (amp_buffer_mean > self.config.amp_limit):
+                return CLASAlgoResultType.AMPLITUDE, 0, phase, freq, amp, amp_buffer_mean
 
             if hl_ratio_buffer_mean > self.config.hl_ratio_buffer_mean_threshold or hl_ratio > self.config.hl_ratio_latest_threshold:
-                return EEGProcessorOutput.HL_RATIO, 0, phase, freq, amp, amp_buffer_mean
+                return CLASAlgoResultType.HL_RATIO, 0, phase, freq, amp, amp_buffer_mean
 
         # if we are waiting for 2nd stim, but before the backoff window, only use phase targeting
         if self.processor_elapsed_time < self.second_stim_start: # self.second_stim_start could be nan (in which case, the condition will be False)
-            return EEGProcessorOutput.BACKOFF2, 0, phase, freq, amp, amp_buffer_mean
+            return CLASAlgoResultType.BACKOFF2, 0, phase, freq, amp, amp_buffer_mean
 
         ### perform forward prediction ###
         delta_t = ((self.target_phase - phase) % (2 * pi)) / (freq * 2 * pi)
@@ -520,17 +520,17 @@ class EEGApp(QWidget):
         # cue a stim for the next target phase
         if isnan(self.second_stim_start):
             if delta_t > self.config.stim1_prediction_limit_sec:
-                return EEGProcessorOutput.FUTURE, delta_t, phase, freq, amp, amp_buffer_mean
+                return CLASAlgoResultType.FUTURE, delta_t, phase, freq, amp, amp_buffer_mean
 
             self.last_stim = self.processor_elapsed_time + delta_t
             self.second_stim_start = self.last_stim + self.config.stim2_start_delay
             self.second_stim_end = self.last_stim + self.config.stim2_end_delay
 
-            return EEGProcessorOutput.STIM, delta_t, phase, freq, amp, amp_buffer_mean
+            return CLASAlgoResultType.STIM, delta_t, phase, freq, amp, amp_buffer_mean
 
         else:
             if delta_t > self.config.stim2_prediction_limit_sec:
-                return EEGProcessorOutput.FUTURE2, delta_t, phase, freq, amp, amp_buffer_mean
+                return CLASAlgoResultType.FUTURE2, delta_t, phase, freq, amp, amp_buffer_mean
 
             self.second_stim_start = nan
             self.second_stim_end = nan
@@ -538,7 +538,7 @@ class EEGApp(QWidget):
             if self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_OFF or self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_ON:
                 self.randomize_phase()
 
-            return EEGProcessorOutput.STIM2, delta_t, phase, freq, amp, amp_buffer_mean
+            return CLASAlgoResultType.STIM2, delta_t, phase, freq, amp, amp_buffer_mean
     
     def process_eeg_step_2(self, time_to_target):
         if self.config.experiment_mode == ExperimentMode.CLAS_AUDIO_ON or self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_ON: self.play_audio(time_to_target)

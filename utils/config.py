@@ -11,11 +11,33 @@ from .constants import ConnectionMode, ExperimentMode
 
 load_dotenv()
 
-class TruncatedWaveletConfig(BaseModel):
-    n: int = 30 # [number of wavelets]
+class CLASAlgoConfig(BaseModel):
+    processing_window_len_s: float = 2.0 # [seconds], duration of processing window
+
     w: int = 5
-    low: float = 0.4
-    high: float = 2.1
+    t_wavelet_N: int = 20
+    t_wavelet_freq_range: tuple = (0.6, 2.0)
+
+    hl_ratio_buffer_len: int = 5
+    hl_ratio_wavelet_freqs: list = [10, 20, 30]
+    hl_ratio_latest_threshold: float = 0.15
+    hl_ratio_buffer_threshold: float = 0.1
+
+    amp_buffer_len: int = 10
+    amp_threshold: float = 75.0
+    amp_limit: float = 300.0
+
+    target_phase: float = 0.0 # radians
+    backoff_time: float = 7.0
+
+    quadrature_thresh: float = 0.2
+    quadrature_len_s: float = 1.0
+
+    stim2_start_delay: float = 0.6
+    stim2_end_delay: float = 5.0
+
+    stim1_prediction_limit_sec: float = 0.15
+    stim2_prediction_limit_sec: float = 0.15
 
 class AudioConfig(BaseModel):
     ramp_s: float = 0.01
@@ -24,38 +46,15 @@ class AudioConfig(BaseModel):
 
 class SessionConfig(BaseModel):
     _session_key: str = PrivateAttr(default_factory=lambda: datetime.now().strftime("%m-%d_%H-%M-%S"))
-    truncated_wavelet: TruncatedWaveletConfig = Field(default_factory=TruncatedWaveletConfig)
+    clas_algo: CLASAlgoConfig = Field(default_factory=CLASAlgoConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
 
     _data_dir: str = PrivateAttr(default_factory=lambda: os.path.join("data", os.getenv('SUBJECT_NAME')))
     experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_OFF
     connection_mode: ConnectionMode = ConnectionMode.REALTIME
-    
-    mean_subtraction_window_len_s: float = 15.0
-    processing_window_len_s: float = 2.0 # [seconds], duration of processing window
-    
-    hl_ratio_buffer_len: int = 3
-    hl_ratio_buffer_mean_threshold: float = -1.0
-    hl_ratio_latest_threshold: float = -1.0
-
-    amp_buffer_len: int = 3
-    amp_buffer_mean_min: float = 75.0
-    amp_buffer_mean_max: float = 400.0
-
-    target_phase: float = 0.0 # radians
-    
-    backoff_time: float = 5.0
-    stim2_start_delay: float = 0.5
-    stim2_end_delay: float = 0.5
-
-    low_bpf_cutoff: tuple = (0.5, 4.0)
-    high_bpf_cutoff: tuple = (8.0, 12.0)
-    bpf_order: int = 4
 
     switch_channel_period_s: float = 15.0
-    stim1_prediction_limit_sec: float = 0.15
-    stim2_prediction_limit_sec: float = 0.15
-
+    mean_subtraction_window_len_s: float = 15.0
     time_to_target_offset: float = 0.002
 
     def __init__(self, **data):
