@@ -150,7 +150,7 @@ class ConnectionWidget(QWidget):
         self.selected_channel_ind = 1 # AF7
         self.eeg_data = np.array([])
         self.timestamps = np.array([])
-        self.window_len_s = max(self.config.clas_algo.processing_window_len_s, self.config.mean_subtraction_window_len_s)
+        self.window_len_s = 5.0
         self.window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.window_len_s)
         self.processing_window_len_n = int(SAMPLING_RATE[MuseDataType.EEG] * self.config.clas_algo.processing_window_len_s)
         self.clas_algo = CLASAlgo(self.config.clas_algo)
@@ -447,14 +447,12 @@ class ConnectionWidget(QWidget):
                     continue
                 
                 self.file_writer.write_chunk(new_samples, new_timestamps)
-                mean_to_subtract = np.mean(self.eeg_data, axis=0)
 
-                # clas_algo_result = self.clas_algo.update(self.timestamps[-1], self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind] - mean_to_subtract[self.selected_channel_ind])
                 clas_algo_result = self.clas_algo.update(self.timestamps[-1], self.eeg_data[-self.processing_window_len_n:, self.selected_channel_ind])
                 self.logger.info(clas_algo_result)
 
                 if (clas_algo_result.type == CLASAlgoResultType.STIM) or (clas_algo_result.type == CLASAlgoResultType.STIM2):
-                    time_to_target = time_to_target - self.config.time_to_target_offset
+                    time_to_target = max(0, clas_algo_result.delta_t - self.config.time_to_target_offset)
                     self.process_eeg_step_2(time_to_target)
                 
                 if self.display_every_counter == self.display_every_counter_max:

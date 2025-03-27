@@ -42,7 +42,7 @@ class CLASAlgoConfig(BaseModel):
 class AudioConfig(BaseModel):
     ramp_s: float = 0.01
     total_s: float = 0.05
-    volume: float = 0.001
+    volume: float = 0.1
 
 class SessionConfig(BaseModel):
     _session_key: str = PrivateAttr(default_factory=lambda: datetime.now().strftime("%m-%d_%H-%M-%S"))
@@ -50,12 +50,11 @@ class SessionConfig(BaseModel):
     audio: AudioConfig = Field(default_factory=AudioConfig)
 
     _data_dir: str = PrivateAttr(default_factory=lambda: os.path.join("data", os.getenv('SUBJECT_NAME')))
-    experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_OFF
+    experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_ON
     connection_mode: ConnectionMode = ConnectionMode.REALTIME
 
     switch_channel_period_s: float = 15.0
-    mean_subtraction_window_len_s: float = 15.0
-    time_to_target_offset: float = 0.002
+    time_to_target_offset: float = 0.001
 
     def __init__(self, **data):
         super().__init__(**data)
