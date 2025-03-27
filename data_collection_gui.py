@@ -5,6 +5,7 @@ import json
 import math
 import os
 import random
+import re
 import subprocess
 import sys
 import time
@@ -81,6 +82,7 @@ from utils import (
     CLASAlgoResultType,
     ConnectionMode,
     ExperimentMode,
+    FileReader,
     FileWriter,
     Logger,
     MuseDataType,
@@ -194,13 +196,18 @@ class ConnectionWidget(QWidget):
         self.simulation_params = Manager().dict({
             'pure_amp': 30,
             'pure_freq': 1,
-            'pure_noise': 0.0
+            'pure_noise': 0.0,
+            'playback_is_playing': False,
+            'playback_seek_position': 0,
+            'playback_session_key': ''
         })
+        # self.file_reader = FileReader(self.config.playback_mode_session_key) if self.config.connection_mode == ConnectionMode.PLAYBACK else None
 
         # Start the Muse LSL recording process
         self.recording_process = Process(
             target=ConnectionWidget.record,
             args=(self._queue, self.connected_flag, self.config.connection_mode, self.simulation_params),
+            # kwargs={'file_reader': self.file_reader},
             daemon=True
         )
         self.recording_process.start()
@@ -275,6 +282,99 @@ class ConnectionWidget(QWidget):
         self.simulation_params['pure_noise'] = noise_value
         self.noise_value.setText(f"{noise_value:.2f}")
 
+    def create_playback_and_session_controls(self):
+        controls_layout = QVBoxLayout()
+
+        # --- Playback Controls ---
+        playback_layout = QHBoxLayout()
+        playback_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Play/Pause Button
+        self.play_pause_button = QPushButton("Play")
+        self.play_pause_button.setCheckable(True)
+        self.play_pause_button.setChecked(self.simulation_params.get("playback_state", False))
+        self.play_pause_button.toggled.connect(self.toggle_playback)
+
+        # Apply initial styling
+        self.update_playback_button_style(self.simulation_params.get("playback_state", False))
+
+        playback_layout.addWidget(self.play_pause_button)
+
+        # Seek Bar
+        seek_layout = QVBoxLayout()
+        seek_label = QLabel("Seek:")
+        self.seek_slider = QSlider(Qt.Orientation.Horizontal)
+        self.seek_slider.setMinimum(0)
+        self.seek_slider.setMaximum(100)  # Placeholder max value; update dynamically
+        self.seek_slider.setValue(self.simulation_params.get("seek_position", 0))
+        self.seek_slider.setTickInterval(5)
+        self.seek_slider.setSingleStep(1)
+        self.seek_slider.sliderMoved.connect(self.seek_to_position)
+        self.seek_value = QLabel(f"{self.simulation_params.get('seek_position', 0)}%")
+
+        seek_layout.addWidget(seek_label)
+        seek_layout.addWidget(self.seek_slider)
+        seek_layout.addWidget(self.seek_value)
+
+        playback_layout.addLayout(seek_layout)
+
+        # --- Session Folder Controls ---
+        session_layout = QHBoxLayout()
+        session_layout.setContentsMargins(5, 5, 5, 5)
+        session_layout.setSpacing(5)
+
+        # Select Session Button
+        self.session_button = QPushButton("Select Session")
+        self.session_button.clicked.connect(self.select_session_folder)
+        self.session_button.setStyleSheet(
+            "background-color: #007BFF; color: white; border-radius: 5px; padding: 5px;"
+        )
+        session_layout.addWidget(self.session_button)
+
+        controls_layout.addLayout(session_layout)
+        controls_layout.addLayout(playback_layout)
+
+        # Add controls to the main layout
+        controls_widget = QWidget()
+        controls_widget.setLayout(controls_layout)
+        self.main_layout.addWidget(controls_widget)
+
+    def update_playback_button_style(self, is_playing):
+        """Dynamically change button style based on playback state."""
+        if is_playing:
+            self.play_pause_button.setStyleSheet(
+                "background-color: #4CAF50; color: white; border-radius: 5px; padding: 5px;"
+            )
+        else:
+            self.play_pause_button.setStyleSheet(
+                "background-color: #D9534F; color: white; border-radius: 5px; padding: 5px;"
+            )
+
+    def toggle_playback(self, checked):
+        self.simulation_params["playback_is_playing"] = checked  # Update shared state
+        self.play_pause_button.setText("Pause" if checked else "Play")
+        self.update_playback_button_style(checked)
+
+    def seek_to_position(self, value):
+        self.simulation_params["playback_seek_position"] = value  # Update shared state
+        self.seek_value.setText(f"{value}%")
+
+    def select_session_folder(self):
+        """Open a file dialog to select a session folder and update shared state."""
+        folder_path = QFileDialog.getExistingDirectory(None, "Select Session Folder")
+        pattern = r"^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])_(0[0-9]|1[0-9]|2[0-3])-[0-5][0-9]-[0-5][0-9]$"
+        session_key = folder_path.split(os.path.sep)[-1]
+        if folder_path and re.match(pattern, session_key):  # If a folder was selected
+            self.simulation_params["playback_session_key"] = session_key  # Update shared state
+            self.session_button.setText(folder_path.split('data')[-1])  # Update UI
+        else:
+            QMessageBox.warning(
+                None,
+                "Invalid Session Folder",
+                "Please select a valid session folder with the format 'MM-DD_HH-MM-SS'.",
+                QMessageBox.StandardButton.Ok,
+            )
+
     def init_plotting(self):
         sns.set(style="whitegrid")
         self.scale = 100
@@ -312,6 +412,8 @@ class ConnectionWidget(QWidget):
         # Add parameter tuning UI elements
         if self.config.connection_mode == ConnectionMode.GENERATED:
             self.create_parameter_controls()
+        elif self.config.connection_mode == ConnectionMode.PLAYBACK:
+            self.create_playback_and_session_controls()
 
     def check_connection(self):
         if self.connected_flag.is_set():
@@ -329,10 +431,10 @@ class ConnectionWidget(QWidget):
         self.main_layout.addWidget(self.status_widget, alignment=Qt.AlignmentFlag.AlignCenter)
         
         # Set initial status to checking
-        self.status_widget.setStatus(ConnectionQuality.LOW)
+        self.status_widget.setStatus(ConnectionQuality.LOW if self.config.connection_mode == ConnectionMode.REALTIME else ConnectionQuality.HIGH)
         
         # Initialize quality check variables
-        self.quality_check_enabled = True
+        self.quality_check_enabled = True if self.config.connection_mode == ConnectionMode.REALTIME else False
         self.quality_check_start_time = time.time()
         self.processing_enabled = False
         self.min_quality_check_duration = 30  # Minimum 30 seconds of quality checking
@@ -341,7 +443,7 @@ class ConnectionWidget(QWidget):
         self.CLAS_button = QPushButton("Start Processing")
         self.CLAS_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)  # Prevent expanding
         self.CLAS_button.setFixedSize(200, 40)
-        self.CLAS_button.setEnabled(False)
+        self.CLAS_button.setEnabled(self.config.connection_mode != ConnectionMode.REALTIME)
         self.CLAS_button.clicked.connect(self.on_CLAS_button_clicked)
 
         self.CLAS_button.setStyleSheet("""
@@ -500,7 +602,7 @@ class ConnectionWidget(QWidget):
         self.CLAS_button.setEnabled(enable_button)
             
     @classmethod
-    def record(cls, _queue: Queue, _connected_flag: EventType, connection_mode: ConnectionMode, simulation_params=None):
+    def record(cls, _queue: Queue, _connected_flag: EventType, connection_mode: ConnectionMode, simulation_params, file_reader: FileReader = None):
         if connection_mode == ConnectionMode.REALTIME:
             found_muse = None
             while not found_muse:
@@ -581,8 +683,21 @@ class ConnectionWidget(QWidget):
                 _queue.put((new_eeg_data, new_timestamps)) 
                 
                 time.sleep(DELAYS[MuseDataType.EEG])
-        else:
-            pass
+        elif connection_mode == ConnectionMode.PLAYBACK:
+            _connected_flag.set()
+            current_session_key = simulation_params["playback_session_key"]
+            while True:
+                
+                if simulation_params["playback_is_playing"] and file_reader is not None:
+                    current_position = simulation_params["playback_seek_position"]
+
+
+                    current_position += 1
+                    if current_position > 100:
+                        current_position = 0
+                    simulation_params["playback_seek_position"] = current_position
+
+                time.sleep(DELAYS[MuseDataType.EEG])
 
 
     def __del__(self):

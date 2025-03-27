@@ -1,4 +1,5 @@
 import os
+from typing import Union
 
 import numpy as np
 
@@ -37,11 +38,15 @@ class FileWriter:
 
 
 class FileReader:
-    def __init__(self, config: SessionConfig, muse_data_type=MuseDataType.EEG):
-        self.config = config
+    def __init__(self, config: Union[SessionConfig, str], muse_data_type=MuseDataType.EEG):
         self.muse_data_type = muse_data_type
-        self.timestamp_file_path = os.path.join(self.config._data_dir, f"{self.muse_data_type.name}_timestamp.bin")
-        self.data_file_path = os.path.join(self.config._data_dir, f"{self.muse_data_type.name}_data.bin")
+        
+        if isinstance(config, str):
+            self.timestamp_file_path = os.path.join('data', config, f"{self.muse_data_type.name}_timestamp.bin")
+            self.data_file_path = os.path.join('data', config, f"{self.muse_data_type.name}_data.bin")
+        else:
+            self.timestamp_file_path = os.path.join(config._data_dir, f"{self.muse_data_type.name}_timestamp.bin")
+            self.data_file_path = os.path.join(config._data_dir, f"{self.muse_data_type.name}_data.bin")
 
         # Define expected shapes and dtypes
         self.data_shape = (CHUNK_SIZE[MuseDataType.EEG], len(CHANNEL_NAMES[MuseDataType.EEG]))

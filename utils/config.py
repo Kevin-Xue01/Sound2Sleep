@@ -51,7 +51,7 @@ class SessionConfig(BaseModel):
 
     _data_dir: str = PrivateAttr(default_factory=lambda: os.path.join("data", os.getenv('SUBJECT_NAME')))
     experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_ON
-    connection_mode: ConnectionMode = ConnectionMode.REALTIME
+    connection_mode: ConnectionMode = ConnectionMode.PLAYBACK
 
     switch_channel_period_s: float = 15.0
     time_to_target_offset: float = 0.001
