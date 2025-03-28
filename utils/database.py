@@ -42,8 +42,8 @@ class FileReader:
         self.muse_data_type = muse_data_type
         
         if isinstance(config, str):
-            self.timestamp_file_path = os.path.join('data', config, f"{self.muse_data_type.name}_timestamp.bin")
-            self.data_file_path = os.path.join('data', config, f"{self.muse_data_type.name}_data.bin")
+            self.timestamp_file_path = os.path.join('data', *config.split(os.path.sep), f"{self.muse_data_type.name}_timestamp.bin")
+            self.data_file_path = os.path.join('data', *config.split(os.path.sep), f"{self.muse_data_type.name}_data.bin")
         else:
             self.timestamp_file_path = os.path.join(config._data_dir, f"{self.muse_data_type.name}_timestamp.bin")
             self.data_file_path = os.path.join(config._data_dir, f"{self.muse_data_type.name}_data.bin")
