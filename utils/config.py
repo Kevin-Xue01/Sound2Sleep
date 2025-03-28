@@ -40,8 +40,8 @@ class CLASAlgoConfig(BaseModel):
     stim2_prediction_limit_sec: float = 0.15
 
 class AudioConfig(BaseModel):
-    ramp_s: float = 0.01
-    total_s: float = 0.05
+    ramp_s: float = 1.01
+    total_s: float = 3.05
     volume: float = 0.1
 
 class SessionConfig(BaseModel):

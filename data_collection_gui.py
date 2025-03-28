@@ -365,7 +365,7 @@ class ConnectionWidget(QWidget):
         pattern = r"^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])_(0[0-9]|1[0-9]|2[0-3])-[0-5][0-9]-[0-5][0-9]$"
         session_key = folder_path.split(os.path.sep)[-1]
         if folder_path and re.match(pattern, session_key):  # If a folder was selected
-            self.simulation_params["playback_session_key"] = session_key  # Update shared state
+            self.simulation_params["playback_session_key"] = folder_path.split('data')[-1]  # Update shared state
             self.session_button.setText(folder_path.split('data')[-1])  # Update UI
         else:
             QMessageBox.warning(
@@ -686,12 +686,18 @@ class ConnectionWidget(QWidget):
         elif connection_mode == ConnectionMode.PLAYBACK:
             _connected_flag.set()
             current_session_key = simulation_params["playback_session_key"]
+            file_reader = None
             while True:
+                if current_session_key != simulation_params["playback_session_key"]:
+                    current_session_key = simulation_params["playback_session_key"]
+                    file_reader = FileReader(current_session_key)
                 
                 if simulation_params["playback_is_playing"] and file_reader is not None:
                     current_position = simulation_params["playback_seek_position"]
-
-
+                    eeg_data, timestamps = file_reader.read_frame(current_position)
+                    if eeg_data is None or timestamps is None:
+                        raise Exception("EOF reached")
+                    _queue.put((eeg_data, timestamps))
                     current_position += 1
                     if current_position > 100:
                         current_position = 0
