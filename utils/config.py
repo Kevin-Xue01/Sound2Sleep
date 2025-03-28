@@ -3,6 +3,7 @@ import os
 import random
 import string
 from datetime import datetime
+import numpy as np
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, PrivateAttr
@@ -20,14 +21,14 @@ class CLASAlgoConfig(BaseModel):
 
     hl_ratio_buffer_len: int = 5
     hl_ratio_wavelet_freqs: list = [10, 20, 30]
-    hl_ratio_latest_threshold: float = 0.15
+    hl_ratio_latest_threshold: float = 0.10
     hl_ratio_buffer_threshold: float = 0.1
 
     amp_buffer_len: int = 10
     amp_threshold: float = 75.0
     amp_limit: float = 300.0
 
-    target_phase: float = 0.0 # radians
+    target_phase: float = 6 * np.pi / 4 # radians
     backoff_time: float = 7.0
 
     quadrature_thresh: float = 0.2
