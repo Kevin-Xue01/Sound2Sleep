@@ -132,7 +132,6 @@ class CLASAlgo:
         # create outputs
         amp = amp_conv_vals[amp_max] / 2
         freq = self.t_wavelet_freqs[amp_max]
-        # phase = np.angle(conv_vals[amp_max])
         phase = np.arctan2(np.real(conv_vals[amp_max]), np.imag(conv_vals[amp_max])) - np.pi / 2
         phase = phase % (2 * pi)
 
@@ -152,4 +151,4 @@ class CLASAlgo:
             np.abs(data[-self.quadrature_window_len_n:])) * self.processing_window_len_n
         quadrature = np.trapz(normsig * est_sig) / self.processing_window_len_n
 
-        return -phase, freq, amp, quadrature, hl_ratio
+        return phase, freq, amp, quadrature, hl_ratio

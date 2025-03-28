@@ -22,16 +22,16 @@ class CLASAlgoConfig(BaseModel):
     hl_ratio_buffer_len: int = 5
     hl_ratio_wavelet_freqs: list = [10, 20, 30]
     hl_ratio_latest_threshold: float = 0.10
-    hl_ratio_buffer_threshold: float = 0.1
+    hl_ratio_buffer_threshold: float = 0.15
 
     amp_buffer_len: int = 10
     amp_threshold: float = 75.0
     amp_limit: float = 300.0
 
-    target_phase: float = 6 * np.pi / 4 # radians
+    target_phase: float = 3 * np.pi / 2 # radians
     backoff_time: float = 7.0
 
-    quadrature_thresh: float = 0.2
+    quadrature_thresh: float = 0.8
     quadrature_len_s: float = 1.0
 
     stim2_start_delay: float = 0.6
