@@ -3,8 +3,8 @@ import os
 import random
 import string
 from datetime import datetime
-import numpy as np
 
+import numpy as np
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, PrivateAttr
 

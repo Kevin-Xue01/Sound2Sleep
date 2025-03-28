@@ -573,7 +573,7 @@ class ConnectionWidget(QWidget):
 
                 if (clas_algo_result.type == CLASAlgoResultType.STIM) or (clas_algo_result.type == CLASAlgoResultType.STIM2):
                     self.process_eeg_step_2(clas_algo_result.time_to_target - self.config.time_to_target_offset)
-                # self.logger.info(clas_algo_result)
+                self.logger.info(clas_algo_result)
                 
                 if self.display_every_counter == self.display_every_counter_max:
                     for ii in range(4):

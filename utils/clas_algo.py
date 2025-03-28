@@ -79,23 +79,23 @@ class CLASAlgo:
         if isnan(self.second_stim_start):
             ### check backoff criteria ###
             if ((self.last_stim + self.config.backoff_time) > (self.processor_elapsed_time + self.config.stim1_prediction_limit_sec)):
-                return CLASAlgoResult(CLASAlgoResultType.BACKOFF, 0, 0, phase, freq, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio, quadrature)
+                return CLASAlgoResult(CLASAlgoResultType.BACKOFF, 0, 0, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio)
 
             ### check amplitude criteria ###
             if (mean_amp < self.config.amp_threshold) or (mean_amp > self.config.amp_limit):
-                return CLASAlgoResult(CLASAlgoResultType.AMPLITUDE, 0, 0, phase, freq, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio, quadrature)
+                return CLASAlgoResult(CLASAlgoResultType.AMPLITUDE, 0, 0, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio)
 
             ### check quadrature ###
             if (quadrature is not None) and (quadrature < self.config.quadrature_thresh):
-                return CLASAlgoResult(CLASAlgoResultType.QUADRATURE, 0, 0, phase, freq, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio, quadrature)
+                return CLASAlgoResult(CLASAlgoResultType.QUADRATURE, 0, 0, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio)
 
 
             if (mean_hl_ratio > self.config.hl_ratio_buffer_threshold) or (current_hl_ratio > self.config.hl_ratio_latest_threshold):
-                return CLASAlgoResult(CLASAlgoResultType.HL_RATIO, 0, 0, phase, freq, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio, quadrature)
+                return CLASAlgoResult(CLASAlgoResultType.HL_RATIO, 0, 0, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio)
 
         # if we are waiting for 2nd stim, but before the backoff window, only use phase targeting
         if self.processor_elapsed_time < self.second_stim_start:
-            return CLASAlgoResult(CLASAlgoResultType.BACKOFF2, 0, 0, phase, freq, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio, quadrature)
+            return CLASAlgoResult(CLASAlgoResultType.BACKOFF2, 0, 0, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio)
 
         ### perform forward prediction ###
         delta_t = ((self.target_phase - phase) % (2 * pi)) / (freq * 2 * pi)
@@ -103,22 +103,22 @@ class CLASAlgo:
         # cue a stim for the next target phase
         if isnan(self.second_stim_start):
             if delta_t > self.config.stim1_prediction_limit_sec:
-                return CLASAlgoResult(CLASAlgoResultType.FUTURE, delta_t, 0, phase, freq, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio, quadrature)
+                return CLASAlgoResult(CLASAlgoResultType.FUTURE, delta_t, 0, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio)
 
             self.last_stim = self.processor_elapsed_time + delta_t  # update stim time to compute backoff
             self.second_stim_start = self.last_stim + self.config.stim2_start_delay  # update
             self.second_stim_end = self.last_stim + self.config.stim2_end_delay
 
-            return CLASAlgoResult(CLASAlgoResultType.STIM, delta_t, self.last_stim, phase, freq, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio, quadrature)
+            return CLASAlgoResult(CLASAlgoResultType.STIM, delta_t, self.last_stim, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio)
 
         else:
             if delta_t > self.config.stim2_prediction_limit_sec:
-                return CLASAlgoResult(CLASAlgoResultType.FUTURE2, delta_t, 0, phase, freq, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio, quadrature)
+                return CLASAlgoResult(CLASAlgoResultType.FUTURE2, delta_t, 0, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio)
 
             self.second_stim_start = nan
             self.second_stim_end = nan
 
-            return CLASAlgoResult(CLASAlgoResultType.STIM2, delta_t, self.processor_elapsed_time + delta_t, phase, freq, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio, quadrature) 
+            return CLASAlgoResult(CLASAlgoResultType.STIM2, delta_t, self.processor_elapsed_time + delta_t, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio) 
 
 
     def estimate(self, data):
