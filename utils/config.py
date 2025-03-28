@@ -54,7 +54,7 @@ class SessionConfig(BaseModel):
     connection_mode: ConnectionMode = ConnectionMode.PLAYBACK
 
     switch_channel_period_s: float = 15.0
-    time_to_target_offset: float = 0.001
+    time_to_target_offset: float = 0.0005
 
     def __init__(self, **data):
         super().__init__(**data)
