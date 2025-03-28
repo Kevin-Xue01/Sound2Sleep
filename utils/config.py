@@ -41,8 +41,8 @@ class CLASAlgoConfig(BaseModel):
     stim2_prediction_limit_sec: float = 0.15
 
 class AudioConfig(BaseModel):
-    ramp_s: float = 0.005
-    total_s: float = 0.05
+    ramp_s: float = 1.01
+    total_s: float = 3.05
     volume: float = 0.1
 
 class SessionConfig(BaseModel):
@@ -52,10 +52,10 @@ class SessionConfig(BaseModel):
 
     _data_dir: str = PrivateAttr(default_factory=lambda: os.path.join("data", os.getenv('SUBJECT_NAME')))
     experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_ON
-    connection_mode: ConnectionMode = ConnectionMode.REALTIME
+    connection_mode: ConnectionMode = ConnectionMode.PLAYBACK
 
     switch_channel_period_s: float = 15.0
-    time_to_target_offset: float = 0.001
+    time_to_target_offset: float = 0.0005
 
     def __init__(self, **data):
         super().__init__(**data)
