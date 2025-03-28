@@ -135,8 +135,6 @@ class StatusWidget(QWidget):
         self.text.setText(CONNECTION_QUALITY_LABELS[self.connection_quality])
 
 class ConnectionWidget(QWidget):
-    _on_connected = pyqtSignal()
-
     def __init__(self, parent, config: SessionConfig):
         super().__init__(parent)
         self.display_every_counter = 0
@@ -434,7 +432,7 @@ class ConnectionWidget(QWidget):
         self.status_widget.setStatus(ConnectionQuality.LOW if self.config.connection_mode == ConnectionMode.REALTIME else ConnectionQuality.HIGH)
         
         # Initialize quality check variables
-        self.quality_check_enabled = True if self.config.connection_mode == ConnectionMode.REALTIME else False
+        self.quality_check_enabled = True
         self.quality_check_start_time = time.time()
         self.processing_enabled = False
         self.min_quality_check_duration = 30  # Minimum 30 seconds of quality checking
@@ -576,7 +574,10 @@ class ConnectionWidget(QWidget):
     
     def check_signal_quality(self):
         if len(self.eeg_data) < self.processing_window_len_n:  return
-            
+        if self.config.connection_mode == ConnectionMode.GENERATED or self.config.connection_mode == ConnectionMode.PLAYBACK: 
+            self.status_widget.setStatus(ConnectionQuality.HIGH)
+            return
+        
         channel_stds = np.std(self.eeg_data[-self.processing_window_len_n:, :], axis=0)
         channel_std = np.min(channel_stds)
         
@@ -596,9 +597,7 @@ class ConnectionWidget(QWidget):
         
         # Enable button based on quality and elapsed time
         enable_button = (quality == ConnectionQuality.HIGH or (quality == ConnectionQuality.MEDIUM and elapsed_time >= self.min_quality_check_duration))
-        if enable_button and not self.connected:
-            self.connected = True
-            self._on_connected.emit()
+        if enable_button and not self.connected: self.connected = True
         self.CLAS_button.setEnabled(enable_button)
             
     @classmethod
@@ -680,6 +679,9 @@ class ConnectionWidget(QWidget):
 
             while True:
                 new_eeg_data, new_timestamps, current_time = simulate_pure_sine(current_time)
+                new_eeg_data = new_eeg_data.astype(np.float32)
+                new_timestamps = new_timestamps.astype(np.float64)
+
                 _queue.put((new_eeg_data, new_timestamps)) 
                 
                 time.sleep(DELAYS[MuseDataType.EEG])
