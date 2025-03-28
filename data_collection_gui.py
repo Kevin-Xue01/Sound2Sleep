@@ -631,6 +631,7 @@ class ConnectionWidget(QWidget):
 
             def save_eeg(new_samples: np.ndarray, new_timestamps: np.ndarray):
                 new_samples = new_samples.transpose()[:, :-1].astype(np.float32) # IGNORE RIGHT AUX Final shape of queue input = ((12, 4), (12,))
+                new_timestamps = new_timestamps.astype(np.float64)
                 _queue.put((new_samples, new_timestamps)) 
 
             muse = Muse(address, save_eeg)
