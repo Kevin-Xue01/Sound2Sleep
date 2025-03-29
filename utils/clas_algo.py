@@ -69,6 +69,7 @@ class CLASAlgo:
         self.amp_buffer[:-1] = self.amp_buffer[1:]
         self.amp_buffer[-1] = current_amp
         mean_amp = self.amp_buffer.mean()
+        
 
         self.hl_ratio_buffer[:-1] = self.hl_ratio_buffer[1:]
         self.hl_ratio_buffer[-1] = current_hl_ratio
@@ -130,7 +131,8 @@ class CLASAlgo:
         amp_max = np.argmax(amp_conv_vals)
 
         # create outputs
-        amp = amp_conv_vals[amp_max] / 2
+        # amp = amp_conv_vals[amp_max] / 2
+        amp = np.abs(np.real(amp_conv_vals[amp_max]) / 2)
         freq = self.t_wavelet_freqs[amp_max]
         phase = np.arctan2(np.real(conv_vals[amp_max]), np.imag(conv_vals[amp_max])) - np.pi / 2
         phase = phase % (2 * pi)

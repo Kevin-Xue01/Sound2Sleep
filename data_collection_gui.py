@@ -673,7 +673,7 @@ class ConnectionWidget(QWidget):
         elif connection_mode == ConnectionMode.GENERATED:
             _connected_flag.set()
 
-            current_time = 0.0  # Maintain a continuously increasing time variable
+            current_time = time.time()  # Maintain a continuously increasing time variable
 
             channel_phase_offsets = [i * (np.pi / 4) for i in range(NUM_CHANNELS[MuseDataType.EEG])]
 
