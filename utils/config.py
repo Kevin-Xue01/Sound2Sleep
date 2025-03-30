@@ -3,6 +3,7 @@ import os
 import random
 import string
 from datetime import datetime
+from logging import CRITICAL, DEBUG, ERROR, INFO, WARNING, _levelToName
 
 import numpy as np
 from dotenv import load_dotenv
@@ -10,7 +11,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from .constants import ConnectionMode, ExperimentMode
 
-load_dotenv()
+load_dotenv(override=True)
 
 class CLASAlgoConfig(BaseModel):
     processing_window_len_s: float = 2.0 # [seconds], duration of processing window
@@ -57,6 +58,10 @@ class SessionConfig(BaseModel):
     switch_channel_period_s: float = 15.0
     time_to_target_offset: float = 0.0005
 
+    console_logging_level: int = WARNING
+    file_logging_level: int = INFO
+    filter_display_data: bool = False
+
     def __init__(self, **data):
         super().__init__(**data)
         
@@ -71,5 +76,6 @@ class SessionConfig(BaseModel):
         base_dict = super().model_dump(**kwargs)
         base_dict["experiment_mode"] = self.experiment_mode.value  # Ensure .value is used
         base_dict["connection_mode"] = self.connection_mode.value  # Ensure .value is used
-
+        base_dict["console_logging_level"] = _levelToName[self.console_logging_level]
+        base_dict["file_logging_level"] = _levelToName[self.file_logging_level]
         return base_dict

@@ -1,6 +1,7 @@
 import asyncio
 import ctypes
 import datetime
+import faulthandler
 import json
 import math
 import os
@@ -89,8 +90,8 @@ from utils import (
     SessionConfig,
 )
 
+faulthandler.enable()
 sys.coinit_flags = 0  # 0 means MTA
-
 
 class ConnectionQuality(Enum):
     HIGH = 'High'
@@ -546,8 +547,11 @@ class ConnectionWidget(QWidget):
             try:
                 new_samples, new_timestamps = self._queue.get_nowait()
 
-                filt_samples, self.filt_state = lfilter(self.bf, self.af, new_samples, axis=0, zi=self.filt_state)
-
+                if self.config.filter_display_data:
+                    filt_samples, self.filt_state = lfilter(self.bf, self.af, new_samples, axis=0, zi=self.filt_state)
+                else:
+                    filt_samples = new_samples
+                    
                 if len(self.eeg_data) == 0:
                     self.eeg_data = new_samples
                     self.eeg_data_f = filt_samples
@@ -592,7 +596,7 @@ class ConnectionWidget(QWidget):
             except Empty:
                 break
             except Exception as e:
-                self.logger.error(f"Error in update_plot: {e}", exc_info=True)
+                self.logger.critical(f"Error in update_plot: {e}", exc_info=True)
     
     def check_signal_quality(self):
         if len(self.eeg_data) < self.processing_window_len_n:  return
