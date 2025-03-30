@@ -591,6 +591,8 @@ class ConnectionWidget(QWidget):
                     self.display_every_counter += 1
             except Empty:
                 break
+            except Exception as e:
+                self.logger.error(f"Error in update_plot: {e}", exc_info=True)
     
     def check_signal_quality(self):
         if len(self.eeg_data) < self.processing_window_len_n:  return
