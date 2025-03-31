@@ -26,7 +26,7 @@ class CLASAlgoConfig(BaseModel):
     hl_ratio_buffer_threshold: float = 0.15
 
     amp_buffer_len: int = 10
-    amp_threshold: float = 75.0
+    amp_threshold: float = 150
     amp_limit: float = 300.0
 
     target_phase: float = 3 * np.pi / 2 # radians
