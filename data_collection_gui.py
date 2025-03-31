@@ -146,7 +146,7 @@ class ConnectionWidget(QWidget):
         self.config = config
         self.file_writer = FileWriter(self.config)
         self.logger = Logger(self.config, self.__class__.__name__)
-        self.audio = Audio(self.config.audio)
+        self.audio = Audio()
 
         self.selected_channel_ind = 1 # AF7
         self.eeg_data = np.array([])
@@ -537,7 +537,7 @@ class ConnectionWidget(QWidget):
             
     def process_eeg_step_2(self, time_to_target):
         if self.config.experiment_mode == ExperimentMode.CLAS_AUDIO_ON or self.config.experiment_mode == ExperimentMode.RANDOM_PHASE_AUDIO_ON: 
-            self.audio.play(time_to_target)
+            self.audio.play_audio_signal.emit(time_to_target)
 
     # def randomize_phase(self):
     #     self.target_phase = random.uniform(0.0, 2*np.pi)
