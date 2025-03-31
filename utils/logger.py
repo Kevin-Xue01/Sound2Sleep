@@ -12,22 +12,20 @@ class Logger:
         self.config = config
         self.log_file_path = os.path.join(self.config._data_dir, "log.txt")
         self.logger = logging.getLogger(logger_name)
-        self.logger.setLevel(self.config.console_logging_level)
+        self.logger.setLevel(logging.DEBUG)  # Capture all logs; handlers will filter them.
+        self.logger.propagate = False  # Prevent logs from propagating to the root logger.
 
-        # Create a console handler for warnings and above
+        # Console handler (warnings and above)
         console_handler = logging.StreamHandler()
-        
+        console_handler.setLevel(self.config.console_logging_level)
         console_handler.setFormatter(self.log_format)
         self.logger.addHandler(console_handler)
 
-        self.file_handler = None
-        self._setup_file_handler()
-
-    def _setup_file_handler(self):
-        self.file_handler = logging.FileHandler(self.log_file_path, mode='a')
-        self.file_handler.setLevel(self.config.file_logging_level)
-        self.file_handler.setFormatter(self.log_format)
-        self.logger.addHandler(self.file_handler)
+        # File handler (debug and above)
+        file_handler = logging.FileHandler(self.log_file_path, mode='a')
+        file_handler.setLevel(self.config.file_logging_level)
+        file_handler.setFormatter(self.log_format)
+        self.logger.addHandler(file_handler)
     
     def debug(self, message: str):
         """Logs a debug message."""
