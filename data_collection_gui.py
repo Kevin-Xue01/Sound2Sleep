@@ -638,7 +638,17 @@ class ConnectionWidget(QWidget):
             def save_eeg(new_samples: np.ndarray, new_timestamps: np.ndarray):
                 new_samples = new_samples.transpose()[:, :-1].astype(np.float32) # IGNORE RIGHT AUX Final shape of queue input = ((12, 4), (12,))
                 new_timestamps = new_timestamps.astype(np.float64)
-                _queue.put((new_samples, new_timestamps)) 
+
+                if new_samples.shape == (CHUNK_SIZE[MuseDataType.EEG], 4) and len(new_timestamps) == CHUNK_SIZE[MuseDataType.EEG]:
+                    # Check if the data is valid before putting it in the queue
+                    if not np.any(np.isnan(new_samples)) and not np.any(np.isnan(new_timestamps)):
+                        _queue.put((new_samples, new_timestamps))
+                    else:
+                        print('NaN found in new_samples or new_timestamps')
+                        print(f'new_samples: {new_samples}')
+                        print(f'new_timestamps: {new_timestamps}')
+                else:
+                    print('Empty samples or timestamps received')
 
             muse = Muse(address, save_eeg)
             while not muse.connect():

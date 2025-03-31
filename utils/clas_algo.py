@@ -1,3 +1,4 @@
+import faulthandler
 from dataclasses import dataclass
 from math import isnan, nan, pi
 
@@ -6,7 +7,7 @@ import numpy as np
 from .config import CLASAlgoConfig
 from .constants import CHUNK_SIZE, SAMPLING_RATE, CLASAlgoResultType, MuseDataType
 
-
+faulthandler.enable()
 @dataclass
 class CLASAlgoResult:
     type: CLASAlgoResultType
@@ -95,7 +96,7 @@ class CLASAlgo:
                 return CLASAlgoResult(CLASAlgoResultType.HL_RATIO, 0, 0, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio)
 
         # if we are waiting for 2nd stim, but before the backoff window, only use phase targeting
-        if self.processor_elapsed_time < self.second_stim_start:
+        elif self.processor_elapsed_time < self.second_stim_start:
             return CLASAlgoResult(CLASAlgoResultType.BACKOFF2, 0, 0, phase, freq, quadrature, current_amp, mean_amp, current_hl_ratio, mean_hl_ratio)
 
         ### perform forward prediction ###
