@@ -146,11 +146,91 @@ class SleepStudyApp(QWidget):
         # Fix the header height so it remains small
         header_widget.setFixedHeight(80)
         return header_widget
+    def create_header_main_page(self):
+        # Wrap the header layout in a widget so we can fix its height.
+        header_widget = QWidget()
+        top_layout = QHBoxLayout(header_widget)
+        top_layout.setContentsMargins(10, 10, 10, 10)
+        # Left side: logo and text
+        left_layout = QHBoxLayout()
+        logo_label = QLabel()
+        logo_pixmap = QPixmap("assets/logo.png")
+        if not logo_pixmap.isNull():
+            # Keep the logo size small regardless of full screen.
+            logo_label.setPixmap(logo_pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio))
+        left_layout.addWidget(logo_label)
+        text_layout = QVBoxLayout()
+        lab_label = QLabel("Ibrahim Lab")
+        lab_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
+        lab_label.setStyleSheet("color: white;")
+        study_label = QLabel("Overnight sounds research study")
+        study_label.setFont(QFont("Arial", 18))
+        study_label.setStyleSheet("color: white;")
+        text_layout.addWidget(lab_label)
+        text_layout.addWidget(study_label)
+        left_layout.addLayout(text_layout)
+        left_layout.setAlignment(Qt.AlignVCenter)
+        top_layout.addLayout(left_layout)
+        top_layout.addStretch()
+
+        # Right side: QUIT button
+        stop_button = QPushButton("Press to QUIT")
+        stop_button.setFont(QFont("Arial", 15, QFont.Weight.Bold))
+        stop_button.setStyleSheet("background-color: #8B4513; color: white; padding: 10px; border-radius: 10px;")
+        stop_button.clicked.connect(QApplication.instance().quit)
+        top_layout.addWidget(stop_button)
+        # Fix the header height so it remains small
+        header_widget.setFixedHeight(80)
+        return header_widget
+    
+    def create_header_no_status(self):
+        # Wrap the header layout in a widget so we can fix its height.
+        header_widget = QWidget()
+        top_layout = QHBoxLayout(header_widget)
+        top_layout.setContentsMargins(10, 10, 10, 10)
+        # Left side: logo and text
+        left_layout = QHBoxLayout()
+        logo_label = QLabel()
+        logo_pixmap = QPixmap("assets/logo.png")
+        if not logo_pixmap.isNull():
+            # Keep the logo size small regardless of full screen.
+            logo_label.setPixmap(logo_pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio))
+        left_layout.addWidget(logo_label)
+        text_layout = QVBoxLayout()
+        lab_label = QLabel("Ibrahim Lab")
+        lab_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
+        lab_label.setStyleSheet("color: white;")
+        study_label = QLabel("Overnight sounds research study")
+        study_label.setFont(QFont("Arial", 18))
+        study_label.setStyleSheet("color: white;")
+        text_layout.addWidget(lab_label)
+        text_layout.addWidget(study_label)
+        left_layout.addLayout(text_layout)
+        left_layout.setAlignment(Qt.AlignVCenter)
+        top_layout.addLayout(left_layout)
+        top_layout.addStretch()
+
+        # Right side: HOME button
+        home_button = QPushButton("Press to GO HOME")
+        home_button.setFont(QFont("Arial", 15, QFont.Weight.Bold))
+        home_button.setStyleSheet("background-color: #8B4513; color: white; padding: 10px; border-radius: 10px;")
+        home_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.main_page))
+        top_layout.addWidget(home_button)
+
+        # Right side: QUIT button
+        stop_button = QPushButton("Press to QUIT")
+        stop_button.setFont(QFont("Arial", 15, QFont.Weight.Bold))
+        stop_button.setStyleSheet("background-color: #8B4513; color: white; padding: 10px; border-radius: 10px;")
+        stop_button.clicked.connect(QApplication.instance().quit)
+        top_layout.addWidget(stop_button)
+        # Fix the header height so it remains small
+        header_widget.setFixedHeight(80)
+        return header_widget
 
     def create_main_page(self):
         main_widget = QWidget()
         layout = QVBoxLayout()
-        layout.addWidget(self.create_header())
+        layout.addWidget(self.create_header_main_page())
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
@@ -158,24 +238,24 @@ class SleepStudyApp(QWidget):
         layout.addWidget(separator)
         center_layout = QVBoxLayout()
         center_layout.setAlignment(Qt.AlignCenter)
-        title_label = QLabel("Night 1 of 2")
+        title_label = QLabel("Welcome")
         title_label.setFont(QFont("Arial", 32, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         center_layout.addWidget(title_label)
-        start_button = QPushButton("Start setup for sleep")
+        start_button = QPushButton("Connect MUSE headband")
         start_button.setFont(QFont("Arial", 25))
         start_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
         # Set a maximum width to preserve ratio
         start_button.setMaximumWidth(400)
         start_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.data_collection_page))
         center_layout.addWidget(start_button)
-        sleepiness_button = QPushButton("Do the sleepiness test")
+        sleepiness_button = QPushButton("Play Cognitive Games")
         sleepiness_button.setFont(QFont("Arial", 25))
         sleepiness_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
         sleepiness_button.setMaximumWidth(400)
         sleepiness_button.clicked.connect(lambda: self.stacked_widget.setCurrentWidget(self.game_launch_page))
         center_layout.addWidget(sleepiness_button)
-        report_button = QPushButton("View sleep stage report")
+        report_button = QPushButton("View Sleep Analysis Report")
         report_button.setFont(QFont("Arial", 25))
         report_button.setStyleSheet("background-color: #3A1D92; color: white; padding: 10px; border-radius: 10px;")
         report_button.setMaximumWidth(400)
@@ -188,7 +268,7 @@ class SleepStudyApp(QWidget):
     def create_data_collection_page(self):
         data_widget = QWidget()
         layout = QVBoxLayout()
-        layout.addWidget(self.create_header())
+        layout.addWidget(self.create_header_no_status())
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
@@ -288,7 +368,7 @@ class SleepStudyApp(QWidget):
         game_launcher_widget = QWidget()
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
-        layout.addWidget(self.create_header())
+        layout.addWidget(self.create_header_no_status())
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
