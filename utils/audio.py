@@ -51,7 +51,7 @@ class Audio(QObject):
     def __init__(self):
         super().__init__()
         self.queue = Queue()  # Inter-process communication queue
-        self.process = Process(target=audio_callback, args=(self.queue))
+        self.process = Process(target=audio_callback, args=(self.queue,))
         self.process.start()
 
         # Connect the signal to the handler
