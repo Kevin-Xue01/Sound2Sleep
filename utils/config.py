@@ -22,7 +22,7 @@ class CLASAlgoConfig(BaseModel):
 
     hl_ratio_buffer_len: int = 5
     hl_ratio_wavelet_freqs: list = [10, 20, 30]
-    hl_ratio_latest_threshold: float = 0.10
+    hl_ratio_latest_threshold: float = 0.15
     hl_ratio_buffer_threshold: float = 0.15
 
     amp_buffer_len: int = 10
@@ -53,7 +53,7 @@ class SessionConfig(BaseModel):
 
     _data_dir: str = PrivateAttr(default_factory=lambda: os.path.join("data", os.getenv('SUBJECT_NAME')))
     experiment_mode: ExperimentMode = ExperimentMode.CLAS_AUDIO_ON
-    connection_mode: ConnectionMode = ConnectionMode.GENERATED
+    connection_mode: ConnectionMode = ConnectionMode.REALTIME
 
     switch_channel_period_s: float = 15.0
     time_to_target_offset: float = 0.003
